@@ -10,6 +10,8 @@ import java.awt.Graphics2D;
 import java.awt.GridBagLayout;
 import java.awt.Image;
 import java.awt.RenderingHints;
+import java.beans.PropertyChangeEvent;
+import java.beans.PropertyChangeListener;
 import java.io.IOException;
 import java.net.URL;
 
@@ -25,6 +27,9 @@ import javax.swing.JPasswordField;
 import javax.swing.JTextField;
 import javax.swing.SwingUtilities;
 
+import interface_adapter.login.LoginController;
+import interface_adapter.login.LoginViewModel;
+
 /**
  * Swing view for the Login page.
  *
@@ -34,11 +39,11 @@ import javax.swing.SwingUtilities;
  * while preserving its aspect ratio. If the image is missing, a
  * plain dark-green gradient is painted instead.
  *
- * UI-only for now: the button handlers contain TODOs where the
- * LoginController will be plugged in once the login use case exists
- * (follow the structure of use_case.create_event).
+ * The Log In button calls the LoginController, and the page shows whatever
+ * message the LoginViewModel holds; navigation is decided by the presenter,
+ * so this view never switches pages itself.
  */
-public class LoginView extends JPanel {
+public class LoginView extends JPanel implements PropertyChangeListener {
 
     /** Classpath location of the background image (under src/main/resources). */
     private static final String BACKGROUND_RESOURCE = "/images/login_stadium.jpg";
@@ -49,10 +54,23 @@ public class LoginView extends JPanel {
     private final JPasswordField passwordField = new JPasswordField(20);
     private final JLabel errorLabel = new JLabel(" ");
 
-    /** Called after a successful login so the app can navigate to the shell. */
-    private Runnable onLoginSuccess;
+    private final LoginViewModel viewModel;
+    private LoginController controller;
+    private Runnable onGoToSignup;
 
+    /** Creates the page with a fresh view model. */
     public LoginView() {
+        this(new LoginViewModel());
+    }
+
+    /**
+     * Creates the page with the view model it observes.
+     *
+     * @param viewModel the login page state
+     */
+    public LoginView(LoginViewModel viewModel) {
+        this.viewModel = viewModel;
+        this.viewModel.addPropertyChangeListener(this);
         this.backgroundImage = loadBackgroundImage();
 
         // GridBagLayout keeps the login card centered at any window size.
@@ -175,8 +193,39 @@ public class LoginView extends JPanel {
         return card;
     }
 
-    public void setOnLoginSuccess(Runnable onLoginSuccess) {
-        this.onLoginSuccess = onLoginSuccess;
+    /**
+     * Gives the page the controller to call when Log In is pressed.
+     *
+     * @param controller the login controller
+     */
+    public void setLoginController(LoginController controller) {
+        this.controller = controller;
+    }
+
+    /**
+     * Sets what happens when the user asks for the sign-up page.
+     *
+     * @param onGoToSignup the navigation callback
+     */
+    public void setOnGoToSignup(Runnable onGoToSignup) {
+        this.onGoToSignup = onGoToSignup;
+    }
+
+    @Override
+    public void propertyChange(PropertyChangeEvent evt) {
+        final String error = viewModel.getErrorMessage();
+        if (!error.isEmpty()) {
+            errorLabel.setForeground(new Color(180, 30, 30));
+            errorLabel.setText(error);
+            return;
+        }
+        final String success = viewModel.getSuccessMessage();
+        if (!success.isEmpty()) {
+            errorLabel.setForeground(new Color(22, 101, 52));
+            errorLabel.setText(success);
+            return;
+        }
+        errorLabel.setText(" ");
     }
 
     private void onLogin() {
@@ -189,20 +238,20 @@ public class LoginView extends JPanel {
         }
 
         errorLabel.setText(" ");
-        // TODO: call LoginController.execute(username, password) once the
-        // login use case is implemented; the presenter should then trigger
-        // navigation on success instead of this placeholder.
-        if (onLoginSuccess != null) {
-            passwordField.setText("");
-            onLoginSuccess.run();
-        } else {
-            errorLabel.setText("Login use case not implemented yet.");
+        if (controller == null) {
+            errorLabel.setForeground(new Color(180, 30, 30));
+            errorLabel.setText("Login is not wired up in this preview.");
+            return;
         }
+        controller.execute(username, password);
+        passwordField.setText("");
     }
 
     private void onGoToSignup() {
-        // TODO: switch to the Signup view via a ViewManager / CardLayout.
-        errorLabel.setText("Signup view not implemented yet.");
+        errorLabel.setText(" ");
+        if (onGoToSignup != null) {
+            onGoToSignup.run();
+        }
     }
 
     /** Standalone preview — run this class directly to see the page. */

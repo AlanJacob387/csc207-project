@@ -11,6 +11,7 @@ import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 import javax.swing.BorderFactory;
@@ -20,6 +21,8 @@ import javax.swing.JButton;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 
+import entity.Role;
+
 /**
  * The signed-in application shell: a dark sidebar with navigation on the
  * left and a CardLayout content area on the right.
@@ -27,8 +30,9 @@ import javax.swing.JPanel;
  * Pages are added with addPage(name, component); nav buttons are created
  * automatically and highlight the active page.
  *
- * TODO: filter which nav items are visible based on the logged-in user's
- * Role (coach / player / parent / admin) once the login use case exists.
+ * Pages are added with addPage(name, component, roles...), and applyRole(...)
+ * rebuilds the sidebar so each role only sees the pages it may use. A page
+ * with no roles listed is visible to everyone.
  */
 public class AppShell extends JPanel {
 
@@ -44,6 +48,7 @@ public class AppShell extends JPanel {
     private final JPanel content = new JPanel(contentCards);
     private final JPanel navList = new JPanel();
     private final Map<String, JButton> navButtons = new LinkedHashMap<>();
+    private final Map<String, List<Role>> pageRoles = new LinkedHashMap<>();
     private String activePage;
 
     private final Runnable onLogout;
@@ -57,9 +62,16 @@ public class AppShell extends JPanel {
         add(content, BorderLayout.CENTER);
     }
 
-    /** Add a page and a matching sidebar nav item. First page added is shown. */
-    public void addPage(String name, Component page) {
+    /**
+     * Adds a page and a matching sidebar nav item. The first page added is shown.
+     *
+     * @param name  the page name, also used as the nav label
+     * @param page  the page component
+     * @param roles the roles allowed to see this page; none means everyone
+     */
+    public void addPage(String name, Component page, Role... roles) {
         content.add(page, name);
+        pageRoles.put(name, List.of(roles));
         final JButton item = navButton(name, () -> showPage(name));
         navButtons.put(name, item);
         navList.add(item);
@@ -76,6 +88,40 @@ public class AppShell extends JPanel {
         for (Map.Entry<String, JButton> e : navButtons.entrySet()) {
             e.getValue().repaint();
         }
+    }
+
+    /**
+     * Rebuilds the sidebar for a role, so each user only sees their own pages.
+     * If the page on screen is no longer allowed, the first allowed page is shown.
+     *
+     * @param role the signed-in user's role, or null to show every page
+     */
+    public void applyRole(Role role) {
+        navList.removeAll();
+        for (Map.Entry<String, JButton> entry : navButtons.entrySet()) {
+            if (isVisibleFor(entry.getKey(), role)) {
+                navList.add(entry.getValue());
+                navList.add(Box.createVerticalStrut(4));
+            }
+        }
+        navList.revalidate();
+        navList.repaint();
+
+        if (activePage != null && !isVisibleFor(activePage, role)) {
+            for (Map.Entry<String, JButton> entry : navButtons.entrySet()) {
+                if (isVisibleFor(entry.getKey(), role)) {
+                    showPage(entry.getKey());
+                    break;
+                }
+            }
+        }
+    }
+
+    /** Says whether a page is allowed for a role; no roles listed means everyone. */
+    private boolean isVisibleFor(String page, Role role) {
+        final List<Role> allowed = pageRoles.get(page);
+        return role == null || allowed == null || allowed.isEmpty()
+                || allowed.contains(role);
     }
 
     // ------------------------------------------------------------------

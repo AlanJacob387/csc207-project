@@ -9,8 +9,8 @@
 |---|---|---|
 | 1.0 | Gradle build file | ✅ done (commit `223f630`, Gradle 9.8.2 + OkHttp + org.json + JUnit 5) |
 | 1.2 | Storage gateway for accounts | done 2026-10-29 |
-| 1.3 | `login` + `signup` use cases | next (items 4-5) |
-| 1.5 | Role-based navigation in `AppShell` | pending |
+| 1.3 | `login` + `signup` use cases | done 2026-10-29 |
+| 1.5 | Role-based navigation in `AppShell` | done 2026-10-29 |
 | 3.5 | `manage_users` (admin) | deferred — P2, Sprint 3 |
 | 4.3 | Validation / robustness pass | Sprint 4 |
 | — | Week-1 API items (spike + README API section) | done 2026-10-29 |
@@ -40,6 +40,17 @@
 | Absence Notices | — | — | — | ✅ |
 
 Pages not listed for a role are hidden in the sidebar (not disabled), so the shell looks clean per role.
+
+## Demo accounts (seeded by `Main` when the store is empty)
+
+| Username | Password | Role | Sidebar pages |
+|---|---|---|---|
+| coach1 | pw | COACH | Calendar, Events, New Event, Announcements, Roster |
+| player1 | pw | PLAYER | Calendar, Events, Announcements, My Stats |
+| parent1 | pw | PARENT | Calendar, Events, Announcements |
+| admin1 | pw | ADMIN | Calendar, Events, Announcements, Roster |
+
+Created only when the store has no `coach1`, so real data is never overwritten. Replace with the team's seed script (task 4.4).
 
 ## Storage design
 
@@ -148,4 +159,5 @@ Same as `Plan.md`: the six `use_case/<name>` files, the three `interface_adapter
 |------|--------|
 | 2026-10-29 | File created: scope, decisions, storage design, phases, API items |
 | 2026-10-29 | Course API dropped (retired host, not a course requirement); storage is the local JSON file; `DBDataAccessObject` deleted; statuses restored |
+| 2026-10-29 | Login and signup built end to end: use cases, controllers, presenters, view models, `ViewManagerModel`, `Session`, `SignupView`; `LoginView` wired; `AppShell` filters pages by role; `Main` rewired to the file store; 42 tests green and the app launches |
 

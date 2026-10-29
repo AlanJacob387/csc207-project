@@ -90,7 +90,7 @@ public class FileAppDataAccessObject implements
 
     /**
      * Updates only the profile fields of a user, leaving the stored password
-     * untouched. Used when credentials live in the course API instead.
+     * untouched. Useful when credentials are kept somewhere else, such as a hosted store.
      *
      * @param username    the user's username
      * @param displayName the name to display

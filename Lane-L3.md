@@ -13,15 +13,15 @@
 | 1.5 | Role-based navigation in `AppShell` | pending |
 | 3.5 | `manage_users` (admin) | deferred — P2, Sprint 3 |
 | 4.3 | Validation / robustness pass | Sprint 4 |
-| — | Week-1 API items (spike + README API section) | Open-Meteo called from Java 2026-10-29; README rewritten; course API still unverified |
+| — | Week-1 API items (spike + README API section) | done 2026-10-29 |
 
 ## Decisions locked
 
 | # | Decision | Choice | Why |
 |---|----------|--------|-----|
-| D6 | Persistence | **Course API for credentials; local JSON file for app data** (roles, teams, events, RSVPs, attendance) | The course API stores only `username`/`password` (confirmed in both `ca-user-login` and `ca-lab` DAOs), is per-user, and has no list/query endpoint — shared team data cannot live there. Firebase RTDB REST is a later one-class swap |
+| D6 | Persistence | **Local JSON file only** (`data/app-data.json`): users incl. passwords, roles, teams, events, attendance | No server is needed, and the 2025F course API turned out to be retired (dead host and port, and not a course requirement). A hosted store (Firebase RTDB, JSONBin) is a later one-class swap behind the same interfaces |
 | — | Role at signup | Dropdown on the signup form, defaults to `PLAYER` | Lets all four roles be demoed without admin tooling |
-| — | Passwords | Plaintext, mirroring the course API; recorded in `Documentation.md` | The course API stores whatever we send; hashing adds scope with no graded benefit |
+| — | Passwords | Plaintext in the local store; to be recorded in `Documentation.md` (task 4.5) | Course scope; hashing adds work with no graded benefit. Revisit before any real deployment |
 | — | `manage_users` | Deferred to P2 / Sprint 3 | No API support for listing users; needs the local registry first |
 | — | Java toolchain | Pin a Java 21 toolchain **only if** Gradle 9.8.2 fails on JDK 26 | Keeps `options.release = 17` working without forcing everyone's JDK down |
 
@@ -49,25 +49,25 @@ Follows the course convention: **one narrow data-access interface per use case**
 |---|---|
 | `use_case/login/LoginUserDataAccessInterface` | `User get(String username)` |
 | `use_case/signup/SignupUserDataAccessInterface` | `boolean existsByName(String username)`, `void save(User user)` |
-| `data_access/DBDataAccessObject` | Course API, **credentials only**: `GET /user?username=`, `GET /checkIfUserExists?username=`, `POST /user`, `PUT /user` |
+| ~~`data_access/DBDataAccessObject`~~ | **Deleted 2026-10-29** — it targeted the retired 2025F course API and could not be verified. A hosted store can be added later behind the same interfaces |
 | `data_access/FileAppDataAccessObject` | Local JSON store for app data; implements the per-use-case interfaces it needs |
-| `data_access/InMemoryAppDataAccessObject`, `InMemoryUserDataAccessObject` | Test fakes (no network, no disk) |
+| `data_access/InMemoryUserDataAccessObject` | Test fake for accounts (no network, no disk). App data is tested against a temporary file via `@TempDir` |
 | `data_access/EntityJsonMapper` | Entity ⇄ JSON in **one** place, so the on-disk shape is unit-testable and reusable by a future Firebase DAO |
 
-**On-disk shape** (`data/app-data.json`, git-ignored except for a seeded sample):
+**On-disk shape** (`data/app-data.json`, git-ignored; created on first write):
 
 ```json
 {
-  "users": [{"username": "coach1", "displayName": "Coach One", "role": "COACH"}],
+  "users": [{"username": "coach1", "password": "pw", "displayName": "Coach One", "role": "COACH"}],
   "teams": [{"teamId": "t1", "name": "Raptors", "sport": "Basketball", "coachUsername": "coach1", "playerUsernames": ["p1"]}],
   "events": [{"eventId": "e1", "teamId": "t1", "type": "GAME", "dateTime": "2026-11-01T18:00", "location": "Gym A", "opponent": "Bears", "cancelled": false}],
   "attendance": [{"eventId": "e1", "playerUsername": "p1", "status": "PRESENT", "statsNotes": "2 goals"}]
 }
 ```
 
-Note: passwords are **not** written to this file — they live in the course API only. The file holds profile data (`displayName`, `role`) keyed by username.
+Note: passwords **are** stored in this file as plaintext (see the decision table above), so the local store can serve login with no server at all. The file is git-ignored - do not commit real credentials.
 
-**Firebase swap path** (if the team later wants cross-device state): add `FirebaseDataAccessObject` implementing the same interfaces, reuse `EntityJsonMapper` unchanged, change one line in the wiring. Unit tests keep using the in-memory fakes and do not change.
+**Hosted-store swap path** (if the team later wants cross-device state): add e.g. `FirebaseDataAccessObject` or `JsonBinDataAccessObject` implementing the same interfaces, reuse `EntityJsonMapper` unchanged, change one line in the wiring. Unit tests keep using the in-memory fakes and do not change.
 
 ## Phases and tasks
 
@@ -86,8 +86,8 @@ Note: passwords are **not** written to this file — they live in the course API
 | L3-1.1 | `LoginUserDataAccessInterface`, `SignupUserDataAccessInterface` (one per use case, per course convention) | 2 interfaces |
 | L3-1.2 | `EntityJsonMapper`: entity ⇄ JSON for `User`, `Team`, `Event`, `AttendanceRecord` | Mapper + round-trip tests |
 | L3-1.3 | `FileAppDataAccessObject` — reads/writes `data/app-data.json`, creates the file if missing | DAO + tests |
-| L3-1.4 | `InMemoryUserDataAccessObject`, `InMemoryAppDataAccessObject` — fakes for tests | Fakes + tests |
-| L3-1.5 | `DBDataAccessObject` — course API credentials (`GET /user`, `GET /checkIfUserExists`, `POST /user`, `PUT /user`) | DAO |
+| L3-1.4 | `InMemoryUserDataAccessObject` — fake for account tests (app data is tested against a temp file) | Fakes + tests |
+| L3-1.5 | ~~`DBDataAccessObject`~~ — dropped: the course API is retired, so accounts come from the local store | n/a |
 | L3-1.6 | Unit tests: mapper round-trip, file DAO persistence, unknown-user / wrong-password / duplicate-username paths | Green test suite |
 
 ### Phase 2 — Login use case (item 4)
@@ -112,13 +112,13 @@ Note: passwords are **not** written to this file — they live in the course API
 
 | ID | Task | Status |
 |----|------|--------|
-| L3-API-1 | **Experiment A:** `POST /user` with an extra `role` field, then `GET /user` to see whether it persists | pending — must run on Andy's machine |
-| L3-API-2 | **Experiment B:** probe `GET /data?username=…` (and `/userData`) for a generic store | pending — same |
-| L3-API-3 | **Experiment C:** read the Postman workspace folder list for a store-data request | pending |
-| L3-API-4 | Prove one API call works from Java (Open-Meteo via OkHttp) with runnable evidence | pending |
-| L3-API-5 | Rewrite README `## APIs` in the course format: doc link, how it is used, called successfully (yes/no + date) | pending |
+| L3-API-1 | **Experiment A:** `POST /user` with an extra `role` field, then `GET /user` to see whether it persists | dropped 2026-10-29 (course API retired) |
+| L3-API-2 | **Experiment B:** probe `GET /data?username=…` (and `/userData`) for a generic store | dropped 2026-10-29 (course API retired) |
+| L3-API-3 | **Experiment C:** read the Postman workspace folder list for a store-data request | dropped 2026-10-29 (course API retired) |
+| L3-API-4 | Prove one API call works from Java (Open-Meteo via OkHttp) with runnable evidence | done 2026-10-29: real call returned max 21.3 C, rain chance 19% |
+| L3-API-5 | Rewrite README `## APIs` in the course format: doc link, how it is used, called successfully (yes/no + date) | done 2026-10-29 |
 
-> This sandbox has **no network route to `vm003.teach.cs.toronto.edu:20112`** (verified 2026-10-29: DNS resolves to 142.1.148.13 but TCP port 20112 is refused), so Experiments A and B cannot be run here. They are a 5-minute job on a machine with normal internet, or via the Postman UI. `services.gradle.org` *is* reachable, so the Gradle build can run here.
+> The 2025F course API host (`vm003.teach.cs.toronto.edu:20112`) no longer answers (checked 2026-10-29: DNS resolves to 142.1.148.13 but TCP port 20112 is refused), and the Postman workspace no longer has the documented section. The course does not require it, so it is out of scope. `services.gradle.org` *is* reachable, so the Gradle build can run here.
 
 ## Definition of Done (per slice)
 
@@ -139,12 +139,13 @@ Same as `Plan.md`: the six `use_case/<name>` files, the three `interface_adapter
 |------|-----------|
 | Gradle 9.8.2 may not support the local JDK 26 | Pin a Java 21 toolchain in `build.gradle` (L3 owns the build file) |
 | First `gradlew` run downloads ~130 MB | One-time; caches in `~/.gradle` |
-| Course API unreachable or reset | The file store keeps the demo alive; seed local accounts if the API is down during the presentation |
-| Course API turns out to store more than credentials (Experiment A/B) | Only the DAO changes — interfaces and views are unaffected |
+| Data is per machine: a coach's laptop and a player's laptop share nothing | Accepted for now and documented as a known limitation; a hosted store behind the same interfaces fixes it later |
+| The local JSON file is deleted or corrupted | `load()` treats a missing file as an empty store; keep the demo seed script (task 4.4) able to recreate data |
 
 ## Change log
 
 | Date | Change |
 |------|--------|
 | 2026-10-29 | File created: scope, decisions, storage design, phases, API items |
+| 2026-10-29 | Course API dropped (retired host, not a course requirement); storage is the local JSON file; `DBDataAccessObject` deleted; statuses restored |
 

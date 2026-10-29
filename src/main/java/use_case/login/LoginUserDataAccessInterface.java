@@ -4,7 +4,7 @@ import entity.User;
 
 /**
  * Data access interface required by the Log In use case.
- * Implemented in the data_access layer (course API, local JSON file, in-memory fake).
+ * Implemented in the data_access layer (local JSON file, in-memory fake).
  */
 public interface LoginUserDataAccessInterface {
 

@@ -17,7 +17,7 @@
 |------|-------|-------|--------------------------|--------------|----------|
 | L1 | Alan | Scheduling & events | `create_event` (existing), `view_schedule`, `export_schedule`, event details/edit/cancel, `CalendarView`, `IcsExporter`, `AppBuilder` | 1, 3 (view half), 5 (trigger) | P0 |
 | L2 | Person 2 | Attendance & stats | `record_attendance`, `view_stats`, `AttendanceRecord`, stats entities, "My Stats" page | 2, 4 | P0 / P1 |
-| L3 | Andy | Accounts & auth | `login`, `signup`, `manage_users`, `DBDataAccessObject`, `AppShell` role filtering, build file | 8 | P0 (login) / P2 (admin) |
+| L3 | Andy | Accounts & auth | `login`, `signup`, `manage_users`, `AppShell` role filtering, build file | 8 | P0 (login) / P2 (admin) |
 | L4 | Person 4 | Teams & roster | `manage_teams`, roster page, parent↔child linking, entity model owner | 7, 6 (link half) | P0 / P1 |
 | L5 | Person 5 | Communications | announcements, event-change notifications, absence notices, demo seed data | 5, 6 (notice half) | P1 / P2 |
 
@@ -41,7 +41,7 @@ Nothing can be built in parallel until persistence, navigation and roles are rea
 |----|----------------------|-------|------------|-------------|-----|
 | 1.0 | Add the Gradle build (`build.gradle`, `settings.gradle`) with OkHttp, `org.json`, JUnit; document `gradle run` / `gradle test` in the README | L3 | — | app builds from a clean clone | Fri 10-30 |
 | 1.1 | **Decision gate:** freeze the entity model (`User`, `Team`, `Event`, `AttendanceRecord`, plus any new `Announcement` / parent-link / stats entity) — majority vote per TeamContract | All (L4 leads) | — | frozen entities on `main`, recorded in Documentation.md | Sat 10-31 |
-| 1.2 | `DBDataAccessObject` against the course DB API (signup, login, JSON blobs for teams/events/RSVPs/attendance) | L3 | 1.0 | gateway + `FakeUserDataAccessObject` for tests | Mon 11-02 |
+| 1.2 | Storage layer: local JSON store (`FileAppDataAccessObject`) plus in-memory fakes for tests | L3 | 1.0 | accounts, teams, events and attendance persist locally | Mon 11-02 |
 | 1.3 | `login` + `signup` use cases; replace the TODOs in `LoginView` (login button + "go to signup") | L3 (reviewer: L2) | 1.2 | real login, logged-in role available to the shell | Tue 11-03 |
 | 1.4 | `AppBuilder` refactor + `ViewManagerModel` so presenters can trigger navigation | L1 | 1.0 | `Main` slimmed to one `add...UseCase()` per feature | Tue 11-03 |
 | 1.5 | Role-based nav filtering in `AppShell` (existing TODO in that file) | L4 | 1.3 | sidebar shows only the pages the role may use | Wed 11-04 |
@@ -136,7 +136,7 @@ Nothing can be built in parallel until persistence, navigation and roles are rea
 | Risk | Impact | Mitigation |
 |------|--------|-----------|
 | No build file exists yet, so nothing can be run or tested | Everything blocks | Task 1.0 lands on day one (Fri 10-30) |
-| Course DB API quirks or downtime | Login slips and blocks all role work | `FakeUserDataAccessObject` lets other lanes proceed |
+| Course DB API retired (dead host and port) | Login would have been blocked | Resolved 2026-10-29: accounts use the local JSON store, no server needed |
 | Entity churn after Sprint 1 | Simultaneous rework in several lanes | Decision gate 1.1, then two-lane sign-off |
 | Merge conflicts in `Main.java` / `AppShell` | Weekly friction and lost work | AppBuilder refactor (1.4) plus one page owner per file |
 | External API unavailable during the demo | Demo failure | Cache the last response and show a graceful "unavailable" state |
@@ -157,8 +157,8 @@ Nothing can be built in parallel until persistence, navigation and roles are rea
 | D3 | Parent↔child link | invite code, admin-assigned, or parent enters the player's username | L4 |
 | D4 | Children per parent | one child vs many | L4 |
 | D5 | Roles per user | one role (`User.role`, current) vs multi-role | L3 |
-| D6 | Persistence | **Decided 2026-10-29:** course API for credentials, local JSON file for app data (roles, teams, events, attendance). Firebase RTDB is a later one-class swap | L3 |
-| D7 | Graded external API | Open-Meteo (the only gateway stub today) vs another from the README list | L1 |
+| D6 | Persistence | **Decided 2026-10-29:** local JSON file only (`data/app-data.json`) for accounts, teams, events and attendance. The 2025F course API is retired and not required; a hosted store is a later one-class swap | L3 |
+| D7 | External API | **Decided 2026-10-29:** Open-Meteo - called successfully from Java and documented in the README. The other ideas stay in the README list | L1 |
 
 ## Unclaimed backlog (pull when a lane finishes early)
 

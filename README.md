@@ -33,15 +33,14 @@ Team Sports is a desktop application that brings everything a sports team needs 
 - **How it is used:** the schedule shows the forecast for the date and place of each practice or game, and an event whose chance of rain is 60% or higher is flagged as at risk of cancellation. Code: `data_access/OpenMeteoWeatherGateway`.
 - **Called successfully?** **Yes.** First successful call from Java (OkHttp) on 2026-10-29: `Open-Meteo replied for 2026-10-29: max 21.3 C, rain chance 19%`. No key or account needed. Live check: `gradlew test -Pnetwork` (network-tagged tests are skipped by default so the suite stays green offline).
 
-### Course user API — accounts (in use)
-- **Documentation:** https://www.postman.com/cloudy-astronaut-813156/csc207-grade-apis-demo/documentation/fg3zkjm/5-password-protected-user
-- **How it is used:** sign up and log in, so an account is not tied to one machine. Code: `data_access/DBDataAccessObject` (`GET /user`, `GET /checkIfUserExists`, `POST /user`, `PUT /user`). The API stores credentials only, so display name and role are kept in our own JSON store.
-- **Called successfully?** **No.** As of 2026-10-29 the server refuses connections (DNS resolves to 142.1.148.13, but TCP port 20112 is refused from our network), so the client is written but unverified. Andy is retrying from another network (see `Lane-L3.md`, Experiments A-C).
-
 ### Ideas we have not called yet
 - **TheSportsDB** — https://www.thesportsdb.com/free_sports_api — link a team to a real pro team and import names or photos (free test key).
 - **Nominatim (OpenStreetMap)** — https://nominatim.org/release-docs/latest/api/Overview/ — turn a typed venue address into coordinates.
 - **Nager.Date** — https://date.nager.at/swagger/index.html — warn when a practice lands on a holiday or long weekend.
 - **API-Ninjas (Exercises)** — https://api-ninjas.com/api/exercises — drill suggestions for practice plans (free key in a header).
 - **Firebase Realtime Database REST** — https://firebase.google.com/docs/reference/rest/database — a shared JSON store instead of the local file.
+
+### Where data lives
+- App data (accounts, teams, events, attendance) is kept in a local JSON file (`data/app-data.json`), so it is **per machine** - nothing is shared between devices yet. A hosted store can be added later behind the same interfaces.
+
 ## Screenshots or animations demonstrating current functionality

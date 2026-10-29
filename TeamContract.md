@@ -16,39 +16,45 @@ This contract sets out shared expectations and commitments for how our team will
 ---
 ## Team Norms and Expectations
 
+- For each individual to contribute more or less equally to the project, and devoting the necessary amountn of time
+- For each individual to be clear and transparent about their communications to enable easy collabaration
+
 ### Communication
 
-* Which platform will you use for communication outside of class, when required for work on your course project? (Examples: Text message, Discord, WeChat, etc.)
+* Communication will be done through the Whatsapp group chat
+* Each teammate agrees to respond to messages within 24 hours on weekdays. (The other must notify the teammate directly, either by replying to a message or @.)
 
-* Each teammate agrees to respond to messages in at most how long? 1 day? 2 days? Some other amount of time? 
+* If an individual is not able to make an external deadline, or are not able to make the final presentation, you must inform the team directly 72 hours (3 days) in advance, and notify the team of what they have to cover for you.
+* If an individual is not able to make an internal deadline (as per in Plan.md), you must notify the team at within 24 hours of the deadline passing
 
-* What things should a teammate notify you about? (Examples: if they think they won't be able to meet a deadline, if they have to miss lecture, etc.)
-
-* Respectful and inclusive behaviour are necessary for smooth and productive communication. What are some respectful and inclusive behaviours you expect when communicating with each other during lectures, labs, or outside of class? (Examples: Actively listening to each team members ideas, giving everyone a chance to meaningfully contribute, etc.)
+* Respectful and inclusive behaviour are necessary for smooth and productive communication. Be respectful when communicating with each other: Actively listen to each team members ideas and everyone a chance to meaningfully contribute.
 
 ---
 
-### [Other Categories of norms and expectations go here]
-
-* Based on your previous teamwork experiences, what other behaviours do you agree upon as a team?
-    - some examples of possible additional team norms and expectations are included in the sample team contract in case your team needs some help getting ideas for what else you want to include.
+### Code expectations
+* Work in Main must be strictly **runnable and reviewed**. Work in progress must remain in development branches.
+* In case of a merge conflict, discuss through messages externally and agree on a solution before resolving
+* Every Class/Method should have type annotations and clear, manually typed comments, for the ease of reviewer
+* Members agree to review each other’s work constructively.
+* Each Pull Request must will be reviewed by at least one team member who has not worked on that part
 
 ---
 
 ## Decision Making
 
-* How will decisions about your team project be made? (Examples: By majority vote, by unanimous vote, etc.)
+* How will decisions about your team project be made? **Majority vote**
 
 ---
 ## Conflict resolution
 
-* How will your team resolve conflicts? (Example: by listening to each other's side of the issue and attempting to reach a compromise. By consulting a TA or instructor as a team, if a resolution has not yet been reached.)
+* How will your team resolve conflicts? (Example: by listening to each other's side of the issue and attempting to reach a compromise. By consulting a TA or instructor as a team, if a resolution has not yet been reached.) **By discussing, and consulting with an instructor if necessary**
 
 ---
 
 ## Accountability
+* Persistent non-participation or failure to meet expectations may result in lower peer evaluation scores.
+* All members agree to provide honest and fair peer evaluations.
 
-* Reliability and accountability are also important aspects of teamwork. What are the responsibilities of each team member? (Example: completing their share of the work in a timely manner, seeking assistance from teammates/TAs/instructors when required, etc.)
 
 ---
 

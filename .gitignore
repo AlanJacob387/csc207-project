@@ -3,9 +3,12 @@
 *.iml
 out/
 
-# Gradle (for later)
+# Gradle
 .gradle/
 build/
+
+# Local app data written at runtime (see data_access/FileAppDataAccessObject)
+data/app-data.json
 
 # OS
 .DS_Store

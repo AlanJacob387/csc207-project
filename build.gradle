@@ -31,5 +31,12 @@ application {
 }
 
 test {
-    useJUnitPlatform()
+    useJUnitPlatform {
+        // Tests tagged "network" need internet access, so they are skipped by
+        // default and the suite stays deterministic. Run them with:
+        //   gradlew test -Pnetwork
+        if (!project.hasProperty('network')) {
+            excludeTags 'network'
+        }
+    }
 }

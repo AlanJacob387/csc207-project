@@ -51,6 +51,8 @@ Nothing can be built in parallel until persistence, navigation and roles are rea
 
 **Sprint 1 review (Wed 11-04):** demo the exit criterion, re-balance lanes, and hand any slipped task to the person with slack. Sprints 2–4 assume this sprint landed.
 
+| 1.9 | Week-1 API spike: prove an external API calls from Java (Open-Meteo: done 2026-10-29) and rewrite the README API section in the course format | L3 | - | README API section with doc links and call status | Wed 11-04 |
+
 ## Sprint 2 — Scheduling, RSVP and attendance (Thu 2026-11-05 → Wed 2026-11-11)
 
 | ID | Task | Owner | Depends on | Deliverable | Due |
@@ -155,7 +157,7 @@ Nothing can be built in parallel until persistence, navigation and roles are rea
 | D3 | Parent↔child link | invite code, admin-assigned, or parent enters the player's username | L4 |
 | D4 | Children per parent | one child vs many | L4 |
 | D5 | Roles per user | one role (`User.role`, current) vs multi-role | L3 |
-| D6 | Persistence | course DB API only vs DB plus local JSON fallback | L3 |
+| D6 | Persistence | **Decided 2026-10-29:** course API for credentials, local JSON file for app data (roles, teams, events, attendance). Firebase RTDB is a later one-class swap | L3 |
 | D7 | Graded external API | Open-Meteo (the only gateway stub today) vs another from the README list | L1 |
 
 ## Unclaimed backlog (pull when a lane finishes early)

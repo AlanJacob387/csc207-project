@@ -2,12 +2,14 @@ package view;
 
 import java.awt.Color;
 import java.awt.Component;
+import java.awt.Cursor;
 import java.awt.Dimension;
 import java.awt.Font;
-import java.awt.GradientPaint;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
+import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
+import java.awt.Insets;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 
@@ -16,6 +18,7 @@ import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
+import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JPasswordField;
@@ -28,24 +31,31 @@ import interface_adapter.signup.SignupViewModel;
 /**
  * Swing view for the Sign Up page.
  *
- * A centered white card on the same dark gradient the login page falls back to,
- * with the fields needed to create an account. The role dropdown lets the team
- * demo every role without admin tooling; a real deployment would not let new
- * accounts grant themselves ADMIN.
+ * Shares the login page background photo (see {@link BackgroundImage}) and the
+ * same white card styling, so the two pages feel like one app. The role dropdown
+ * lets the team demo every role without admin tooling; a real deployment would
+ * not let new accounts grant themselves ADMIN.
  *
- * The view only collects input and shows messages: all the decisions happen in
+ * The view only collects input and shows messages: every decision is made by
  * the Sign Up use case.
  */
 public class SignupView extends JPanel implements PropertyChangeListener {
 
+    private static final int FIELD_WIDTH = 320;
+    private static final int FIELD_HEIGHT = 30;
+    private static final Color ACCENT = new Color(23, 66, 148);
+    private static final Color ERROR = new Color(180, 30, 30);
+    private static final Color LABEL_INK = new Color(90, 98, 110);
+
     private final SignupViewModel viewModel;
+    private final BackgroundImage background = new BackgroundImage();
     private SignupController controller;
     private Runnable onBackToLogin;
 
-    private final JTextField usernameField = new JTextField(20);
-    private final JTextField displayNameField = new JTextField(20);
-    private final JPasswordField passwordField = new JPasswordField(20);
-    private final JPasswordField repeatPasswordField = new JPasswordField(20);
+    private final JTextField usernameField = new JTextField(18);
+    private final JTextField displayNameField = new JTextField(18);
+    private final JPasswordField passwordField = new JPasswordField(18);
+    private final JPasswordField repeatPasswordField = new JPasswordField(18);
     private final JComboBox<String> roleBox = new JComboBox<>(roleNames());
     private final JLabel messageLabel = new JLabel(" ");
 
@@ -94,87 +104,122 @@ public class SignupView extends JPanel implements PropertyChangeListener {
     protected void paintComponent(Graphics g) {
         super.paintComponent(g);
         final Graphics2D g2 = (Graphics2D) g.create();
-        g2.setPaint(new GradientPaint(0, 0, new Color(10, 25, 60),
-                0, getHeight(), new Color(20, 90, 55)));
-        g2.fillRect(0, 0, getWidth(), getHeight());
+        background.paint(g2, getWidth(), getHeight());
         g2.dispose();
     }
 
+    // ------------------------------------------------------------------
+    // Card
+    // ------------------------------------------------------------------
     private JPanel buildCard() {
         final JPanel card = new JPanel();
         card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
         card.setBackground(Color.WHITE);
         card.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(new Color(0, 0, 0, 60), 1, true),
-                BorderFactory.createEmptyBorder(30, 45, 30, 45)));
+                BorderFactory.createEmptyBorder(32, 48, 28, 48)));
 
         final JLabel title = new JLabel("Create an Account");
-        title.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 22));
+        title.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 24));
         title.setAlignmentX(Component.CENTER_ALIGNMENT);
 
-        final JLabel subtitle = new JLabel("Join your team's platform");
-        subtitle.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 13));
+        final JLabel subtitle = new JLabel("Join your team''s platform");
+        subtitle.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 14));
         subtitle.setForeground(Color.DARK_GRAY);
         subtitle.setAlignmentX(Component.CENTER_ALIGNMENT);
 
-        usernameField.setMaximumSize(new Dimension(300, 30));
-        displayNameField.setMaximumSize(new Dimension(300, 30));
-        passwordField.setMaximumSize(new Dimension(300, 30));
-        repeatPasswordField.setMaximumSize(new Dimension(300, 30));
-        roleBox.setMaximumSize(new Dimension(300, 30));
-        roleBox.setSelectedItem(Role.PLAYER.name());
+        final JPanel form = buildForm();
 
-        messageLabel.setForeground(new Color(180, 30, 30));
+        messageLabel.setForeground(ERROR);
+        messageLabel.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 12));
         messageLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
 
         final JButton createButton = new JButton("Create Account");
         createButton.setAlignmentX(Component.CENTER_ALIGNMENT);
-        createButton.setMaximumSize(new Dimension(300, 36));
+        createButton.setMaximumSize(new Dimension(FIELD_WIDTH, 38));
+        createButton.setPreferredSize(new Dimension(FIELD_WIDTH, 38));
         createButton.addActionListener(e -> onCreate());
 
         final JButton backButton = new JButton("Back to Log In");
         backButton.setAlignmentX(Component.CENTER_ALIGNMENT);
-        backButton.setMaximumSize(new Dimension(300, 36));
+        backButton.setBorderPainted(false);
+        backButton.setContentAreaFilled(false);
+        backButton.setFocusPainted(false);
+        backButton.setForeground(ACCENT);
+        backButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         backButton.addActionListener(e -> onBack());
 
         card.add(title);
         card.add(Box.createVerticalStrut(4));
         card.add(subtitle);
-        card.add(Box.createVerticalStrut(20));
-        card.add(fieldLabel("Username"));
-        card.add(usernameField);
-        card.add(Box.createVerticalStrut(10));
-        card.add(fieldLabel("Display name (optional)"));
-        card.add(displayNameField);
-        card.add(Box.createVerticalStrut(10));
-        card.add(fieldLabel("Password"));
-        card.add(passwordField);
-        card.add(Box.createVerticalStrut(10));
-        card.add(fieldLabel("Repeat password"));
-        card.add(repeatPasswordField);
-        card.add(Box.createVerticalStrut(10));
-        card.add(fieldLabel("I am a..."));
-        card.add(roleBox);
-        card.add(Box.createVerticalStrut(10));
+        card.add(Box.createVerticalStrut(24));
+        card.add(form);
+        card.add(Box.createVerticalStrut(12));
         card.add(messageLabel);
-        card.add(Box.createVerticalStrut(10));
+        card.add(Box.createVerticalStrut(12));
         card.add(createButton);
-        card.add(Box.createVerticalStrut(8));
+        card.add(Box.createVerticalStrut(4));
         card.add(backButton);
         return card;
     }
 
-    /** Builds a centered field label. */
-    private static JLabel fieldLabel(String text) {
-        final JLabel label = new JLabel(text);
-        label.setAlignmentX(Component.CENTER_ALIGNMENT);
-        return label;
+    /** Lays the fields out in one column, each with a small label above it. */
+    private JPanel buildForm() {
+        final JPanel form = new JPanel(new GridBagLayout());
+        form.setBackground(Color.WHITE);
+        form.setAlignmentX(Component.CENTER_ALIGNMENT);
+        form.setMaximumSize(new Dimension(FIELD_WIDTH, Integer.MAX_VALUE));
+
+        roleBox.setSelectedItem(Role.PLAYER.name());
+
+        int row = 0;
+        row = addField(form, row, "Username", usernameField);
+        row = addField(form, row, "Display name (optional)", displayNameField);
+        row = addField(form, row, "Password", passwordField);
+        row = addField(form, row, "Repeat password", repeatPasswordField);
+        addField(form, row, "I am a...", roleBox);
+        return form;
     }
 
+    /**
+     * Adds one small label and the field beneath it.
+     *
+     * @param form      the form panel
+     * @param row       the grid row to start at
+     * @param labelText the label above the field
+     * @param field     the input component
+     * @return the next free grid row
+     */
+    private static int addField(JPanel form, int row, String labelText, JComponent field) {
+        final GridBagConstraints labelConstraints = new GridBagConstraints();
+        labelConstraints.gridx = 0;
+        labelConstraints.gridy = row;
+        labelConstraints.anchor = GridBagConstraints.WEST;
+        labelConstraints.fill = GridBagConstraints.HORIZONTAL;
+        labelConstraints.weightx = 1;
+        labelConstraints.insets = new Insets(row == 0 ? 0 : 10, 0, 3, 0);
+
+        final JLabel label = new JLabel(labelText);
+        label.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 12));
+        label.setForeground(LABEL_INK);
+        form.add(label, labelConstraints);
+
+        final GridBagConstraints fieldConstraints = new GridBagConstraints();
+        fieldConstraints.gridx = 0;
+        fieldConstraints.gridy = row + 1;
+        fieldConstraints.fill = GridBagConstraints.HORIZONTAL;
+        fieldConstraints.weightx = 1;
+        field.setPreferredSize(new Dimension(FIELD_WIDTH, FIELD_HEIGHT));
+        form.add(field, fieldConstraints);
+        return row + 2;
+    }
+
+    // ------------------------------------------------------------------
+    // Actions
+    // ------------------------------------------------------------------
     private void onCreate() {
         if (controller == null) {
-            messageLabel.setForeground(new Color(180, 30, 30));
-            messageLabel.setText("Sign up is not wired up in this preview.");
+            showMessage("Sign up is not wired up in this preview.", ERROR);
             return;
         }
         messageLabel.setText(" ");
@@ -193,6 +238,11 @@ public class SignupView extends JPanel implements PropertyChangeListener {
         }
     }
 
+    private void showMessage(String text, Color colour) {
+        messageLabel.setForeground(colour);
+        messageLabel.setText(text);
+    }
+
     @Override
     public void propertyChange(PropertyChangeEvent evt) {
         final String error = viewModel.getErrorMessage();
@@ -200,8 +250,7 @@ public class SignupView extends JPanel implements PropertyChangeListener {
             messageLabel.setText(" ");
         }
         else {
-            messageLabel.setForeground(new Color(180, 30, 30));
-            messageLabel.setText(error);
+            showMessage(error, ERROR);
         }
     }
 }

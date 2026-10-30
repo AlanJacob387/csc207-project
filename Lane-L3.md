@@ -10,6 +10,7 @@
 | 1.0 | Gradle build file | ✅ done (commit `223f630`, Gradle 9.8.2 + OkHttp + org.json + JUnit 5) |
 | 1.2 | Storage gateway for accounts | done 2026-10-29 |
 | 1.3 | `login` + `signup` use cases | done 2026-10-29 |
+| 1.4 | `AppBuilder` refactor + `ViewManagerModel` (taken over from L1) | done 2026-10-29 |
 | 1.5 | Role-based navigation in `AppShell` | done 2026-10-29 |
 | 3.5 | `manage_users` (admin) | deferred — P2, Sprint 3 |
 | 4.3 | Validation / robustness pass | Sprint 4 |
@@ -159,5 +160,6 @@ Same as `Plan.md`: the six `use_case/<name>` files, the three `interface_adapter
 |------|--------|
 | 2026-10-29 | File created: scope, decisions, storage design, phases, API items |
 | 2026-10-29 | Course API dropped (retired host, not a course requirement); storage is the local JSON file; `DBDataAccessObject` deleted; statuses restored |
+| 2026-10-29 | `AppBuilder` created and `Main` reduced to the view/use-case chain; `BackgroundImage` extracted so login and signup share the stadium photo; `SignupView` redesigned (labelled fields, link-style back button) |
 | 2026-10-29 | Login and signup built end to end: use cases, controllers, presenters, view models, `ViewManagerModel`, `Session`, `SignupView`; `LoginView` wired; `AppShell` filters pages by role; `Main` rewired to the file store; 42 tests green and the app launches |
 

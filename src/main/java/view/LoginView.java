@@ -4,18 +4,12 @@ import java.awt.Color;
 import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.Font;
-import java.awt.GradientPaint;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.GridBagLayout;
-import java.awt.Image;
-import java.awt.RenderingHints;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
-import java.io.IOException;
-import java.net.URL;
 
-import javax.imageio.ImageIO;
 import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
@@ -33,11 +27,8 @@ import interface_adapter.login.LoginViewModel;
 /**
  * Swing view for the Login page.
  *
- * Full-screen page with a stadium photo background
- * (src/main/resources/images/login_stadium.jpg) and a centered
- * white login card. The image is scaled to cover the whole window
- * while preserving its aspect ratio. If the image is missing, a
- * plain dark-green gradient is painted instead.
+ * Full-screen page with the shared stadium photo background (see
+ * {@link BackgroundImage}) and a centered white login card.
  *
  * The Log In button calls the LoginController, and the page shows whatever
  * message the LoginViewModel holds; navigation is decided by the presenter,
@@ -45,10 +36,7 @@ import interface_adapter.login.LoginViewModel;
  */
 public class LoginView extends JPanel implements PropertyChangeListener {
 
-    /** Classpath location of the background image (under src/main/resources). */
-    private static final String BACKGROUND_RESOURCE = "/images/login_stadium.jpg";
-
-    private final Image backgroundImage;
+    private final BackgroundImage background = new BackgroundImage();
 
     private final JTextField usernameField = new JTextField(20);
     private final JPasswordField passwordField = new JPasswordField(20);
@@ -71,25 +59,10 @@ public class LoginView extends JPanel implements PropertyChangeListener {
     public LoginView(LoginViewModel viewModel) {
         this.viewModel = viewModel;
         this.viewModel.addPropertyChangeListener(this);
-        this.backgroundImage = loadBackgroundImage();
 
         // GridBagLayout keeps the login card centered at any window size.
         setLayout(new GridBagLayout());
         add(buildLoginCard());
-    }
-
-    private static Image loadBackgroundImage() {
-        final URL url = LoginView.class.getResource(BACKGROUND_RESOURCE);
-        if (url == null) {
-            System.err.println("Background image not found on classpath: " + BACKGROUND_RESOURCE);
-            return null;
-        }
-        try {
-            return ImageIO.read(url);
-        } catch (IOException e) {
-            System.err.println("Failed to load background image: " + e.getMessage());
-            return null;
-        }
     }
 
     // ------------------------------------------------------------------
@@ -99,32 +72,8 @@ public class LoginView extends JPanel implements PropertyChangeListener {
     protected void paintComponent(Graphics g) {
         super.paintComponent(g);
         final Graphics2D g2 = (Graphics2D) g.create();
-        final int w = getWidth();
-        final int h = getHeight();
+        background.paint(g2, getWidth(), getHeight());
 
-        if (backgroundImage != null) {
-            g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION,
-                    RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-
-            // Scale to cover: fill the whole panel, keep aspect ratio, crop overflow.
-            final int imgW = backgroundImage.getWidth(this);
-            final int imgH = backgroundImage.getHeight(this);
-            final double scale = Math.max((double) w / imgW, (double) h / imgH);
-            final int drawW = (int) Math.ceil(imgW * scale);
-            final int drawH = (int) Math.ceil(imgH * scale);
-            final int x = (w - drawW) / 2;
-            final int y = (h - drawH) / 2;
-            g2.drawImage(backgroundImage, x, y, drawW, drawH, this);
-
-            // Subtle dark overlay so the white card stands out on bright photos.
-            g2.setColor(new Color(0, 0, 0, 70));
-            g2.fillRect(0, 0, w, h);
-        } else {
-            // Fallback: dark stadium-green gradient.
-            g2.setPaint(new GradientPaint(0, 0, new Color(10, 25, 60),
-                    0, h, new Color(20, 90, 55)));
-            g2.fillRect(0, 0, w, h);
-        }
 
         g2.dispose();
     }

@@ -4,16 +4,12 @@ import java.awt.Color;
 import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.Font;
-import java.awt.GradientPaint;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.GridBagLayout;
-import java.awt.Image;
-import java.awt.RenderingHints;
-import java.io.IOException;
-import java.net.URL;
+import java.beans.PropertyChangeEvent;
+import java.beans.PropertyChangeListener;
 
-import javax.imageio.ImageIO;
 import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
@@ -25,53 +21,48 @@ import javax.swing.JPasswordField;
 import javax.swing.JTextField;
 import javax.swing.SwingUtilities;
 
+import interface_adapter.login.LoginController;
+import interface_adapter.login.LoginViewModel;
+
 /**
  * Swing view for the Login page.
  *
- * Full-screen page with a stadium photo background
- * (src/main/resources/images/login_stadium.jpg) and a centered
- * white login card. The image is scaled to cover the whole window
- * while preserving its aspect ratio. If the image is missing, a
- * plain dark-green gradient is painted instead.
+ * Full-screen page with the shared stadium photo background (see
+ * {@link BackgroundImage}) and a centered white login card.
  *
- * UI-only for now: the button handlers contain TODOs where the
- * LoginController will be plugged in once the login use case exists
- * (follow the structure of use_case.create_event).
+ * The Log In button calls the LoginController, and the page shows whatever
+ * message the LoginViewModel holds; navigation is decided by the presenter,
+ * so this view never switches pages itself.
  */
-public class LoginView extends JPanel {
+public class LoginView extends JPanel implements PropertyChangeListener {
 
-    /** Classpath location of the background image (under src/main/resources). */
-    private static final String BACKGROUND_RESOURCE = "/images/login_stadium.jpg";
-
-    private final Image backgroundImage;
+    private final BackgroundImage background = new BackgroundImage();
 
     private final JTextField usernameField = new JTextField(20);
     private final JPasswordField passwordField = new JPasswordField(20);
     private final JLabel errorLabel = new JLabel(" ");
 
-    /** Called after a successful login so the app can navigate to the shell. */
-    private Runnable onLoginSuccess;
+    private final LoginViewModel viewModel;
+    private LoginController controller;
+    private Runnable onGoToSignup;
 
+    /** Creates the page with a fresh view model. */
     public LoginView() {
-        this.backgroundImage = loadBackgroundImage();
+        this(new LoginViewModel());
+    }
+
+    /**
+     * Creates the page with the view model it observes.
+     *
+     * @param viewModel the login page state
+     */
+    public LoginView(LoginViewModel viewModel) {
+        this.viewModel = viewModel;
+        this.viewModel.addPropertyChangeListener(this);
 
         // GridBagLayout keeps the login card centered at any window size.
         setLayout(new GridBagLayout());
         add(buildLoginCard());
-    }
-
-    private static Image loadBackgroundImage() {
-        final URL url = LoginView.class.getResource(BACKGROUND_RESOURCE);
-        if (url == null) {
-            System.err.println("Background image not found on classpath: " + BACKGROUND_RESOURCE);
-            return null;
-        }
-        try {
-            return ImageIO.read(url);
-        } catch (IOException e) {
-            System.err.println("Failed to load background image: " + e.getMessage());
-            return null;
-        }
     }
 
     // ------------------------------------------------------------------
@@ -81,32 +72,8 @@ public class LoginView extends JPanel {
     protected void paintComponent(Graphics g) {
         super.paintComponent(g);
         final Graphics2D g2 = (Graphics2D) g.create();
-        final int w = getWidth();
-        final int h = getHeight();
+        background.paint(g2, getWidth(), getHeight());
 
-        if (backgroundImage != null) {
-            g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION,
-                    RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-
-            // Scale to cover: fill the whole panel, keep aspect ratio, crop overflow.
-            final int imgW = backgroundImage.getWidth(this);
-            final int imgH = backgroundImage.getHeight(this);
-            final double scale = Math.max((double) w / imgW, (double) h / imgH);
-            final int drawW = (int) Math.ceil(imgW * scale);
-            final int drawH = (int) Math.ceil(imgH * scale);
-            final int x = (w - drawW) / 2;
-            final int y = (h - drawH) / 2;
-            g2.drawImage(backgroundImage, x, y, drawW, drawH, this);
-
-            // Subtle dark overlay so the white card stands out on bright photos.
-            g2.setColor(new Color(0, 0, 0, 70));
-            g2.fillRect(0, 0, w, h);
-        } else {
-            // Fallback: dark stadium-green gradient.
-            g2.setPaint(new GradientPaint(0, 0, new Color(10, 25, 60),
-                    0, h, new Color(20, 90, 55)));
-            g2.fillRect(0, 0, w, h);
-        }
 
         g2.dispose();
     }
@@ -175,8 +142,39 @@ public class LoginView extends JPanel {
         return card;
     }
 
-    public void setOnLoginSuccess(Runnable onLoginSuccess) {
-        this.onLoginSuccess = onLoginSuccess;
+    /**
+     * Gives the page the controller to call when Log In is pressed.
+     *
+     * @param controller the login controller
+     */
+    public void setLoginController(LoginController controller) {
+        this.controller = controller;
+    }
+
+    /**
+     * Sets what happens when the user asks for the sign-up page.
+     *
+     * @param onGoToSignup the navigation callback
+     */
+    public void setOnGoToSignup(Runnable onGoToSignup) {
+        this.onGoToSignup = onGoToSignup;
+    }
+
+    @Override
+    public void propertyChange(PropertyChangeEvent evt) {
+        final String error = viewModel.getErrorMessage();
+        if (!error.isEmpty()) {
+            errorLabel.setForeground(new Color(180, 30, 30));
+            errorLabel.setText(error);
+            return;
+        }
+        final String success = viewModel.getSuccessMessage();
+        if (!success.isEmpty()) {
+            errorLabel.setForeground(new Color(22, 101, 52));
+            errorLabel.setText(success);
+            return;
+        }
+        errorLabel.setText(" ");
     }
 
     private void onLogin() {
@@ -189,20 +187,20 @@ public class LoginView extends JPanel {
         }
 
         errorLabel.setText(" ");
-        // TODO: call LoginController.execute(username, password) once the
-        // login use case is implemented; the presenter should then trigger
-        // navigation on success instead of this placeholder.
-        if (onLoginSuccess != null) {
-            passwordField.setText("");
-            onLoginSuccess.run();
-        } else {
-            errorLabel.setText("Login use case not implemented yet.");
+        if (controller == null) {
+            errorLabel.setForeground(new Color(180, 30, 30));
+            errorLabel.setText("Login is not wired up in this preview.");
+            return;
         }
+        controller.execute(username, password);
+        passwordField.setText("");
     }
 
     private void onGoToSignup() {
-        // TODO: switch to the Signup view via a ViewManager / CardLayout.
-        errorLabel.setText("Signup view not implemented yet.");
+        errorLabel.setText(" ");
+        if (onGoToSignup != null) {
+            onGoToSignup.run();
+        }
     }
 
     /** Standalone preview — run this class directly to see the page. */

@@ -16,7 +16,7 @@
 | Lane | Owner | Theme | Owns (packages / pages) | User stories | Priority |
 |------|-------|-------|--------------------------|--------------|----------|
 | L1 | Alan | Scheduling & events | `create_event` (existing), `view_schedule`, `export_schedule`, event details/edit/cancel, `CalendarView`, `IcsExporter`, `AppBuilder` | 1, 3 (view half), 5 (trigger) | P0 |
-| L2 | Person 2 | Attendance & stats | `record_attendance`, `view_stats`, `AttendanceRecord`, stats entities, "My Stats" page | 2, 4 | P0 / P1 |
+| L2 | Aidan | Attendance & stats | `record_attendance`, `view_stats`, `AttendanceRecord`, stats entities, "My Stats" page | 2, 4 | P0 / P1 |
 | L3 | Andy | Accounts & auth | `login`, `signup`, `manage_users`, `AppShell` role filtering, build file | 8 | P0 (login) / P2 (admin) |
 | L4 | Person 4 | Teams & roster | `manage_teams`, roster page, parent↔child linking, entity model owner | 7, 6 (link half) | P0 / P1 |
 | L5 | Person 5 | Communications & documentation | announcements, event-change notifications, absence notices, demo seed data, **all documentation** (`README.md`, `Documentation.md`) | 5, 6 (notice half) | P1 / P2 |

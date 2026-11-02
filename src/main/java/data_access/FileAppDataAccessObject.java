@@ -16,9 +16,9 @@ import org.json.JSONObject;
 
 import entity.AttendanceRecord;
 import entity.Event;
-import entity.Role;
 import entity.Team;
 import entity.User;
+import use_case.change_password.ChangePasswordUserDataAccessInterface;
 import use_case.create_event.CreateEventDataAccessInterface;
 import use_case.login.LoginUserDataAccessInterface;
 import use_case.signup.SignupUserDataAccessInterface;
@@ -37,7 +37,8 @@ import use_case.signup.SignupUserDataAccessInterface;
 public class FileAppDataAccessObject implements
         LoginUserDataAccessInterface,
         SignupUserDataAccessInterface,
-        CreateEventDataAccessInterface {
+        CreateEventDataAccessInterface,
+        ChangePasswordUserDataAccessInterface {
 
     /** Default store location, relative to the working directory. */
     public static final Path DEFAULT_PATH = Path.of("data", "app-data.json");
@@ -85,21 +86,6 @@ public class FileAppDataAccessObject implements
     @Override
     public void save(User user) {
         users.put(user.getUsername(), user);
-        persist();
-    }
-
-    /**
-     * Updates only the profile fields of a user, leaving the stored password
-     * untouched. Useful when credentials are kept somewhere else, such as a hosted store.
-     *
-     * @param username    the user's username
-     * @param displayName the name to display
-     * @param role        the user's role
-     */
-    public void saveProfile(String username, String displayName, Role role) {
-        final User existing = users.get(username);
-        final String password = existing == null ? "" : existing.getPassword();
-        users.put(username, new User(username, password, displayName, role));
         persist();
     }
 

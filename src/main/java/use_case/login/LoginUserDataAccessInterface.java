@@ -5,6 +5,10 @@ import entity.User;
 /**
  * Data access interface required by the Log In use case.
  * Implemented in the data_access layer (local JSON file, in-memory fake).
+ *
+ * It declares only what logging in needs: looking an account up. Checking
+ * whether a username is taken belongs to Sign Up, so that method lives on
+ * SignupUserDataAccessInterface instead.
  */
 public interface LoginUserDataAccessInterface {
 
@@ -15,12 +19,4 @@ public interface LoginUserDataAccessInterface {
      * @return the matching user, or null if no such user exists
      */
     User get(String username);
-
-    /**
-     * Checks whether a username is already taken.
-     *
-     * @param username the username to check
-     * @return true if a user with that username exists
-     */
-    boolean existsByName(String username);
 }

@@ -12,6 +12,8 @@
 | 1.3 | `login` + `signup` use cases | done 2026-10-29 |
 | 1.4 | `AppBuilder` refactor + `ViewManagerModel` (taken over from L1) | done 2026-10-29 |
 | 1.5 | Role-based navigation in `AppShell` | done 2026-10-29 |
+| 2.10 | `logout` use case | done 2026-11-02 |
+| 3.10 | `change_password` use case | done 2026-11-02 |
 | 3.5 | `manage_users` (admin) | deferred — P2, Sprint 3 |
 | 4.3 | Validation / robustness pass | Sprint 4 |
 | — | Week-1 API items (spike + README API section) | done 2026-10-29 |
@@ -61,6 +63,8 @@ Follows the course convention: **one narrow data-access interface per use case**
 |---|---|
 | `use_case/login/LoginUserDataAccessInterface` | `User get(String username)` |
 | `use_case/signup/SignupUserDataAccessInterface` | `boolean existsByName(String username)`, `void save(User user)` |
+| `use_case/change_password/ChangePasswordUserDataAccessInterface` | `User get(String username)`, `void save(User user)` |
+| `use_case/current_user/CurrentUserInterface` | `getCurrentUsername()`, `setCurrentUser(User)`, `clearCurrentUser()`. Implemented by `interface_adapter.Session`, so the account use cases own the session transitions instead of the view wiring |
 | ~~`data_access/DBDataAccessObject`~~ | **Deleted 2026-10-29** — it targeted the retired 2025F course API and could not be verified. A hosted store can be added later behind the same interfaces |
 | `data_access/FileAppDataAccessObject` | Local JSON store for app data; implements the per-use-case interfaces it needs |
 | `data_access/InMemoryUserDataAccessObject` | Test fake for accounts (no network, no disk). App data is tested against a temporary file via `@TempDir` |
@@ -161,5 +165,6 @@ Same as `Plan.md`: the six `use_case/<name>` files, the three `interface_adapter
 | 2026-10-29 | File created: scope, decisions, storage design, phases, API items |
 | 2026-10-29 | Course API dropped (retired host, not a course requirement); storage is the local JSON file; `DBDataAccessObject` deleted; statuses restored |
 | 2026-10-29 | `AppBuilder` created and `Main` reduced to the view/use-case chain; `BackgroundImage` extracted so login and signup share the stadium photo; `SignupView` redesigned (labelled fields, link-style back button) |
+| 2026-11-02 | Account use cases reorganised for CA/SOLID: `CurrentUserInterface` port so interactors own the session; `logout` and `change_password` built as full slices (`use_case/` + `interface_adapter/` + Account page); `LoginPresenter` no longer touches the session; `existsByName` removed from the login port (ISP); dead code removed (`InMemoryEventDataAccessObject`, `saveProfile`); 54 tests green and the app launches |
 | 2026-10-29 | Login and signup built end to end: use cases, controllers, presenters, view models, `ViewManagerModel`, `Session`, `SignupView`; `LoginView` wired; `AppShell` filters pages by role; `Main` rewired to the file store; 42 tests green and the app launches |
 

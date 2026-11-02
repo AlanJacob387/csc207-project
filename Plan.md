@@ -53,8 +53,8 @@ Every interaction a user can trigger is its own Clean Architecture slice: its ow
 |----|----------|----------------|------|--------|----------|--------|
 | UC-A1 | `login` | Login page - Log In | L3 | 1 | P0 | done |
 | UC-A2 | `signup` | Login page - Create an Account | L3 | 1 | P0 | done |
-| UC-A3 | `logout` | App shell - Log out | L3 | 2 | P0 | |
-| UC-A4 | `change_password` | Account page | L3 | 3 | P1 | |
+| UC-A3 | `logout` | App shell - Log out | L3 | 2 | P0 | done |
+| UC-A4 | `change_password` | Account page | L3 | 3 | P1 | done |
 | UC-A5 | `create_user` | Admin - Manage Users | L3 | 3 | P2 | |
 | UC-A6 | `change_user_role` | Admin - Manage Users | L3 | 3 | P2 | |
 | UC-A7 | `deactivate_user` | Admin - Manage Users | L3 | 4 | P2 | |
@@ -113,7 +113,7 @@ Nothing can be built in parallel until persistence, navigation and roles are rea
 
 ## Sprint 2 — Scheduling, RSVP and attendance (Thu 2026-11-05 → Wed 2026-11-11)
 
-**Progress (2026-10-29):** not started.
+**Progress (2026-11-02):** 1 of 10 done - 2.10 (`logout`, built ahead of schedule as part of the account refactor). The rest not started.
 
 | ID | Task | Use cases | Owner | Depends on | Deliverable | Due | Done |
 |----|------|------|-------|------------|-------------|-----|------|
@@ -126,13 +126,13 @@ Nothing can be built in parallel until persistence, navigation and roles are rea
 | 2.7 | `Announcement` entity + `post_announcement` use case | UC-E1, UC-E2 | L5 | 1.1 | Announcements page lists posts | Tue 11-10 | |
 | 2.8 | Event-change notification feed (created / changed / cancelled) | UC-E3 | L5 | 2.3, 2.7 | players and parents see a notification feed | Wed 11-11 | |
 | 2.9 | Sprint 2 test verification + coverage check (non-authors only) |  | L3 | 2.1–2.8 | green suite, gaps logged as issues | Wed 11-11 | |
-| 2.10 | `logout` use case: end the session and return to the login page | UC-A3 | L3 | 1.3 | the Log out button really logs out | Wed 11-11 | |
+| 2.10 | `logout` use case: end the session and return to the login page | UC-A3 | L3 | 1.3 | the Log out button really logs out | Wed 11-11 | ✅ |
 
 **Sprint 2 review (Wed 11-11):** demo calendar → attendance → RSVP end-to-end on the seed data. Each slice author writes their own unit tests (part of the Definition of Done); task 2.9 is an independent check by someone who did not write those slices.
 
 ## Sprint 3 — Stats, rosters and communications (Thu 2026-11-12 → Wed 2026-11-18)
 
-**Progress (2026-10-29):** not started.
+**Progress (2026-11-02):** 1 of 12 done - 3.10 (`change_password`, built ahead of schedule as part of the account refactor). The rest not started.
 
 | ID | Task | Use cases | Owner | Depends on | Deliverable | Due | Done |
 |----|------|------|-------|------------|-------------|-----|------|
@@ -145,7 +145,7 @@ Nothing can be built in parallel until persistence, navigation and roles are rea
 | 3.7 | `view_event_weather` use case: forecast for an event (Open-Meteo gateway + controller/presenter) | UC-F1 | L5 | 2.3 | forecast shown on event details | Wed 11-18 | |
 | 3.8 | `Documentation.md`: sequence diagrams, one per lane for their own use cases |  | All (L5 coordinates) | 1.3, 2.4 | diagrams committed | Wed 11-18 | |
 | 3.9 | Sprint 3 test verification (non-authors only) |  | L5 | 3.1–3.7 | green suite | Wed 11-18 | |
-| 3.10 | `change_password` use case: a user changes their own password | UC-A4 | L3 | 1.3 | new password stored and usable | Wed 11-18 | |
+| 3.10 | `change_password` use case: a user changes their own password | UC-A4 | L3 | 1.3 | new password stored and usable | Wed 11-18 | ✅ |
 | 3.11 | `edit_attendance` use case: correct an attendance record after the fact | UC-C2 | L2 | 2.4 | records can be fixed | Wed 11-18 | |
 | 3.12 | `flag_rain_risk` use case: flag upcoming events with a high chance of rain | UC-F2 | L5 | 3.7 | rain-risk flags on the calendar and events list | Wed 11-18 | |
 

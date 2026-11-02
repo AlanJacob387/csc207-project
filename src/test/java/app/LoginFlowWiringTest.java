@@ -19,110 +19,163 @@ import entity.User;
 import entity.UserFactory;
 import interface_adapter.Session;
 import interface_adapter.ViewManagerModel;
+import interface_adapter.change_password.ChangePasswordController;
+import interface_adapter.change_password.ChangePasswordPresenter;
+import interface_adapter.change_password.ChangePasswordViewModel;
 import interface_adapter.login.LoginController;
 import interface_adapter.login.LoginPresenter;
 import interface_adapter.login.LoginViewModel;
+import interface_adapter.logout.LogoutController;
+import interface_adapter.logout.LogoutPresenter;
 import interface_adapter.signup.SignupController;
 import interface_adapter.signup.SignupPresenter;
 import interface_adapter.signup.SignupViewModel;
+import use_case.change_password.ChangePasswordInteractor;
 import use_case.login.LoginInteractor;
+import use_case.logout.LogoutInteractor;
 import use_case.signup.SignupInteractor;
 import view.AppShell;
+import view.ChangePasswordView;
 import view.LoginView;
 import view.SignupView;
 
 /**
- * Integration test for the login and signup wiring built in {@code Main},
- * without opening a window: a successful login must fill the session and ask
- * the view manager to show the shell.
+ * Integration test for the account wiring that AppBuilder builds, without
+ * opening a window: signing up, logging in, logging out and changing the
+ * password must all drive the session and the view manager correctly.
  */
 class LoginFlowWiringTest {
 
     @TempDir
     Path tempDir;
 
+    /** The account engine, wired exactly as AppBuilder wires it. */
+    private static class Wiring {
+
+        final FileAppDataAccessObject dataAccess;
+        final ViewManagerModel viewManagerModel;
+        final Session session;
+        final LoginViewModel loginViewModel;
+        final ChangePasswordViewModel changePasswordViewModel;
+        final LoginController loginController;
+        final SignupController signupController;
+        final LogoutController logoutController;
+        final ChangePasswordController changePasswordController;
+
+        Wiring(FileAppDataAccessObject dataAccess) {
+            this.dataAccess = dataAccess;
+            this.viewManagerModel = new ViewManagerModel();
+            this.session = new Session();
+            this.loginViewModel = new LoginViewModel();
+
+            this.loginController = new LoginController(new LoginInteractor(
+                    dataAccess,
+                    new LoginPresenter(viewManagerModel, loginViewModel),
+                    session));
+
+            this.signupController = new SignupController(new SignupInteractor(
+                    dataAccess,
+                    new SignupPresenter(viewManagerModel, new SignupViewModel(), loginViewModel),
+                    new UserFactory()));
+
+            this.logoutController = new LogoutController(new LogoutInteractor(
+                    session,
+                    new LogoutPresenter(viewManagerModel, loginViewModel)));
+
+            this.changePasswordViewModel = new ChangePasswordViewModel();
+            this.changePasswordController = new ChangePasswordController(
+                    new ChangePasswordInteractor(dataAccess,
+                            new ChangePasswordPresenter(changePasswordViewModel),
+                            session, new UserFactory()));
+        }
+    }
+
+    private Wiring wiring() {
+        return new Wiring(new FileAppDataAccessObject(tempDir.resolve("app-data.json")));
+    }
+
     @Test
     void signingUpThenLoggingInFillsTheSessionAndShowsTheShell() {
-        final FileAppDataAccessObject dataAccess =
-                new FileAppDataAccessObject(tempDir.resolve("app-data.json"));
-        final ViewManagerModel viewManagerModel = new ViewManagerModel();
-        final Session session = new Session();
-        final LoginViewModel loginViewModel = new LoginViewModel();
+        final Wiring w = wiring();
+        w.viewManagerModel.setState(ViewManagerModel.LOGIN);
 
-        final LoginController loginController = new LoginController(new LoginInteractor(
-                dataAccess, new LoginPresenter(viewManagerModel, loginViewModel, session)));
+        w.signupController.execute("newcoach", "pw", "pw", "New Coach", "COACH");
 
-        final SignupViewModel signupViewModel = new SignupViewModel();
-        final SignupController signupController = new SignupController(new SignupInteractor(
-                dataAccess,
-                new SignupPresenter(viewManagerModel, signupViewModel, loginViewModel),
-                new UserFactory()));
-
-        viewManagerModel.setState(ViewManagerModel.LOGIN);
-
-        // Create an account: back to the login page, with a message, still signed out.
-        signupController.execute("newcoach", "pw", "pw", "New Coach", "COACH");
-
-        assertEquals(ViewManagerModel.LOGIN, viewManagerModel.getState());
+        assertEquals(ViewManagerModel.LOGIN, w.viewManagerModel.getState());
         assertEquals("Account created for newcoach. Please log in.",
-                loginViewModel.getSuccessMessage());
-        assertFalse(session.isLoggedIn());
+                w.loginViewModel.getSuccessMessage());
+        assertFalse(w.session.isLoggedIn());
 
-        // Log in: the session fills and the shell is shown.
-        loginController.execute("newcoach", "pw");
+        w.loginController.execute("newcoach", "pw");
 
-        assertTrue(session.isLoggedIn());
-        assertEquals(Role.COACH, session.getRole());
-        assertEquals("New Coach", session.getDisplayName());
-        assertEquals(ViewManagerModel.APP, viewManagerModel.getState());
-        assertTrue(loginViewModel.getSuccessMessage().isEmpty());
-
-        // Logging out clears the session.
-        session.logOut();
-
-        assertFalse(session.isLoggedIn());
-        assertNull(session.getRole());
+        assertTrue(w.session.isLoggedIn());
+        assertEquals(Role.COACH, w.session.getRole());
+        assertEquals("New Coach", w.session.getDisplayName());
+        assertEquals(ViewManagerModel.APP, w.viewManagerModel.getState());
+        assertTrue(w.loginViewModel.getSuccessMessage().isEmpty());
     }
 
     @Test
     void aWrongPasswordKeepsTheUserOnTheLoginPage() {
-        final FileAppDataAccessObject dataAccess =
-                new FileAppDataAccessObject(tempDir.resolve("app-data.json"));
-        dataAccess.save(new User("player1", "pw", "Pat Player", Role.PLAYER));
+        final Wiring w = wiring();
+        w.dataAccess.save(new User("player1", "pw", "Pat Player", Role.PLAYER));
+        w.viewManagerModel.setState(ViewManagerModel.LOGIN);
 
-        final ViewManagerModel viewManagerModel = new ViewManagerModel();
-        final Session session = new Session();
-        final LoginViewModel loginViewModel = new LoginViewModel();
-        final LoginController loginController = new LoginController(new LoginInteractor(
-                dataAccess, new LoginPresenter(viewManagerModel, loginViewModel, session)));
+        w.loginController.execute("player1", "wrong");
 
-        viewManagerModel.setState(ViewManagerModel.LOGIN);
-        loginController.execute("player1", "wrong");
+        assertEquals("Incorrect password.", w.loginViewModel.getErrorMessage());
+        assertFalse(w.session.isLoggedIn());
+        assertEquals(ViewManagerModel.LOGIN, w.viewManagerModel.getState());
+    }
 
-        assertEquals("Incorrect password.", loginViewModel.getErrorMessage());
-        assertFalse(session.isLoggedIn());
-        assertEquals(ViewManagerModel.LOGIN, viewManagerModel.getState());
+    @Test
+    void loggingOutThroughTheControllerClearsTheSessionAndShowsLogin() {
+        final Wiring w = wiring();
+        w.dataAccess.save(new User("player1", "pw", "Pat Player", Role.PLAYER));
+        w.loginController.execute("player1", "pw");
+        assertEquals(ViewManagerModel.APP, w.viewManagerModel.getState());
+
+        w.logoutController.execute();
+
+        assertFalse(w.session.isLoggedIn());
+        assertNull(w.session.getRole());
+        assertEquals("", w.session.getCurrentUsername());
+        assertEquals(ViewManagerModel.LOGIN, w.viewManagerModel.getState());
+    }
+
+    @Test
+    void changingThePasswordThroughTheControllerUpdatesTheStore() {
+        final Wiring w = wiring();
+        w.dataAccess.save(new User("player1", "pw", "Pat Player", Role.PLAYER));
+        w.loginController.execute("player1", "pw");
+
+        w.changePasswordController.execute("pw", "secret", "secret");
+
+        assertEquals("Password changed.", w.changePasswordViewModel.getSuccessMessage());
+        assertEquals("secret", w.dataAccess.get("player1").getPassword());
+        assertEquals(Role.PLAYER, w.dataAccess.get("player1").getRole());
     }
 
     @Test
     void theViewsBuildAndTheShellFiltersPagesByRole() {
-        final LoginViewModel loginViewModel = new LoginViewModel();
-        final SignupViewModel signupViewModel = new SignupViewModel();
-
-        final LoginView loginView = new LoginView(loginViewModel);
+        final LoginView loginView = new LoginView(new LoginViewModel());
         loginView.setLoginController(new LoginController(inputData -> { }));
         loginView.setOnGoToSignup(() -> { });
 
-        final SignupView signupView = new SignupView(signupViewModel);
+        final SignupView signupView = new SignupView(new SignupViewModel());
         signupView.setSignupController(new SignupController(inputData -> { }));
         signupView.setOnBackToLogin(() -> { });
 
-        final AppShell shell = new AppShell(() -> { });
+        final ChangePasswordView accountView =
+                new ChangePasswordView(new ChangePasswordViewModel());
+        accountView.setChangePasswordController(new ChangePasswordController(inputData -> { }));
+
+        final AppShell shell = new AppShell();
         shell.addPage("Calendar", new JPanel());
+        shell.addPage("Account", accountView);
         shell.addPage("New Event", new JPanel(), Role.COACH);
         shell.addPage("My Stats", new JPanel(), Role.PLAYER);
 
-        // Every role can be applied without the sidebar or active page blowing up.
         shell.applyRole(null);
         shell.applyRole(Role.ADMIN);
         shell.applyRole(Role.COACH);

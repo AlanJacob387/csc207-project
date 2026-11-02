@@ -21,7 +21,10 @@ public class Main {
                     .addAppShell()
                     .addLoginUseCase()
                     .addSignupUseCase()
+                    .addLogoutUseCase()
                     .addCreateEventUseCase()
+                    .addChangePasswordView()
+                    .addChangePasswordUseCase()
                     .build();
 
             frame.setVisible(true);

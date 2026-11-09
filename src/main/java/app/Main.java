@@ -22,6 +22,7 @@ public class Main {
                     .addLoginUseCase()
                     .addSignupUseCase()
                     .addCreateEventUseCase()
+                    .addAnnouncementUseCases()
                     .build();
 
             frame.setVisible(true);

@@ -5,6 +5,7 @@ import java.time.LocalDateTime;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+import entity.Announcement;
 import entity.AttendanceRecord;
 import entity.Event;
 import entity.Role;
@@ -47,6 +48,11 @@ public final class EntityJsonMapper {
     private static final String PLAYER_USERNAME = "playerUsername";
     private static final String STATUS = "status";
     private static final String STATS_NOTES = "statsNotes";
+    // announcement keys
+    private static final String ANNOUNCEMENT_ID = "announcementId";
+    private static final String AUTHOR_USERNAME = "authorUsername";
+    private static final String MESSAGE = "message";
+    private static final String CREATED_AT = "createdAt";
 
     private EntityJsonMapper() {
     }
@@ -151,5 +157,27 @@ public final class EntityJsonMapper {
             record.setStatsNotes(json.getString(STATS_NOTES));
         }
         return record;
+    }
+
+    /** Converts a team announcement to JSON. */
+    public static JSONObject toJson(Announcement announcement) {
+        final JSONObject json = new JSONObject();
+        json.put(ANNOUNCEMENT_ID, announcement.getAnnouncementId());
+        json.put(TEAM_ID, announcement.getTeamId());
+        json.put(AUTHOR_USERNAME, announcement.getAuthorUsername());
+        json.put(MESSAGE, announcement.getMessage());
+        json.put(CREATED_AT, announcement.getCreatedAt().toString());
+        return json;
+    }
+
+    /** Rebuilds an announcement from its stored fields. */
+    public static Announcement announcementFromJson(JSONObject json) {
+        return new Announcement(
+                json.getString(ANNOUNCEMENT_ID),
+                json.getString(TEAM_ID),
+                json.getString(AUTHOR_USERNAME),
+                json.getString(MESSAGE),
+                LocalDateTime.parse(json.getString(CREATED_AT))
+        );
     }
 }

@@ -2,7 +2,7 @@
 
 **Project:** Team Sports — a desktop platform that keeps a sports team's schedule, attendance, stats and team info in one place (see README).
 **Horizon:** one month — Sprint 1 starts Thu 2026-10-29, final delivery Sun 2026-11-29.
-**Team size:** 5 people - Alan (L1), Aidan (L2), Andy (L3), Aarav (L4) and L5 (to be named). Lane labels L1-L5 are used throughout.
+**Team size:** 5 people - Alan (L1), Aidan (L2), Andy (L3), Aarav (L4) and Daniel L5. Lane labels L1-L5 are used throughout.
 
 ## How this plan is organised
 
@@ -19,7 +19,7 @@
 | L2 | Aidan | Attendance & stats | `record_attendance`, `view_stats`, `AttendanceRecord`, stats entities, "My Stats" page | 2, 4 | P0 / P1 |
 | L3 | Andy | Accounts & auth | `login`, `signup`, `logout`, `change_password`, `manage_users`, the `CurrentUserInterface` port, `AppShell` role filtering, build file | 8 | P0 (login) / P2 (admin) |
 | L4 | Aarav | Teams & roster | `manage_teams`, roster page, parent↔child linking, entity model owner | 7, 6 (link half) | P0 / P1 |
-| L5 | Person 5 | Communication & weather | `post_announcement`, `view_announcements`, `view_notifications`, `submit_absence_notice`, `view_absence_notices`, the weather channel (`view_event_weather`, `flag_rain_risk`), build/test instructions in the README | 5, 6 (notice half) | P1 / P2 |
+| L5 | Daniel | Communication & weather | `post_announcement`, `view_announcements`, `view_notifications`, `submit_absence_notice`, `view_absence_notices`, the weather channel (`view_event_weather`, `flag_rain_risk`), build/test instructions in the README | 5, 6 (notice half) | P1 / P2 |
 
 **Floating capacity:** whoever finishes their lane early takes the top item from the *Unclaimed backlog* at the bottom of this file. Lanes are re-balanced at every sprint review.
 
@@ -45,7 +45,7 @@ Every interaction a user can trigger is its own Clean Architecture slice: its ow
 | L2 | Aidan | UC-C1 to UC-C6 | 6 | 0 |
 | L3 | Andy | UC-A1 to UC-A7 | 7 | 4 |
 | L4 | Aarav | UC-D1 to UC-D6 | 6 | 0 |
-| L5 | L5 (to be named) | UC-E1 to UC-E5 plus the weather channel, UC-F1 and UC-F2 | 7 | 0 |
+| L5 | Daniel | UC-E1 to UC-E5, UC-F1 and UC-F2 | 7 | 0 |
 
 ### Catalogue
 
@@ -263,7 +263,7 @@ These feed the existing tasks: 1.7 (skeleton), 3.8 (sequence diagrams, one per l
 | 2 | Coach records attendance and performance stats | UC-C1 | L2 | Aidan | 2 |
 | 3 | Player views schedule and RSVPs | UC-B2, UC-C3 | L1 + L2 | Alan / Aidan | 2 |
 | 4 | Player views personal stats and attendance history | UC-C4, UC-C5 | L2 | Aidan | 3 |
-| 5 | Parent notified when events are added/changed/cancelled | UC-E3 | L5 | Person 5 | 2 |
-| 6 | Parent views child's schedule and submits absence notices | UC-D6, UC-E4 | L4 + L5 | Aarav / Person 5 | 3 |
+| 5 | Parent notified when events are added/changed/cancelled | UC-E3 | L5 | Daniel | 2 |
+| 6 | Parent views child's schedule and submits absence notices | UC-D6, UC-E4 | L4 + L5 | Aarav / Daniel | 3 |
 | 7 | Admin creates teams and assigns coaches/players | UC-D1, UC-D2, UC-D3 | L4 | Aarav | 2 |
 | 8 | Admin manages user accounts and roles | UC-A5, UC-A6 | L3 | Andy | 3 |

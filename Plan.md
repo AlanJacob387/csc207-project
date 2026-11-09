@@ -2,7 +2,7 @@
 
 **Project:** Team Sports — a desktop platform that keeps a sports team's schedule, attendance, stats and team info in one place (see README).
 **Horizon:** one month — Sprint 1 starts Thu 2026-10-29, final delivery Sun 2026-11-29.
-**Team size:** 5 people - Alan (L1), Aidan (L2), Andy (L3), Aarav (L4) and L5 (to be named). Lane labels L1-L5 are used throughout.
+**Team size:** 5 people - Alan (L1), Aidan (L2), Andy (L3), Aarav (L4) and Daniel L5. Lane labels L1-L5 are used throughout.
 
 ## How this plan is organised
 
@@ -45,7 +45,7 @@ Every interaction a user can trigger is its own Clean Architecture slice: its ow
 | L2 | Aidan | UC-C1 to UC-C6 | 6 |
 | L3 | Andy | UC-A1 to UC-A7 | 7 |
 | L4 | Aarav | UC-D1 to UC-D6 | 6 |
-| L5 | L5 (to be named) | UC-E1 to UC-E5 plus the weather channel, UC-F1 and UC-F2 | 7 |
+| L5 | Daniel | UC-E1 to UC-E5 plus the weather channel, UC-F1 and UC-F2 | 7 |
 
 ### Catalogue
 

@@ -7,6 +7,38 @@ Daniel owns **L5**, as assigned in `Plan.md:22` and the story ownership table at
 `Plan.md:266–267`. `Lane-L3.md` belongs to Andy. This review records proposed
 work; it does not change team decisions, ownership, or completion status.
 
+## Announcement implementation on this branch
+
+Following Daniel's request to implement standalone announcements, posting and
+viewing are implemented on this branch. The earlier review below remains a
+snapshot of the starting point at `7a754ee`.
+
+- A coach can post only to a team they currently coach. Coaches read their own
+  teams, players read rostered teams, and admins can read all teams. Identity
+  comes from the current session; the use cases recheck the stored role and
+  membership for each request.
+- Announcements appear newest first with author and posting time. The page
+  supports team selection, refresh, empty states, and posting feedback. Failed
+  posts retain the draft; signing out or changing users clears previous content.
+- Posts persist in an added `announcements` array in `data/app-data.json`.
+  Older stores without that array still load. Saves preserve existing records
+  and unrecognised sections/fields, reject duplicate announcement IDs, and stage
+  complete file contents before replacement. Failed announcement writes do not
+  publish the post in memory.
+- Parent reads remain unavailable until the parent-to-player link contract
+  exists. Event-change notifications and absence notices remain separate work.
+- `AppBuilder` and `Main` contain narrow page-wiring changes. Shared-file and
+  contract changes still need the owning lanes' review before merging; no
+  teammate sign-off is claimed here.
+
+Validation: `bash ./gradlew --offline build` passes **96 tests** with no failures
+or errors. The added coverage includes form posting, failed-save draft retention,
+user changes, multiple-team selection, and long-message wrapping at 1000, 650,
+and 440 pixels. A separate headless rendering check confirmed that long posts
+remain reachable by scrolling. All persistence fixtures used temporary stores;
+the default application data was not accessed. The earlier startup seed and
+legacy account-save memory findings remain separate follow-up work.
+
 ## What exists
 
 - Login, signup, role-filtered navigation, local JSON persistence, and the

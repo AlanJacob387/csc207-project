@@ -46,3 +46,8 @@ Team Sports is a desktop application that brings everything a sports team needs 
 - App data (accounts, teams, events, attendance) is kept in a local JSON file (`data/app-data.json`), so it is **per machine** - nothing is shared between devices yet. A hosted store can be added later behind the same interfaces.
 
 ## Screenshots or animations demonstrating current functionality
+<img width="2880" height="1772" alt="image" src="https://github.com/user-attachments/assets/5bedcc77-7dd2-4c83-a515-e4efa756f474" />
+
+<img width="2868" height="1788" alt="image" src="https://github.com/user-attachments/assets/07858b7f-88b0-45ed-9d8b-ad59fec3ea79" />
+
+<img width="2880" height="1800" alt="image" src="https://github.com/user-attachments/assets/a7cd7aba-fab7-4b51-9264-8a6e0b044442" />

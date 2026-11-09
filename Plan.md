@@ -19,7 +19,7 @@
 | L2 | Aidan | Attendance & stats | `record_attendance`, `view_stats`, `AttendanceRecord`, stats entities, "My Stats" page | 2, 4 | P0 / P1 |
 | L3 | Andy | Accounts & auth | `login`, `signup`, `manage_users`, `AppShell` role filtering, build file | 8 | P0 (login) / P2 (admin) |
 | L4 | Aarav | Teams & roster | `manage_teams`, roster page, parent↔child linking, entity model owner | 7, 6 (link half) | P0 / P1 |
-| L5 | Person 5 | Communication & weather | `post_announcement`, `view_announcements`, `view_notifications`, `submit_absence_notice`, `view_absence_notices`, the weather channel (`view_event_weather`, `flag_rain_risk`), build/test instructions in the README | 5, 6 (notice half) | P1 / P2 |
+| L5 | Daniel | Communication & weather | `post_announcement`, `view_announcements`, `view_notifications`, `submit_absence_notice`, `view_absence_notices`, the weather channel (`view_event_weather`, `flag_rain_risk`), build/test instructions in the README | 5, 6 (notice half) | P1 / P2 |
 
 **Floating capacity:** whoever finishes their lane early takes the top item from the *Unclaimed backlog* at the bottom of this file. Lanes are re-balanced at every sprint review.
 
@@ -263,7 +263,7 @@ These feed the existing tasks: 1.7 (skeleton), 3.8 (sequence diagrams, one per l
 | 2 | Coach records attendance and performance stats | UC-C1 | L2 | Aidan | 2 |
 | 3 | Player views schedule and RSVPs | UC-B2, UC-C3 | L1 + L2 | Alan / Aidan | 2 |
 | 4 | Player views personal stats and attendance history | UC-C4, UC-C5 | L2 | Aidan | 3 |
-| 5 | Parent notified when events are added/changed/cancelled | UC-E3 | L5 | Person 5 | 2 |
-| 6 | Parent views child's schedule and submits absence notices | UC-D6, UC-E4 | L4 + L5 | Aarav / Person 5 | 3 |
+| 5 | Parent notified when events are added/changed/cancelled | UC-E3 | L5 | Daniel | 2 |
+| 6 | Parent views child's schedule and submits absence notices | UC-D6, UC-E4 | L4 + L5 | Aarav / Daniel | 3 |
 | 7 | Admin creates teams and assigns coaches/players | UC-D1, UC-D2, UC-D3 | L4 | Aarav | 2 |
 | 8 | Admin manages user accounts and roles | UC-A5, UC-A6 | L3 | Andy | 3 |

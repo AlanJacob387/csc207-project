@@ -5,7 +5,9 @@ import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -18,10 +20,16 @@ import entity.AttendanceRecord;
 import entity.Event;
 import entity.Team;
 import entity.User;
+import use_case.browse_events.BrowseEventsDataAccessInterface;
+import use_case.cancel_event.CancelEventDataAccessInterface;
 import use_case.change_password.ChangePasswordUserDataAccessInterface;
 import use_case.create_event.CreateEventDataAccessInterface;
+import use_case.edit_event.EditEventDataAccessInterface;
+import use_case.export_schedule.ExportScheduleDataAccessInterface;
 import use_case.login.LoginUserDataAccessInterface;
 import use_case.signup.SignupUserDataAccessInterface;
+import use_case.view_event_details.ViewEventDetailsDataAccessInterface;
+import use_case.view_schedule.ViewScheduleDataAccessInterface;
 
 /**
  * Local JSON store for application data: users, teams, events and attendance.
@@ -38,7 +46,13 @@ public class FileAppDataAccessObject implements
         LoginUserDataAccessInterface,
         SignupUserDataAccessInterface,
         CreateEventDataAccessInterface,
-        ChangePasswordUserDataAccessInterface {
+        ChangePasswordUserDataAccessInterface,
+        ViewScheduleDataAccessInterface,
+        ViewEventDetailsDataAccessInterface,
+        EditEventDataAccessInterface,
+        CancelEventDataAccessInterface,
+        BrowseEventsDataAccessInterface,
+        ExportScheduleDataAccessInterface {
 
     /** Default store location, relative to the working directory. */
     public static final Path DEFAULT_PATH = Path.of("data", "app-data.json");
@@ -93,10 +107,30 @@ public class FileAppDataAccessObject implements
     // Events (Create Event use case)
     // ------------------------------------------------------------------
 
+    /**
+     * Saves an event, replacing any stored event with the same id. persist()
+     * writes whatever is in the map, so the event goes in first; if the write
+     * fails, the previous state is put back so memory still matches the file.
+     *
+     * @param event the event to save
+     * @throws UncheckedIOException if the event could not be written
+     */
     @Override
     public void saveEvent(Event event) {
-        events.put(event.getEventId(), event);
-        persist();
+        final String eventId = event.getEventId();
+        final Event previous = events.put(eventId, event);
+        try {
+            persist();
+        }
+        catch (RuntimeException ex) {
+            if (previous == null) {
+                events.remove(eventId);
+            }
+            else {
+                events.put(eventId, previous);
+            }
+            throw ex;
+        }
     }
 
     @Override
@@ -104,12 +138,7 @@ public class FileAppDataAccessObject implements
         return teams.containsKey(teamId);
     }
 
-    /**
-     * Looks up an event.
-     *
-     * @param eventId the event id
-     * @return the event, or null if there is none
-     */
+    @Override
     public Event getEvent(String eventId) {
         return events.get(eventId);
     }
@@ -121,6 +150,99 @@ public class FileAppDataAccessObject implements
      */
     public List<Event> getAllEvents() {
         return new ArrayList<>(events.values());
+    }
+
+    // ------------------------------------------------------------------
+    // Schedule (View Schedule use case)
+    // ------------------------------------------------------------------
+
+    @Override
+    public List<String> getTeamIdsForMember(String username) {
+        final List<String> teamIds = new ArrayList<>();
+        for (Team team : teams.values()) {
+            if (username.equals(team.getCoachUsername())
+                    || team.getPlayerUsernames().contains(username)) {
+                teamIds.add(team.getTeamId());
+            }
+        }
+        return teamIds;
+    }
+
+    @Override
+    public List<Event> getEventsForTeams(Collection<String> teamIds,
+                                         LocalDate from, LocalDate to) {
+        final List<Event> matches = new ArrayList<>();
+        for (Event event : events.values()) {
+            if (event.getDateTime() == null || !teamIds.contains(event.getTeamId())) {
+                continue;
+            }
+            final LocalDate date = event.getDateTime().toLocalDate();
+            if (!date.isBefore(from) && !date.isAfter(to)) {
+                matches.add(event);
+            }
+        }
+        return matches;
+    }
+
+    // ------------------------------------------------------------------
+    // Events list (Browse Events and Export Schedule use cases)
+    // ------------------------------------------------------------------
+
+    @Override
+    public List<Event> getEventsForTeams(Collection<String> teamIds) {
+        final List<Event> matches = new ArrayList<>();
+        for (Event event : events.values()) {
+            if (teamIds.contains(event.getTeamId())) {
+                matches.add(event);
+            }
+        }
+        return matches;
+    }
+
+    // ------------------------------------------------------------------
+    // Event details (View Event Details use case)
+    // ------------------------------------------------------------------
+
+    @Override
+    public String getTeamName(String teamId) {
+        final Team team = teams.get(teamId);
+        return team == null ? null : team.getName();
+    }
+
+    @Override
+    public String getCoachUsername(String teamId) {
+        final Team team = teams.get(teamId);
+        return team == null ? null : team.getCoachUsername();
+    }
+
+    // ------------------------------------------------------------------
+    // Event changes (Edit Event and Cancel Event use cases)
+    // ------------------------------------------------------------------
+
+    /**
+     * Replaces the stored event with the same id. persist() writes whatever is
+     * in the map, so the new event goes in first; if the write fails, the
+     * previous event is put back so memory still matches the file.
+     *
+     * @param updated the changed event
+     * @throws UncheckedIOException if the change could not be written
+     */
+    @Override
+    public void updateEvent(Event updated) {
+        final String eventId = updated.getEventId();
+        final Event previous = events.put(eventId, updated);
+        try {
+            persist();
+        }
+        catch (RuntimeException ex) {
+            if (previous == null) {
+                events.remove(eventId);
+            }
+            else {
+                events.put(eventId, previous);
+            }
+            throw ex;
+        }
     }
 
     // ------------------------------------------------------------------

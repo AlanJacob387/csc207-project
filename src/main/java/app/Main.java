@@ -25,6 +25,7 @@ public class Main {
                     .addCreateEventUseCase()
                     .addChangePasswordView()
                     .addChangePasswordUseCase()
+                    .addAnnouncementUseCases()
                     .build();
 
             frame.setVisible(true);

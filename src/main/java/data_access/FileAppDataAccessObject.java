@@ -108,6 +108,15 @@ public class FileAppDataAccessObject implements
     }
 
     /**
+     * Returns every stored user.
+     *
+     * @return a copy of the user list
+     */
+    public List<User> getAllUsers() {
+        return new ArrayList<>(users.values());
+    }
+
+    /**
      * Updates only the profile fields of a user, leaving the stored password
      * untouched. Useful when credentials are kept somewhere else, such as a hosted store.
      *

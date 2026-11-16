@@ -17,7 +17,7 @@ public class PostAnnouncementController {
 
     /** Attempts to post the entered message to the selected team. */
     public void execute(String teamId, String message) {
-        final String username = session.isLoggedIn() ? session.getUsername() : "";
+        final String username = session.isLoggedIn() ? session.getCurrentUsername() : "";
         interactor.execute(new PostAnnouncementInputData(username, teamId, message));
     }
 }

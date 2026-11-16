@@ -10,15 +10,15 @@ Each feature is one **Clean Architecture vertical slice**: `use_case/<name>/` �
 
 ## 1. Accounts — sign up and log in
 **What it is.** A user creates an account and logs in; the app remembers who they are for the rest of the session. **Status: built** (Sprint 1).
-**How we'll implement it.** Two use cases, `login` and `signup`, each with its own input/output data and interactor, a controller, a presenter and a view model. Accounts are stored through `FileAppDataAccessObject` and a `Session` object holds the signed-in user. Sign-up takes a username, display name, password and role from a dropdown. *(Plan.md → 1.2, 1.3, lane L3, Sprint 1 — done; storage decision D6.)*
+**How we'll implement it.** Four use cases, each its own Clean Architecture slice with input/output boundaries, an interactor, a controller, a presenter and (where the page holds state) a view model: `login`, `signup`, `logout` and `change_password`. The signed-in user sits behind a `CurrentUserInterface` port implemented by `Session`, so the interactors own every session transition. Accounts are stored through `FileAppDataAccessObject`, and sign-up takes a username, display name, password and role from a dropdown. *(Plan.md → 1.2, 1.3, 2.10, 3.10, UC-A1 to UC-A4, lane L3 - done; storage decision D6.)*
 
 ## 2. Roles and role-based navigation
-**What it is.** Four roles — coach, player, parent, admin — and each one sees only the pages that make sense for them.
+**What it is.** Four roles — coach, player, parent, admin — and each one sees only the pages that make sense for them. **Status: built** (Sprint 1).
 **How we'll implement it.** The logged-in role lives in `Session`; `AppShell` rebuilds the sidebar whenever the session changes, showing only allowed pages. The role→page map is written down in `Lane-L3.md`. *(Plan.md → 1.5, lane L3, Sprint 1 — done; one-role-per-user is decision D5.)*
 
 ## 3. Creating events — practices and games
 **What it is.** A coach schedules a practice or a game with a date, time, location and (for games) an opponent.
-**How we'll implement it.** The existing `create_event` slice (controller → interactor → data access → presenter → view) already validates the team, the future date and the location. It is being connected to the shared store so events persist. *(Plan.md → 1.6 and lane L1, Sprints 1–2.)*
+**How we'll implement it.** The existing `create_event` slice (controller → interactor → data access → presenter → view) already validates the team, the future date and the location. Events are saved to the shared store, so they survive a restart (the calendar still shows demo data until task 2.1). *(Plan.md → 1.6 and lane L1, Sprints 1–2.)*
 
 ## 4. Calendar / schedule view
 **What it is.** A month and week view of everything the team has coming up, so nobody has to check a group chat.
@@ -58,7 +58,7 @@ Each feature is one **Clean Architecture vertical slice**: `use_case/<name>/` �
 
 ## 13. Weather on events (external API)
 **What it is.** Each scheduled event shows the forecast for its date and location, and events at risk of rain are flagged.
-**How we'll implement it.** `OpenMeteoWeatherGateway` (already written and proven to work from Java) is surfaced through a controller and presenter on the event details page. *(Plan.md → 3.7, lane L1, Sprint 3.)*
+**How we'll implement it.** `OpenMeteoWeatherGateway` (already written and proven to work from Java) is surfaced through a controller and presenter on the event details page, and a second use case, `flag_rain_risk`, flags at-risk events on the calendar and the events list. *(Plan.md → 3.7 and 3.12, UC-F1 and UC-F2, lane L5, Sprint 3.)*
 
 ## 14. Admin — managing user accounts
 **What it is.** An admin creates or deactivates accounts and changes a user's role.
@@ -74,7 +74,7 @@ Each feature is one **Clean Architecture vertical slice**: `use_case/<name>/` �
 
 **Testing.** JUnit 5 is wired into the build; each slice ships with its own tests, and a second person verifies the suite at the end of Sprints 2 and 3. *(Plan.md → 1.8, 2.9, 3.9.)*
 
-**Documentation.** `Documentation.md` (layer diagram, sequence diagrams, class diagram, CRC cards, API notes) and the README are owned end to end by lane L5. *(Plan.md → 1.7, 3.8, 4.5, 4.6.)*
+**Documentation.** `Documentation.md` (layer diagram, sequence diagrams, class diagram, CRC cards, API notes) and the README are split across the team, one named deliverable per lane, so nobody carries documentation alone. *(Plan.md → 1.7, 3.8, 4.5, 4.6.)*
 
 **Delivery.** Sprints 4 and 5 are integration and hardening: a cross-lane bug bash, a UI consistency pass, demo seed data, a rehearsal, and a clean-clone verification of `main`. *(Plan.md → 4.1–4.7, 5.1–5.3.)*
 

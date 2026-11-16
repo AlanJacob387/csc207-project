@@ -22,6 +22,7 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 
 import entity.Role;
+import interface_adapter.logout.LogoutController;
 
 /**
  * The signed-in application shell: a dark sidebar with navigation on the
@@ -51,15 +52,23 @@ public class AppShell extends JPanel {
     private final Map<String, List<Role>> pageRoles = new LinkedHashMap<>();
     private String activePage;
 
-    private final Runnable onLogout;
+    private LogoutController logoutController;
 
-    public AppShell(Runnable onLogout) {
-        this.onLogout = onLogout;
+    public AppShell() {
         setLayout(new BorderLayout());
         add(buildSidebar(), BorderLayout.WEST);
 
         content.setBackground(Color.WHITE);
         add(content, BorderLayout.CENTER);
+    }
+
+    /**
+     * Gives the shell the controller the Log out button should call.
+     *
+     * @param logoutController the logout controller
+     */
+    public void setLogoutController(LogoutController logoutController) {
+        this.logoutController = logoutController;
     }
 
     /**
@@ -147,8 +156,8 @@ public class AppShell extends JPanel {
 
         // Log out sits in the top-left nav group, right under the pages.
         final JButton logout = navButton("Log out", () -> {
-            if (onLogout != null) {
-                onLogout.run();
+            if (logoutController != null) {
+                logoutController.execute();
             }
         });
         sidebar.add(Box.createVerticalStrut(4));

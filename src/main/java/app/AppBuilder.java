@@ -208,7 +208,7 @@ public class AppBuilder {
      */
     public AppBuilder addChangePasswordView() {
         changePasswordViewModel = new ChangePasswordViewModel();
-        changePasswordView = new ChangePasswordView(changePasswordViewModel);
+        changePasswordView = new ChangePasswordView(changePasswordViewModel, session);
         appShell.addPage("Account", pad(changePasswordView));
         return this;
     }

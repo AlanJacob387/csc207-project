@@ -167,7 +167,7 @@ class LoginFlowWiringTest {
         signupView.setOnBackToLogin(() -> { });
 
         final ChangePasswordView accountView =
-                new ChangePasswordView(new ChangePasswordViewModel());
+                new ChangePasswordView(new ChangePasswordViewModel(), new Session());
         accountView.setChangePasswordController(new ChangePasswordController(inputData -> { }));
 
         final AppShell shell = new AppShell();

@@ -27,6 +27,7 @@ import use_case.assign_coach.AssignCoachInteractor;
 import use_case.create_team.CreateTeamInteractor;
 import use_case.manage_roster.ManageRosterInteractor;
 import use_case.view_roster.ViewRosterInteractor;
+import use_case.view_roster.ViewRosterOutputData.TeamRoster;
 
 /** Runs the roster slices against the real JSON store in a temporary folder. */
 class RosterFlowTest {
@@ -70,7 +71,11 @@ class RosterFlowTest {
                 new ViewRosterPresenter(viewModel)), session).execute();
 
         assertEquals("", viewModel.getErrorMessage());
-        assertEquals("Raptors (u12) - Basketball\n    Coach: coach1\n    Players: player1",
-                viewModel.getRosterText());
+        assertEquals(1, viewModel.getTeams().size());
+        final TeamRoster team = viewModel.getTeams().get(0);
+        assertEquals("u12", team.getTeamId());
+        assertEquals("Raptors", team.getName());
+        assertEquals("Coach One", team.getCoach().getDisplayName());
+        assertEquals("Pat Player", team.getPlayers().get(0).getDisplayName());
     }
 }

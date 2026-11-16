@@ -23,6 +23,7 @@ public class Main {
                     .addSignupUseCase()
                     .addCreateEventUseCase()
                     .addAnnouncementUseCases()
+                    .addRosterUseCases()
                     .build();
 
             frame.setVisible(true);

@@ -23,11 +23,15 @@ import entity.Event;
 import entity.Role;
 import entity.Team;
 import entity.User;
+import use_case.assign_coach.AssignCoachDataAccessInterface;
 import use_case.create_event.CreateEventDataAccessInterface;
+import use_case.create_team.CreateTeamDataAccessInterface;
 import use_case.login.LoginUserDataAccessInterface;
+import use_case.manage_roster.ManageRosterDataAccessInterface;
 import use_case.post_announcement.PostAnnouncementDataAccessInterface;
 import use_case.signup.SignupUserDataAccessInterface;
 import use_case.view_announcements.ViewAnnouncementsDataAccessInterface;
+import use_case.view_roster.ViewRosterDataAccessInterface;
 
 /**
  * Local JSON store for users, teams, events, attendance and announcements.
@@ -45,7 +49,11 @@ public class FileAppDataAccessObject implements
         SignupUserDataAccessInterface,
         CreateEventDataAccessInterface,
         PostAnnouncementDataAccessInterface,
-        ViewAnnouncementsDataAccessInterface {
+        ViewAnnouncementsDataAccessInterface,
+        CreateTeamDataAccessInterface,
+        AssignCoachDataAccessInterface,
+        ManageRosterDataAccessInterface,
+        ViewRosterDataAccessInterface {
 
     /** Default store location, relative to the working directory. */
     public static final Path DEFAULT_PATH = Path.of("data", "app-data.json");

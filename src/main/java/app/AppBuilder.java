@@ -29,6 +29,9 @@ import interface_adapter.login.LoginPresenter;
 import interface_adapter.login.LoginViewModel;
 import interface_adapter.logout.LogoutController;
 import interface_adapter.logout.LogoutPresenter;
+import interface_adapter.manage_users.ManageUsersController;
+import interface_adapter.manage_users.ManageUsersPresenter;
+import interface_adapter.manage_users.ManageUsersViewModel;
 import interface_adapter.post_announcement.PostAnnouncementController;
 import interface_adapter.post_announcement.PostAnnouncementPresenter;
 import interface_adapter.post_announcement.PostAnnouncementViewModel;
@@ -42,6 +45,9 @@ import use_case.change_password.ChangePasswordInteractor;
 import use_case.create_event.CreateEventInteractor;
 import use_case.login.LoginInteractor;
 import use_case.logout.LogoutInteractor;
+import use_case.manage_users.ChangeUserRoleInteractor;
+import use_case.manage_users.CreateUserInteractor;
+import use_case.manage_users.DeactivateUserInteractor;
 import use_case.post_announcement.PostAnnouncementInteractor;
 import use_case.signup.SignupInteractor;
 import use_case.view_announcements.ViewAnnouncementsInteractor;
@@ -52,6 +58,7 @@ import view.CalendarView;
 import view.CreateEventView;
 import view.DatabaseSettingsView;
 import view.LoginView;
+import view.ManageUsersView;
 import view.SignupView;
 import view.ViewManager;
 
@@ -236,10 +243,24 @@ public class AppBuilder {
     }
 
     /**
-     * Builds the window, ready to be made visible. The login page is shown first.
+     * Adds the administrator page and wires the three account-management use
+     * cases. Call it after addAppShell(): the page is only visible to
+     * administrators.
      *
-     * @return the application window
+     * @return this builder, so the calls can be chained
      */
+    public AppBuilder addManageUsersUseCase() {
+        final ManageUsersViewModel viewModel = new ManageUsersViewModel();
+        final ManageUsersPresenter presenter = new ManageUsersPresenter(viewModel);
+        final ManageUsersController controller = new ManageUsersController(
+                new CreateUserInteractor(dataAccess, presenter, session, userFactory),
+                new ChangeUserRoleInteractor(dataAccess, presenter, session),
+                new DeactivateUserInteractor(dataAccess, presenter, session));
+
+        appShell.addPage("Manage Users", new ManageUsersView(controller, viewModel), Role.ADMIN);
+        return this;
+    }
+
     /**
      * Wires the Log Out use case into the shell Log out button.
      *

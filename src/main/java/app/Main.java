@@ -24,6 +24,7 @@ public class Main {
                     .addSignupUseCase()
                     .addLogoutUseCase()
                     .addCreateEventUseCase()
+                    .addManageUsersUseCase()
                     .addChangePasswordView()
                     .addChangePasswordUseCase()
                     .addAnnouncementUseCases()

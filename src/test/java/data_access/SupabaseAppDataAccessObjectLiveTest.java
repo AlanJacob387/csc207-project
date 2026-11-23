@@ -25,7 +25,7 @@ class SupabaseAppDataAccessObjectLiveTest {
 
     @Test
     void readsFromTheHostedDatabase() {
-        final SupabaseAppDataAccessObject store = SupabaseAppDataAccessObject.fromEnvironment();
+        final SupabaseAppDataAccessObject store = SupabaseAppDataAccessObject.fromConfig();
         assumeTrue(store != null, "set " + SupabaseAppDataAccessObject.URL_VARIABLE
                 + " and " + SupabaseAppDataAccessObject.KEY_VARIABLE + " to run this test");
 

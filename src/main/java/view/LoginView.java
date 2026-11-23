@@ -45,6 +45,9 @@ public class LoginView extends JPanel implements PropertyChangeListener {
     private final LoginViewModel viewModel;
     private LoginController controller;
     private Runnable onGoToSignup;
+    private Runnable onOpenDatabaseSettings;
+
+    private final JLabel storeLabel = new JLabel(" ");
 
     /** Creates the page with a fresh view model. */
     public LoginView() {
@@ -119,6 +122,23 @@ public class LoginView extends JPanel implements PropertyChangeListener {
 
         loginButton.addActionListener(e -> onLogin());
         signupButton.addActionListener(e -> onGoToSignup());
+
+        storeLabel.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 11));
+        storeLabel.setForeground(new Color(120, 128, 140));
+        storeLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+
+        final JButton settingsLink = new JButton("Database settings");
+        settingsLink.setBorder(BorderFactory.createEmptyBorder());
+        settingsLink.setContentAreaFilled(false);
+        settingsLink.setFocusPainted(false);
+        settingsLink.setForeground(new Color(30, 90, 200));
+        settingsLink.setCursor(java.awt.Cursor.getPredefinedCursor(java.awt.Cursor.HAND_CURSOR));
+        settingsLink.setAlignmentX(Component.CENTER_ALIGNMENT);
+        settingsLink.addActionListener(e -> {
+            if (onOpenDatabaseSettings != null) {
+                onOpenDatabaseSettings.run();
+            }
+        });
         // Pressing Enter in the password field triggers login
         passwordField.addActionListener(e -> onLogin());
 
@@ -139,6 +159,10 @@ public class LoginView extends JPanel implements PropertyChangeListener {
         card.add(loginButton);
         card.add(Box.createVerticalStrut(10));
         card.add(signupButton);
+        card.add(Box.createVerticalStrut(16));
+        card.add(storeLabel);
+        card.add(Box.createVerticalStrut(2));
+        card.add(settingsLink);
         return card;
     }
 
@@ -158,6 +182,34 @@ public class LoginView extends JPanel implements PropertyChangeListener {
      */
     public void setOnGoToSignup(Runnable onGoToSignup) {
         this.onGoToSignup = onGoToSignup;
+    }
+
+    /**
+     * Sets what happens when the user opens the database settings.
+     *
+     * @param onOpenDatabaseSettings the navigation callback
+     */
+    public void setOnOpenDatabaseSettings(Runnable onOpenDatabaseSettings) {
+        this.onOpenDatabaseSettings = onOpenDatabaseSettings;
+    }
+
+    /**
+     * Shows which store the app is using, so nobody has to guess whether they are
+     * on the shared database or on a local file.
+     *
+     * @param description the store description, from AppDataStore.describe()
+     */
+    public void setStoreDescription(String description) {
+        storeLabel.setText(description == null || description.isBlank() ? " " : description);
+    }
+
+    /**
+     * Reads back the store description, for tests.
+     *
+     * @return the text under the buttons
+     */
+    String storeDescription() {
+        return storeLabel.getText();
     }
 
     @Override

@@ -82,9 +82,28 @@ select tablename, policyname from pg_policies where schemaname = 'public';
 
 Every table must show `rowsecurity = true` and three policies.
 
-## 4. Point the app at it
+## 4. Connect the app (no terminal needed)
 
-PowerShell, current session only:
+Start the app (`./gradlew run`, or a packaged build), click **Database settings**
+on the sign-in page, paste the project URL and the publishable key, press **Test
+connection**, then **Save**. The settings are written to
+
+```text
+Windows       %USERPROFILE%\.team-sports\database.properties
+macOS / Linux ~/.team-sports/database.properties
+```
+
+and are used on every later start. They live outside the repository, so the key
+never reaches git. Restart the app after saving: the store is chosen once, when
+the app starts.
+
+With no settings at all the app uses `data/app-data.json`, which is what the unit
+tests and an offline demo use. The sign-in page always shows which store is live,
+so nobody has to guess.
+
+### Overriding from a terminal (CI, or a one-off run)
+
+The environment wins over the saved file:
 
 ```powershell
 $env:TEAMSPORTS_DB_URL = 'https://<project-ref>.supabase.co'
@@ -92,20 +111,13 @@ $env:TEAMSPORTS_DB_KEY = 'sb_publishable_...'
 ./gradlew run
 ```
 
-To keep them, set them once for your user account:
+`-Dteamsports.db.url=...` and `-Dteamsports.db.key=...` work the same way, one
+step lower in the order.
+
+### Checking the database itself (optional)
 
 ```powershell
-[Environment]::SetEnvironmentVariable('TEAMSPORTS_DB_URL', 'https://<project-ref>.supabase.co', 'User')
-[Environment]::SetEnvironmentVariable('TEAMSPORTS_DB_KEY', 'sb_publishable_...', 'User')
-```
-
-With neither variable set, the app falls back to `data/app-data.json`, which is
-what the unit tests and an offline demo use.
-
-Verify the database itself from a terminal:
-
-```powershell
-Invoke-RestMethod -Uri "$env:TEAMSPORTS_DB_URL/rest/v1/users?select=username" -Headers @{ apikey = $env:TEAMSPORTS_DB_KEY }
+Invoke-RestMethod -Uri "https://<project-ref>.supabase.co/rest/v1/users?select=username" -Headers @{ apikey = 'sb_publishable_...' }
 ```
 
 An empty array means the table exists, the key works and the policies allow the
@@ -116,8 +128,12 @@ read. Demo accounts appear after the first app run.
 A free-plan project is **paused after 7 days without activity**, and a paused
 project cannot answer the REST API. A few requests a day are enough; visiting
 the dashboard also counts. If it does pause, the dashboard shows a **Resume
-project** button, and the data is kept for a year. The app falls back to the
-local file while the project is paused.
+project** button, and the data is kept for a year.
+
+A paused project does **not** silently switch the app to its local file: the
+sign-in page reports that the account store could not be read, because two people
+who believe they share data should not quietly diverge. Resume the project and the
+app works again.
 
 ## Security notes
 

@@ -87,4 +87,12 @@ public interface AppDataStore extends
      * @return the matching records
      */
     List<AttendanceRecord> getAttendanceFor(String eventId);
+
+    /**
+     * Describes the store in one line, so the sign-in page can show whether the
+     * app is on the shared database or on a local file.
+     *
+     * @return a short description, such as "Local file: data/app-data.json"
+     */
+    String describe();
 }

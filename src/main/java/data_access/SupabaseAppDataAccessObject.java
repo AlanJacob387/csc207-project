@@ -49,10 +49,10 @@ import okhttp3.ResponseBody;
 public class SupabaseAppDataAccessObject implements AppDataStore {
 
     /** Environment variable holding the project URL. */
-    public static final String URL_VARIABLE = "TEAMSPORTS_DB_URL";
+    public static final String URL_VARIABLE = DatabaseConfig.URL_VARIABLE;
 
     /** Environment variable holding the publishable key. */
-    public static final String KEY_VARIABLE = "TEAMSPORTS_DB_KEY";
+    public static final String KEY_VARIABLE = DatabaseConfig.KEY_VARIABLE;
 
     private static final String USERS = "users";
     private static final String TEAMS = "teams";
@@ -92,13 +92,16 @@ public class SupabaseAppDataAccessObject implements AppDataStore {
     }
 
     /**
-     * Builds the store from the environment.
+     * Builds the store from the saved settings, the environment or the system
+     * properties, whichever is configured.
      *
      * @return the store, or null when either variable is missing, so the caller
      *         can fall back to the local file
      */
-    public static SupabaseAppDataAccessObject fromEnvironment() {
-        return fromEnvironment(System.getenv(URL_VARIABLE), System.getenv(KEY_VARIABLE));
+    public static SupabaseAppDataAccessObject fromConfig() {
+        final DatabaseConfig config = DatabaseConfig.resolve();
+        return config == null ? null
+                : new SupabaseAppDataAccessObject(config.getUrl(), config.getKey());
     }
 
     /**
@@ -109,7 +112,7 @@ public class SupabaseAppDataAccessObject implements AppDataStore {
      * @param publishableKey the publishable key, possibly blank
      * @return the store, or null when either value is missing
      */
-    static SupabaseAppDataAccessObject fromEnvironment(String projectUrl, String publishableKey) {
+    static SupabaseAppDataAccessObject fromValues(String projectUrl, String publishableKey) {
         if (projectUrl == null || projectUrl.isBlank()
                 || publishableKey == null || publishableKey.isBlank()) {
             return null;
@@ -396,5 +399,65 @@ public class SupabaseAppDataAccessObject implements AppDataStore {
             url = url.substring(0, url.length() - REST_PATH.length());
         }
         return url;
+    }
+
+    // ------------------------------------------------------------------
+    // Status and connection test, for the settings page
+    // ------------------------------------------------------------------
+
+    @Override
+    public String describe() {
+        return "Hosted database: " + projectUrl;
+    }
+
+    /**
+     * Tries the given settings against the database, so the settings page can
+     * tell the user whether they work before saving them.
+     *
+     * @param projectUrl the project URL
+     * @param apiKey     the publishable key
+     * @return the outcome, ready to show
+     */
+    public static ConnectionCheck testConnection(String projectUrl, String apiKey) {
+        try {
+            final DatabaseConfig config = DatabaseConfig.fromValues(projectUrl, apiKey,
+                    "settings page");
+            if (config == null) {
+                return new ConnectionCheck(false, "Enter both a URL and a publishable key.");
+            }
+            final SupabaseAppDataAccessObject store =
+                    new SupabaseAppDataAccessObject(config.getUrl(), config.getKey());
+            final int accounts = store.getAllUsers().size();
+            return new ConnectionCheck(true, "Connected: " + accounts + " account(s) stored.");
+        }
+        catch (RuntimeException ex) {
+            return new ConnectionCheck(false, "Could not connect: " + ex.getMessage());
+        }
+    }
+
+    /** The outcome of a connection test. */
+    public static final class ConnectionCheck {
+
+        private final boolean ok;
+        private final String message;
+
+        /**
+         * Creates the result.
+         *
+         * @param ok      whether the settings worked
+         * @param message what to show the user
+         */
+        public ConnectionCheck(boolean ok, String message) {
+            this.ok = ok;
+            this.message = message;
+        }
+
+        public boolean isOk() {
+            return ok;
+        }
+
+        public String getMessage() {
+            return message;
+        }
     }
 }

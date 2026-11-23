@@ -22,6 +22,7 @@ public class ViewManager extends JPanel implements PropertyChangeListener {
     // Page names, shared with the presenters that trigger navigation
     public static final String LOGIN = ViewManagerModel.LOGIN;
     public static final String SIGNUP = ViewManagerModel.SIGNUP;
+    public static final String DATABASE = ViewManagerModel.DATABASE;
     public static final String APP = ViewManagerModel.APP;
 
     private final CardLayout cards = new CardLayout();

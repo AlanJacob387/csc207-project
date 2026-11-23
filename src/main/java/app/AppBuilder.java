@@ -10,6 +10,7 @@ import javax.swing.JPanel;
 import javax.swing.SwingConstants;
 
 import data_access.AppDataStore;
+import data_access.DatabaseConfig;
 import data_access.FileAppDataAccessObject;
 import data_access.SupabaseAppDataAccessObject;
 import entity.Role;
@@ -49,6 +50,7 @@ import view.AppShell;
 import view.ChangePasswordView;
 import view.CalendarView;
 import view.CreateEventView;
+import view.DatabaseSettingsView;
 import view.LoginView;
 import view.SignupView;
 import view.ViewManager;
@@ -73,7 +75,8 @@ public class AppBuilder {
     private static final String DEMO_TEAM_ID = "demo-team";
 
     // Shared collaborators, created once and handed to whatever needs them.
-    private final AppDataStore dataAccess = createStore();
+    private final DatabaseConfig databaseConfig = resolveDatabaseConfig();
+    private final AppDataStore dataAccess = createStore(databaseConfig);
     private final ViewManagerModel viewManagerModel = new ViewManagerModel();
     private final Session session = new Session();
     private final UserFactory userFactory = new UserFactory();
@@ -101,7 +104,33 @@ public class AppBuilder {
     public AppBuilder addLoginView() {
         loginViewModel = new LoginViewModel();
         loginView = new LoginView(loginViewModel);
+        loginView.setStoreDescription(dataAccess.describe());
+        loginView.setOnOpenDatabaseSettings(() -> navigate(ViewManagerModel.DATABASE));
         viewManager.register(ViewManager.LOGIN, loginView);
+        return this;
+    }
+
+    /**
+     * Adds the page where a user connects the app to the shared database.
+     *
+     * Saving writes the settings into the user's home folder, so the next start
+     * connects without a terminal. The store is built once at startup, so the page
+     * tells the user to restart after saving.
+     *
+     * @return this builder, so the calls can be chained
+     */
+    public AppBuilder addDatabaseSettingsView() {
+        final DatabaseSettingsView view = new DatabaseSettingsView(
+                databaseConfig == null ? "" : databaseConfig.getUrl(),
+                DatabaseConfig.userFile().toString());
+        view.setOnBackToLogin(() -> navigate(ViewManagerModel.LOGIN));
+        view.setOnTestConnection((url, key) -> {
+            final SupabaseAppDataAccessObject.ConnectionCheck check =
+                    SupabaseAppDataAccessObject.testConnection(url, key);
+            return new DatabaseSettingsView.TestResult(check.isOk(), check.getMessage());
+        });
+        view.setOnSave(DatabaseConfig::save);
+        viewManager.register(ViewManager.DATABASE, view);
         return this;
     }
 
@@ -300,18 +329,43 @@ public class AppBuilder {
     }
 
     /**
-     * Chooses the store: the hosted database when TEAMSPORTS_DB_URL and
-     * TEAMSPORTS_DB_KEY are set, the local JSON file otherwise.
+     * Chooses the store: the hosted database when settings are configured, the
+     * local JSON file otherwise.
      *
-     * Keeping the file as the default means a clean clone runs with no account,
-     * the unit tests stay offline, and a paused free project falls back to local
-     * data instead of refusing to start.
+     * The connection is chosen once, when the app starts, from the user's saved
+     * settings, the environment or the system properties (see DatabaseConfig).
+     * With nothing configured the local file is used, so a clean clone runs with
+     * no account and the unit tests stay offline.
      *
+     * There is deliberately no fallback at request time: if the database is
+     * configured but unreachable, the failure is reported instead of quietly
+     * switching to a local file, because two people who think they share data
+     * would then silently diverge.
+     *
+     * @param config the resolved settings, or null when nothing is configured
      * @return the store the whole app should use
      */
-    private static AppDataStore createStore() {
-        final SupabaseAppDataAccessObject hosted = SupabaseAppDataAccessObject.fromEnvironment();
-        return hosted == null ? new FileAppDataAccessObject() : hosted;
+    private static AppDataStore createStore(DatabaseConfig config) {
+        return config == null
+                ? new FileAppDataAccessObject()
+                : new SupabaseAppDataAccessObject(config.getUrl(), config.getKey());
+    }
+
+    /**
+     * Reads the database settings without letting a broken file stop startup: the
+     * sign-in page then shows the local store and still offers the settings page
+     * where the mistake can be corrected.
+     *
+     * @return the settings, or null when nothing usable is configured
+     */
+    private static DatabaseConfig resolveDatabaseConfig() {
+        try {
+            return DatabaseConfig.resolve();
+        }
+        catch (RuntimeException ex) {
+            System.err.println("Database settings could not be read: " + ex.getMessage());
+            return null;
+        }
     }
 
     /**

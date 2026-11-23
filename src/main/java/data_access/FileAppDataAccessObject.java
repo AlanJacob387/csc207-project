@@ -59,6 +59,11 @@ public class FileAppDataAccessObject implements AppDataStore {
         this(DEFAULT_PATH);
     }
 
+    @Override
+    public String describe() {
+        return "Local file: " + file;
+    }
+
     /**
      * Creates a store backed by the given file.
      *

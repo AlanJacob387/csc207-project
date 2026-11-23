@@ -15,6 +15,7 @@ public class ViewManagerModel {
     /** Page names used across the app. */
     public static final String LOGIN = "login";
     public static final String SIGNUP = "signup";
+    public static final String DATABASE = "database";
     public static final String APP = "app";
 
     private final PropertyChangeSupport support = new PropertyChangeSupport(this);

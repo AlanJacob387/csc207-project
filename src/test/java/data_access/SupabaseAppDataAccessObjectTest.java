@@ -270,12 +270,56 @@ class SupabaseAppDataAccessObjectTest {
 
     @Test
     void theStoreIsOnlyBuiltWhenBothValuesArePresent() {
-        assertNull(SupabaseAppDataAccessObject.fromEnvironment(null, "key"));
-        assertNull(SupabaseAppDataAccessObject.fromEnvironment("", "key"));
-        assertNull(SupabaseAppDataAccessObject.fromEnvironment("https://x.supabase.co", " "));
-        assertNull(SupabaseAppDataAccessObject.fromEnvironment("https://x.supabase.co", null));
+        assertNull(SupabaseAppDataAccessObject.fromValues(null, "key"));
+        assertNull(SupabaseAppDataAccessObject.fromValues("", "key"));
+        assertNull(SupabaseAppDataAccessObject.fromValues("https://x.supabase.co", " "));
+        assertNull(SupabaseAppDataAccessObject.fromValues("https://x.supabase.co", null));
         org.junit.jupiter.api.Assertions.assertNotNull(
-                SupabaseAppDataAccessObject.fromEnvironment("https://x.supabase.co", "key"));
+                SupabaseAppDataAccessObject.fromValues("https://x.supabase.co", "key"));
+    }
+
+    @Test
+    void theStoreNamesItsProjectSoTheSignInPageCanShowIt() {
+        assertTrue(store.describe().startsWith("Hosted database"));
+        assertTrue(store.describe().contains(baseUrl()));
+    }
+
+    @Test
+    void aConnectionTestReportsHowManyAccountsAreStored() {
+        respond(200, "[" + USER_ROW + "]");
+
+        final SupabaseAppDataAccessObject.ConnectionCheck check =
+                SupabaseAppDataAccessObject.testConnection(baseUrl(), "sb_publishable_test");
+
+        assertTrue(check.isOk());
+        assertTrue(check.getMessage().contains("1 account"));
+    }
+
+    @Test
+    void aConnectionTestExplainsARejection() {
+        respond(401, "{\"message\":\"Invalid API key\"}");
+
+        final SupabaseAppDataAccessObject.ConnectionCheck check =
+                SupabaseAppDataAccessObject.testConnection(baseUrl(), "sb_publishable_test");
+
+        assertFalse(check.isOk());
+        assertTrue(check.getMessage().contains("401"));
+        assertTrue(check.getMessage().contains("Invalid API key"));
+    }
+
+    @Test
+    void aConnectionTestRefusesBlankOrSecretValues() {
+        assertFalse(SupabaseAppDataAccessObject.testConnection("", "").isOk());
+        assertTrue(SupabaseAppDataAccessObject.testConnection("", "").getMessage().contains("both"));
+
+        final SupabaseAppDataAccessObject.ConnectionCheck secret =
+                SupabaseAppDataAccessObject.testConnection(baseUrl(), "sb_secret_abc123");
+        assertFalse(secret.isOk());
+        assertTrue(secret.getMessage().contains("publishable"));
+    }
+
+    private String baseUrl() {
+        return "http://127.0.0.1:" + server.getAddress().getPort();
     }
 
     @Test

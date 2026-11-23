@@ -18,6 +18,7 @@ public class Main {
             final JFrame frame = appBuilder
                     .addLoginView()
                     .addSignupView()
+                    .addDatabaseSettingsView()
                     .addAppShell()
                     .addLoginUseCase()
                     .addSignupUseCase()

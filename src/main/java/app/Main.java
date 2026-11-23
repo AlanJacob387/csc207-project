@@ -22,6 +22,7 @@ public class Main {
                     .addLoginUseCase()
                     .addSignupUseCase()
                     .addCreateEventUseCase()
+                    .addRecordAttendanceUseCase()
                     .addAnnouncementUseCases()
                     .build();
 

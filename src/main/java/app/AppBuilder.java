@@ -15,6 +15,12 @@ import entity.Team;
 import entity.User;
 import entity.UserFactory;
 import interface_adapter.Session;
+import interface_adapter.record_attendance.RecordAttendanceController;
+import interface_adapter.record_attendance.RecordAttendancePresenter;
+import interface_adapter.record_attendance.RecordAttendanceViewModel;
+import use_case.record_attendance.RecordAttendanceInteractor;
+import use_case.current_user.CurrentUserInterface;
+import view.RecordAttendanceView;
 import interface_adapter.ViewManagerModel;
 import interface_adapter.create_event.CreateEventController;
 import interface_adapter.create_event.CreateEventPresenter;
@@ -177,6 +183,16 @@ public class AppBuilder {
 
         appShell.addPage("New Event",
                 pad(new CreateEventView(controller, createEventViewModel)), Role.COACH);
+        return this;
+    }
+
+    /** Wires the coach-only complete-roster attendance page. */
+    public AppBuilder addRecordAttendanceUseCase() {
+        final RecordAttendanceViewModel vm = new RecordAttendanceViewModel();
+        final RecordAttendanceController controller = new RecordAttendanceController(
+                new RecordAttendanceInteractor(dataAccess, new RecordAttendancePresenter(vm), session));
+        appShell.addPage("Attendance", pad(new RecordAttendanceView(controller, vm, dataAccess, session)),
+                Role.COACH);
         return this;
     }
 

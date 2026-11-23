@@ -24,6 +24,7 @@ import entity.Role;
 import entity.Team;
 import entity.User;
 import use_case.create_event.CreateEventDataAccessInterface;
+import use_case.record_attendance.RecordAttendanceDataAccessInterface;
 import use_case.login.LoginUserDataAccessInterface;
 import use_case.post_announcement.PostAnnouncementDataAccessInterface;
 import use_case.signup.SignupUserDataAccessInterface;
@@ -44,6 +45,7 @@ public class FileAppDataAccessObject implements
         LoginUserDataAccessInterface,
         SignupUserDataAccessInterface,
         CreateEventDataAccessInterface,
+        RecordAttendanceDataAccessInterface,
         PostAnnouncementDataAccessInterface,
         ViewAnnouncementsDataAccessInterface {
 
@@ -184,6 +186,22 @@ public class FileAppDataAccessObject implements
     // ------------------------------------------------------------------
     // Attendance (Record Attendance use case)
     // ------------------------------------------------------------------
+
+    /** Atomically stores one event roster; no partially committed player updates. */
+    @Override
+    public void saveAttendanceRoster(String eventId, List<AttendanceRecord> records) {
+        final List<AttendanceRecord> previous = new ArrayList<>(attendance);
+        attendance.removeIf(record -> eventId.equals(record.getEventId()));
+        attendance.addAll(records);
+        try {
+            persist();
+        }
+        catch (RuntimeException ex) {
+            attendance.clear();
+            attendance.addAll(previous);
+            throw ex;
+        }
+    }
 
     /**
      * Saves one player's attendance for one event, replacing any earlier record

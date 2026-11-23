@@ -30,6 +30,18 @@ application {
     mainClass = 'app.Main'
 }
 
+tasks.named('run', JavaExec) {
+    systemProperty 'teamsports.data', providers.gradleProperty('appData').getOrElse('data/app-data.json')
+}
+
+tasks.register('seedDemo', JavaExec) {
+    group = 'application'
+    description = 'Create a separate presentation store without replacing existing data.'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'app.DemoDataSeeder'
+    args providers.gradleProperty('demoData').getOrElse('data/demo-data.json')
+}
+
 test {
     useJUnitPlatform {
         // Tests tagged "network" need internet access, so they are skipped by

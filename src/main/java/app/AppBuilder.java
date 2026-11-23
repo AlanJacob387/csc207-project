@@ -2,6 +2,8 @@ package app;
 
 import java.awt.BorderLayout;
 import java.awt.Dimension;
+import java.nio.file.Path;
+import java.util.Objects;
 
 import javax.swing.BorderFactory;
 import javax.swing.JFrame;
@@ -11,12 +13,29 @@ import javax.swing.SwingConstants;
 
 import data_access.FileAppDataAccessObject;
 import data_access.FileScheduleWriter;
+import data_access.OpenMeteoWeatherGateway;
 import entity.Role;
 import entity.Team;
 import entity.User;
 import entity.UserFactory;
 import interface_adapter.Session;
 import interface_adapter.ViewManagerModel;
+import interface_adapter.view_notifications.ViewNotificationsController;
+import interface_adapter.view_notifications.ViewNotificationsPresenter;
+import interface_adapter.view_notifications.ViewNotificationsViewModel;
+import interface_adapter.submit_absence_notice.SubmitAbsenceNoticeController;
+import interface_adapter.submit_absence_notice.SubmitAbsenceNoticePresenter;
+import interface_adapter.submit_absence_notice.SubmitAbsenceNoticeViewModel;
+import interface_adapter.view_absence_notices.ViewAbsenceNoticesController;
+import interface_adapter.view_absence_notices.ViewAbsenceNoticesPresenter;
+import interface_adapter.view_absence_notices.ViewAbsenceNoticesViewModel;
+import interface_adapter.link_parent_to_player.LinkParentToPlayerController;
+import interface_adapter.link_parent_to_player.LinkParentToPlayerPresenter;
+import interface_adapter.link_parent_to_player.LinkParentToPlayerViewModel;
+import interface_adapter.view_event_weather.ViewEventWeatherController;
+import interface_adapter.view_event_weather.ViewEventWeatherViewModel;
+import interface_adapter.flag_rain_risk.FlagRainRiskController;
+import interface_adapter.flag_rain_risk.FlagRainRiskViewModel;
 import interface_adapter.browse_events.BrowseEventsController;
 import interface_adapter.browse_events.BrowseEventsPresenter;
 import interface_adapter.browse_events.BrowseEventsViewModel;
@@ -68,6 +87,10 @@ import use_case.signup.SignupInteractor;
 import use_case.view_announcements.ViewAnnouncementsInteractor;
 import use_case.view_event_details.ViewEventDetailsInteractor;
 import use_case.view_schedule.ViewScheduleInteractor;
+import use_case.view_notifications.ViewNotificationsInteractor;
+import use_case.submit_absence_notice.SubmitAbsenceNoticeInteractor;
+import use_case.view_absence_notices.ViewAbsenceNoticesInteractor;
+import use_case.link_parent_to_player.LinkParentToPlayerInteractor;
 import view.AnnouncementsView;
 import view.AppShell;
 import view.ChangePasswordView;
@@ -78,6 +101,11 @@ import view.EventsListView;
 import view.LoginView;
 import view.SignupView;
 import view.ViewManager;
+import view.NotificationsView;
+import view.AbsenceNoticesView;
+import view.ParentLinksView;
+import view.EventWeatherPanel;
+import view.RainRiskPanel;
 
 /**
  * Builds the whole application through a chain of add... methods, so Main
@@ -97,11 +125,8 @@ import view.ViewManager;
  */
 public class AppBuilder {
 
-    /** Password given to the demo accounts seeded on first run. */
-    private static final String DEMO_PASSWORD = "pw";
-
     // Shared collaborators, created once and handed to whatever needs them.
-    private final FileAppDataAccessObject dataAccess = new FileAppDataAccessObject();
+    private final FileAppDataAccessObject dataAccess;
     private final ViewManagerModel viewManagerModel = new ViewManagerModel();
     private final Session session = new Session();
     private final UserFactory userFactory = new UserFactory();
@@ -121,7 +146,13 @@ public class AppBuilder {
 
     /** Sets up the collaborators and makes sure a fresh install is usable. */
     public AppBuilder() {
-        seedDemoDataIfEmpty();
+        this(new FileAppDataAccessObject(Path.of(System.getProperty("teamsports.data", "data/app-data.json"))));
+    }
+
+    /** Builds against an explicit store so demonstrations and tests can use isolated data. */
+    public AppBuilder(FileAppDataAccessObject dataAccess) {
+        this.dataAccess = Objects.requireNonNull(dataAccess);
+        DemoDataSeeder.seedIfEmpty(dataAccess, java.time.Clock.systemDefaultZone());
     }
 
     /**
@@ -236,6 +267,64 @@ public class AppBuilder {
 
         appShell.addPage("Announcements", new AnnouncementsView(postController, postViewModel,
                 announcementsController, announcementsViewModel, session));
+        return this;
+    }
+
+    /** Adds the durable feed of changes to the current user's teams' events. */
+    public AppBuilder addNotificationUseCase() {
+        final ViewNotificationsViewModel model = new ViewNotificationsViewModel();
+        final ViewNotificationsController controller = new ViewNotificationsController(
+                new ViewNotificationsInteractor(dataAccess, new ViewNotificationsPresenter(model), session));
+        final NotificationsView view = new NotificationsView(controller, model);
+        session.addPropertyChangeListener(event -> view.reset());
+        appShell.addPage("Notifications", view);
+        return this;
+    }
+
+    /** Adds linked-child absence submission and the coach's notice list. */
+    public AppBuilder addAbsenceNoticeUseCases() {
+        final SubmitAbsenceNoticeViewModel submitModel = new SubmitAbsenceNoticeViewModel();
+        final ViewAbsenceNoticesViewModel listModel = new ViewAbsenceNoticesViewModel();
+        final SubmitAbsenceNoticeController submitController = new SubmitAbsenceNoticeController(
+                new SubmitAbsenceNoticeInteractor(dataAccess, new SubmitAbsenceNoticePresenter(submitModel), session));
+        final ViewAbsenceNoticesController listController = new ViewAbsenceNoticesController(
+                new ViewAbsenceNoticesInteractor(dataAccess, new ViewAbsenceNoticesPresenter(listModel), session));
+        appShell.addPage("Absence notices", new AbsenceNoticesView(submitController, submitModel,
+                listController, listModel, session), Role.PARENT, Role.COACH);
+        return this;
+    }
+
+    /** Lets an administrator grant and revoke access between existing parents and players. */
+    public AppBuilder addParentLinksUseCase() {
+        final LinkParentToPlayerViewModel model = new LinkParentToPlayerViewModel();
+        final LinkParentToPlayerController controller = new LinkParentToPlayerController(
+                new LinkParentToPlayerInteractor(dataAccess, new LinkParentToPlayerPresenter(model), session));
+        appShell.addPage("Parent links", new ParentLinksView(controller, model, session), Role.ADMIN);
+        return this;
+    }
+
+    /** Connects forecasts to event details and rain-risk labels to the calendar and list. */
+    public AppBuilder addWeatherUseCases() {
+        final OpenMeteoWeatherGateway gateway = new OpenMeteoWeatherGateway();
+        final ViewEventWeatherViewModel eventModel = new ViewEventWeatherViewModel();
+        final EventWeatherPanel weather = new EventWeatherPanel(
+                new ViewEventWeatherController(dataAccess, gateway, eventModel, session), eventModel, session);
+        eventDetailsView.setWeatherPanel(weather);
+
+        final FlagRainRiskViewModel riskModel = new FlagRainRiskViewModel();
+        final RainRiskPanel risks = new RainRiskPanel(
+                new FlagRainRiskController(dataAccess, gateway, riskModel, session), riskModel, session);
+        risks.setOnFlags(flags -> {
+            calendarView.setRainRiskFlags(flags);
+            eventsListView.setRainRiskFlags(flags);
+        });
+        eventDetailsView.setOnEventChanged(risks::clear);
+        createEventViewModel.addPropertyChangeListener(event -> {
+            if (!createEventViewModel.getSuccessMessage().isEmpty()) {
+                risks.clear();
+            }
+        });
+        appShell.addPage("Weather", risks);
         return this;
     }
 
@@ -396,13 +485,23 @@ public class AppBuilder {
     public JFrame build() {
         final JFrame frame = new JFrame("Team Sports Management Platform");
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        frame.setContentPane(viewManager);
+        frame.setContentPane(buildContent());
         frame.setExtendedState(JFrame.MAXIMIZED_BOTH);
         frame.setMinimumSize(new Dimension(1000, 700));
         frame.setLocationRelativeTo(null);
 
-        navigate(ViewManagerModel.LOGIN);
         return frame;
+    }
+
+    /** Returns the same application content for a frame or an offscreen flow check. */
+    public JPanel buildContent() {
+        navigate(ViewManagerModel.LOGIN);
+        return viewManager;
+    }
+
+    /** Exposes the modal's content to application-level offscreen flow checks. */
+    EventDetailsView getEventDetailsView() {
+        return eventDetailsView;
     }
 
     // ------------------------------------------------------------------
@@ -413,25 +512,6 @@ public class AppBuilder {
     private void navigate(String page) {
         viewManagerModel.setState(page);
         viewManagerModel.firePropertyChanged();
-    }
-
-    /**
-     * Creates one demo account per role (password "pw") and a demo team, but
-     * only when the store is empty, so the app can be tried straight away.
-     * Replace this with the team''s real seed data (task 4.4).
-     */
-    private void seedDemoDataIfEmpty() {
-        if (dataAccess.existsByName("coach1")) {
-            return;
-        }
-        dataAccess.save(new User("coach1", DEMO_PASSWORD, "Coach One", Role.COACH));
-        dataAccess.save(new User("player1", DEMO_PASSWORD, "Pat Player", Role.PLAYER));
-        dataAccess.save(new User("parent1", DEMO_PASSWORD, "Sam Parent", Role.PARENT));
-        dataAccess.save(new User("admin1", DEMO_PASSWORD, "Ada Admin", Role.ADMIN));
-
-        final Team team = new Team("demo-team", "Demo Team", "Basketball", "coach1");
-        team.addPlayer("player1");
-        dataAccess.saveTeam(team);
     }
 
     /** Wraps a form view with breathing room so it doesn''t stretch edge to edge. */

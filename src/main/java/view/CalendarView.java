@@ -123,6 +123,7 @@ public class CalendarView extends JPanel implements PropertyChangeListener {
     private LocalDate weekAnchor = LocalDate.now(); // any day inside the shown week
 
     private final Map<LocalDate, List<CalendarEvent>> events = new HashMap<>();
+    private Map<String, String> rainRiskFlags = Map.of();
 
     private final JLabel monthLabel = new JLabel("", SwingConstants.LEFT);
     private final JLabel statusLabel = new JLabel(" ");
@@ -246,6 +247,17 @@ public class CalendarView extends JPanel implements PropertyChangeListener {
     public void addEvent(LocalDate date, CalendarEvent event) {
         events.computeIfAbsent(date, d -> new ArrayList<>()).add(event);
         render();
+    }
+
+    /** Applies the latest explicitly requested forecast labels without changing stored events. */
+    public void setRainRiskFlags(Map<String, String> flags) {
+        rainRiskFlags = Map.copyOf(flags);
+        render();
+    }
+
+    private String eventTitle(CalendarEvent event) {
+        final String flag = event.eventId == null ? null : rainRiskFlags.get(event.eventId);
+        return flag == null ? event.title : event.title + " — " + flag;
     }
 
     // ------------------------------------------------------------------
@@ -563,7 +575,7 @@ public class CalendarView extends JPanel implements PropertyChangeListener {
         final Color bg = ev.isGame ? GAME_BG : PRACTICE_BG;
         final Color fg = ev.isGame ? GAME_FG : PRACTICE_FG;
 
-        final JLabel pill = new JLabel(ev.title) {
+        final JLabel pill = new JLabel(eventTitle(ev)) {
             @Override
             protected void paintComponent(Graphics g) {
                 final Graphics2D g2 = (Graphics2D) g.create();
@@ -579,7 +591,7 @@ public class CalendarView extends JPanel implements PropertyChangeListener {
         pill.setForeground(fg);
         pill.setBorder(BorderFactory.createEmptyBorder(3, 8, 3, 8));
         pill.setAlignmentX(Component.LEFT_ALIGNMENT);
-        pill.setToolTipText(ev.title);
+        pill.setToolTipText(eventTitle(ev));
         if (ev.eventId != null) {
             pill.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
             pill.addMouseListener(new MouseAdapter() {
@@ -832,7 +844,7 @@ public class CalendarView extends JPanel implements PropertyChangeListener {
             g2.clipRect(x, y1 + 2, wdt, y2 - y1 - 4);
             g2.setColor(fg);
             g2.setFont(FONT_CHIP_BOLD);
-            g2.drawString(ev.title, x + 10, y1 + 16);
+            g2.drawString(eventTitle(ev), x + 10, y1 + 16);
             g2.setFont(FONT_CHIP);
             g2.drawString(formatRange(start, end), x + 10, y1 + 30);
             g2.setClip(oldClip);

@@ -166,7 +166,7 @@ Same as `Plan.md`: the six `use_case/<name>` files, the three `interface_adapter
 
 | Date | Change |
 |------|--------|
-| 2026-11-23 | `manage_users` built (UC-A5 to UC-A7): create an account, change a role, deactivate an account, on one administrators-only page. Authorization and the "last active administrator" rule live in `AdminPolicy`, so they hold even if the page is called directly; a deactivated account is kept for its history and refused at login. 41 new tests, 203 green |
+| 2026-11-23 | `manage_users` built (UC-A5 to UC-A7): create an account, change a role, deactivate an account, plus the read that fills the page, on one administrators-only page. Authorization and the "last active administrator" rule live in `AdminPolicy`, so they hold even if the page is called directly; a deactivated account is kept for its history and refused at login. 51 new tests, 213 green |
 | 2026-11-23 | Persistence moved to a hosted **Supabase Postgres** database (D6 revised): `db/schema.sql` (five tables, camelCase quoted columns, constraints, row level security), `SupabaseAppDataAccessObject`, `AppDataStore` as the wiring contract, `DatabaseConfig` + an in-app Database settings page so no key enters git and nobody needs a terminal; passwords now stored as PBKDF2 hashes; the local file remains the offline default; 162 tests green |
 | 2026-10-29 | File created: scope, decisions, storage design, phases, API items |
 | 2026-10-29 | Course API dropped (retired host, not a course requirement); storage is the local JSON file; `DBDataAccessObject` deleted; statuses restored |

@@ -38,7 +38,7 @@ Built so far:
 | `logout` (UC-A3) | `use_case/logout` + `interface_adapter/logout` | Log out button in `AppShell` | `LogoutInteractorTest` (2) |
 | `change_password` (UC-A4) | `use_case/change_password` + `interface_adapter/change_password` | `ChangePasswordView` (Account page) | `ChangePasswordInteractorTest` (8), `ChangePasswordViewTest` (3) |
 | `create_event` (UC-B1) | `use_case/create_event` + `interface_adapter/create_event` | `CreateEventView` | owed by L2 (task 1.8) |
-| `manage_users` (UC-A5, UC-A6, UC-A7) | `use_case/manage_users` + `interface_adapter/manage_users` | `ManageUsersView` (Manage Users page, administrators only) | `CreateUserInteractorTest` (11), `ChangeUserRoleInteractorTest` (9), `DeactivateUserInteractorTest` (9), `ManageUsersViewTest` (7), `ManageUsersFlowTest` (5) |
+| `manage_users` (UC-A5, UC-A6, UC-A7) | `use_case/manage_users` + `interface_adapter/manage_users` | `ManageUsersView` (Manage Users page, administrators only) | `CreateUserInteractorTest` (11), `ChangeUserRoleInteractorTest` (9), `DeactivateUserInteractorTest` (9), `ListAccountsInteractorTest` (5), `ManageUsersViewTest` (10), `ManageUsersFlowTest` (7) |
 | `post_announcement` (UC-E1) | `use_case/post_announcement` + `interface_adapter/post_announcement` | Announcements page | `PostAnnouncementInteractorTest` (17) |
 | `view_announcements` (UC-E2) | `use_case/view_announcements` + `interface_adapter/view_announcements` | Announcements page | `ViewAnnouncementsInteractorTest` (17) |
 

@@ -10,18 +10,31 @@ import javax.swing.JPanel;
 import javax.swing.SwingConstants;
 
 import data_access.FileAppDataAccessObject;
+import data_access.FileScheduleWriter;
 import entity.Role;
 import entity.Team;
 import entity.User;
 import entity.UserFactory;
 import interface_adapter.Session;
 import interface_adapter.ViewManagerModel;
+import interface_adapter.browse_events.BrowseEventsController;
+import interface_adapter.browse_events.BrowseEventsPresenter;
+import interface_adapter.browse_events.BrowseEventsViewModel;
+import interface_adapter.cancel_event.CancelEventController;
+import interface_adapter.cancel_event.CancelEventPresenter;
+import interface_adapter.cancel_event.CancelEventViewModel;
 import interface_adapter.change_password.ChangePasswordController;
 import interface_adapter.change_password.ChangePasswordPresenter;
 import interface_adapter.change_password.ChangePasswordViewModel;
 import interface_adapter.create_event.CreateEventController;
 import interface_adapter.create_event.CreateEventPresenter;
 import interface_adapter.create_event.CreateEventViewModel;
+import interface_adapter.edit_event.EditEventController;
+import interface_adapter.edit_event.EditEventPresenter;
+import interface_adapter.edit_event.EditEventViewModel;
+import interface_adapter.export_schedule.ExportScheduleController;
+import interface_adapter.export_schedule.ExportSchedulePresenter;
+import interface_adapter.export_schedule.ExportScheduleViewModel;
 import interface_adapter.login.LoginController;
 import interface_adapter.login.LoginPresenter;
 import interface_adapter.login.LoginViewModel;
@@ -36,32 +49,51 @@ import interface_adapter.signup.SignupViewModel;
 import interface_adapter.view_announcements.ViewAnnouncementsController;
 import interface_adapter.view_announcements.ViewAnnouncementsPresenter;
 import interface_adapter.view_announcements.ViewAnnouncementsViewModel;
+import interface_adapter.view_event_details.ViewEventDetailsController;
+import interface_adapter.view_event_details.ViewEventDetailsPresenter;
+import interface_adapter.view_event_details.ViewEventDetailsViewModel;
+import interface_adapter.view_schedule.ViewScheduleController;
+import interface_adapter.view_schedule.ViewSchedulePresenter;
+import interface_adapter.view_schedule.ViewScheduleViewModel;
+import use_case.browse_events.BrowseEventsInteractor;
+import use_case.cancel_event.CancelEventInteractor;
 import use_case.change_password.ChangePasswordInteractor;
 import use_case.create_event.CreateEventInteractor;
+import use_case.edit_event.EditEventInteractor;
+import use_case.export_schedule.ExportScheduleInteractor;
 import use_case.login.LoginInteractor;
 import use_case.logout.LogoutInteractor;
 import use_case.post_announcement.PostAnnouncementInteractor;
 import use_case.signup.SignupInteractor;
 import use_case.view_announcements.ViewAnnouncementsInteractor;
+import use_case.view_event_details.ViewEventDetailsInteractor;
+import use_case.view_schedule.ViewScheduleInteractor;
 import view.AnnouncementsView;
 import view.AppShell;
 import view.ChangePasswordView;
 import view.CalendarView;
 import view.CreateEventView;
+import view.EventDetailsView;
+import view.EventsListView;
 import view.LoginView;
 import view.SignupView;
 import view.ViewManager;
 
 /**
- * Builds the whole application: one add...View() method per page and one
- * add...UseCase() method per use case, so Main just states what the app has.
+ * Builds the whole application through a chain of add... methods, so Main
+ * just states what the app has.
  *
- * Adding a feature means adding a pair of methods here instead of editing a
- * long main method. This mirrors the AppBuilder in the course''s user-login
- * example.
+ * Not every page has its own add...View() method. Only the login, sign-up and
+ * account pages do. addAppShell() also builds the calendar and events list,
+ * and some use case methods build the view they need: addCreateEventUseCase()
+ * builds the New Event page, addViewEventDetailsUseCase() builds the event
+ * details panel, and addAnnouncementUseCases() wires two use cases and the
+ * announcements page together. This mirrors the AppBuilder in the course''s
+ * user-login example.
  *
- * Typical order: views, then the shell, then the use cases that fill them in,
- * then build().
+ * Typical order: the login and sign-up views, then the shell, then the use
+ * cases and remaining views, then build(). Methods that read a field set by
+ * an earlier method must come after it.
  */
 public class AppBuilder {
 
@@ -80,6 +112,9 @@ public class AppBuilder {
     private SignupView signupView;
     private SignupViewModel signupViewModel;
     private AppShell appShell;
+    private CalendarView calendarView;
+    private EventDetailsView eventDetailsView;
+    private EventsListView eventsListView;
     private CreateEventViewModel createEventViewModel;
     private ChangePasswordView changePasswordView;
     private ChangePasswordViewModel changePasswordViewModel;
@@ -123,8 +158,10 @@ public class AppBuilder {
         appShell = new AppShell();
         session.addPropertyChangeListener(evt -> appShell.applyRole(session.getRole()));
 
-        appShell.addPage("Calendar", new CalendarView());
-        appShell.addPage("Events", placeholder("Events - TODO (event list page)"));
+        calendarView = new CalendarView();
+        appShell.addPage("Calendar", calendarView);
+        eventsListView = new EventsListView();
+        appShell.addPage("Events", eventsListView);
         appShell.addPage("My Stats",
                 placeholder("My Stats - TODO (view_stats use case)"), Role.PLAYER);
         appShell.addPage("Roster",
@@ -180,7 +217,7 @@ public class AppBuilder {
         createEventViewModel = new CreateEventViewModel();
         final CreateEventPresenter presenter = new CreateEventPresenter(createEventViewModel);
         final CreateEventController controller = new CreateEventController(
-                new CreateEventInteractor(dataAccess, presenter));
+                new CreateEventInteractor(dataAccess, presenter, session));
 
         appShell.addPage("New Event",
                 pad(new CreateEventView(controller, createEventViewModel)), Role.COACH);
@@ -203,10 +240,111 @@ public class AppBuilder {
     }
 
     /**
-     * Builds the window, ready to be made visible. The login page is shown first.
+     * Wires the View Schedule use case into the calendar page, so it shows the
+     * signed-in user's stored events. Call it after addAppShell().
      *
-     * @return the application window
+     * @return this builder, so the calls can be chained
      */
+    public AppBuilder addViewScheduleUseCase() {
+        final ViewScheduleViewModel viewModel = new ViewScheduleViewModel();
+        final ViewSchedulePresenter presenter = new ViewSchedulePresenter(viewModel);
+        final ViewScheduleController controller = new ViewScheduleController(
+                new ViewScheduleInteractor(dataAccess, presenter, session));
+
+        calendarView.setViewScheduleController(controller, viewModel);
+        return this;
+    }
+
+    /**
+     * Wires the View Event Details use case: clicking an event on the calendar
+     * opens it in a dialog, and the calendar reloads when the dialog closes.
+     * Call it after addAppShell().
+     *
+     * @return this builder, so the calls can be chained
+     */
+    public AppBuilder addViewEventDetailsUseCase() {
+        final ViewEventDetailsViewModel viewModel = new ViewEventDetailsViewModel();
+        final ViewEventDetailsPresenter presenter = new ViewEventDetailsPresenter(viewModel);
+        final ViewEventDetailsController controller = new ViewEventDetailsController(
+                new ViewEventDetailsInteractor(dataAccess, presenter, session));
+
+        eventDetailsView = new EventDetailsView(controller, viewModel);
+        eventDetailsView.setOnClose(calendarView::refresh);
+        calendarView.setOnOpenEvent(eventId -> eventDetailsView.open(eventId, calendarView));
+        return this;
+    }
+
+    /**
+     * Wires the Edit Event use case into the event details dialog.
+     * Call it after addViewEventDetailsUseCase().
+     *
+     * @return this builder, so the calls can be chained
+     */
+    public AppBuilder addEditEventUseCase() {
+        final EditEventViewModel viewModel = new EditEventViewModel();
+        final EditEventPresenter presenter = new EditEventPresenter(viewModel);
+        final EditEventController controller = new EditEventController(
+                new EditEventInteractor(dataAccess, presenter, session));
+
+        eventDetailsView.setEditEventController(controller, viewModel);
+        return this;
+    }
+
+    /**
+     * Wires the Cancel Event use case into the event details dialog.
+     * Call it after addViewEventDetailsUseCase().
+     *
+     * @return this builder, so the calls can be chained
+     */
+    public AppBuilder addCancelEventUseCase() {
+        final CancelEventViewModel viewModel = new CancelEventViewModel();
+        final CancelEventPresenter presenter = new CancelEventPresenter(viewModel);
+        final CancelEventController controller = new CancelEventController(
+                new CancelEventInteractor(dataAccess, presenter, session));
+
+        eventDetailsView.setCancelEventController(controller, viewModel);
+        return this;
+    }
+
+    /**
+     * Wires the Browse Events use case into the Events page. Clicking a row
+     * opens the same details dialog the calendar uses, and the list reloads
+     * once it closes. Call it after addViewEventDetailsUseCase().
+     *
+     * @return this builder, so the calls can be chained
+     */
+    public AppBuilder addBrowseEventsUseCase() {
+        final BrowseEventsViewModel viewModel = new BrowseEventsViewModel();
+        final BrowseEventsPresenter presenter = new BrowseEventsPresenter(viewModel);
+        final BrowseEventsController controller = new BrowseEventsController(
+                new BrowseEventsInteractor(dataAccess, presenter, session));
+
+        eventsListView.setBrowseEventsController(controller, viewModel);
+        // open() is modal and returns once the dialog is closed.
+        eventsListView.setOnOpenEvent(eventId -> {
+            eventDetailsView.open(eventId, eventsListView);
+            eventsListView.refresh();
+        });
+        return this;
+    }
+
+    /**
+     * Wires the Export Schedule use case into the calendar's Export button.
+     * Call it after addAppShell().
+     *
+     * @return this builder, so the calls can be chained
+     */
+    public AppBuilder addExportScheduleUseCase() {
+        final ExportScheduleViewModel viewModel = new ExportScheduleViewModel();
+        final ExportSchedulePresenter presenter = new ExportSchedulePresenter(viewModel);
+        final ExportScheduleController controller = new ExportScheduleController(
+                new ExportScheduleInteractor(dataAccess, new FileScheduleWriter(),
+                        presenter, session));
+
+        calendarView.setExportScheduleController(controller, viewModel);
+        return this;
+    }
+
     /**
      * Wires the Log Out use case into the shell Log out button.
      *
@@ -250,6 +388,11 @@ public class AppBuilder {
         return this;
     }
 
+    /**
+     * Builds the window, ready to be made visible. The login page is shown first.
+     *
+     * @return the application window
+     */
     public JFrame build() {
         final JFrame frame = new JFrame("Team Sports Management Platform");
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);

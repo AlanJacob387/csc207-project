@@ -17,8 +17,15 @@ public class CreateEventViewModel {
         return successMessage;
     }
 
+    /**
+     * Records a successful create and clears any earlier error, since the view
+     * shows the error whenever there is one.
+     *
+     * @param successMessage message for the user
+     */
     public void setSuccessMessage(String successMessage) {
         this.successMessage = successMessage;
+        this.errorMessage = "";
         support.firePropertyChange("state", null, this);
     }
 
@@ -26,7 +33,13 @@ public class CreateEventViewModel {
         return errorMessage;
     }
 
+    /**
+     * Records why the create failed and clears any earlier success message.
+     *
+     * @param errorMessage message for the user
+     */
     public void setErrorMessage(String errorMessage) {
+        this.successMessage = "";
         this.errorMessage = errorMessage;
         support.firePropertyChange("state", null, this);
     }

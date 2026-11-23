@@ -1,6 +1,7 @@
 package use_case.manage_users;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -74,7 +75,8 @@ class ListAccountsInteractorTest {
                 .filter(account -> "gone1".equals(account.getUsername()))
                 .findFirst().orElseThrow();
         assertEquals(Role.PARENT, gone.getRole());
-        assertEquals("gone1 - Gone - PARENT - deactivated", gone.describe());
+        assertEquals("Gone", gone.getDisplayName());
+        assertFalse(gone.isActive());
     }
 
     @Test

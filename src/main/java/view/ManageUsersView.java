@@ -358,9 +358,15 @@ public class ManageUsersView extends JPanel implements PropertyChangeListener {
         }
         final StringBuilder text = new StringBuilder();
         for (AccountData account : accounts) {
-            text.append(account.describe()).append('\n');
+            text.append(line(account)).append('\n');
         }
         return text.toString();
+    }
+
+    /** One line of the account list: who the account is, its role and its status. */
+    private static String line(AccountData account) {
+        return account.getUsername() + " - " + account.getDisplayName() + " - "
+                + account.getRole() + (account.isActive() ? " - active" : " - deactivated");
     }
 
     private void clearCreateFields() {

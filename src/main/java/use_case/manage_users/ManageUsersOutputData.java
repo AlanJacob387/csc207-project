@@ -92,15 +92,5 @@ public final class ManageUsersOutputData {
         public boolean isActive() {
             return active;
         }
-
-        /**
-         * Describes the row in one line, for the page's account list.
-         *
-         * @return the username, display name, role and status
-         */
-        public String describe() {
-            return username + " - " + displayName + " - " + role
-                    + (active ? " - active" : " - deactivated");
-        }
     }
 }

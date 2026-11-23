@@ -30,6 +30,32 @@ must never be shipped in a desktop application.
 Open the **SQL Editor**, paste the whole of [`schema.sql`](schema.sql), and run
 it. It is safe to re-run.
 
+A `404 Not Found` on every table means one of two things, and [`probe.ps1`](probe.ps1)
+tells them apart:
+
+```powershell
+./db/probe.ps1
+```
+
+| Probe output | Meaning | Fix |
+|---|---|---|
+| `auth health 200`, `rest root 401`, tables `404` | The project is fine, the schema is missing from it | Run `schema.sql` in **this** project's SQL Editor, then `notify pgrst, 'reload schema';` |
+| `auth health 200`, `rest root 404` | The Data API is switched off | **Integrations -> Data API -> Enable** |
+| `auth health` fails | Wrong URL, or the free project is paused | Check the project ref; resume the project |
+
+Check that the tables exist independently of the REST layer:
+
+```sql
+select table_schema, table_name
+from information_schema.tables
+where table_name in ('users', 'teams', 'events', 'attendance', 'announcements')
+order by table_name;
+```
+
+Five rows in `public` means the schema is there and only the REST cache or the
+Data API setting is behind.
+
+
 Check that it worked:
 
 ```sql

@@ -77,6 +77,7 @@ public class RecordAttendanceInteractorTest {
     private static final class Output implements RecordAttendanceOutputBoundary {
         String failure;
         @Override public void prepareSuccessView(RecordAttendanceOutputData data) { failure = null; }
+        @Override public void prepareRosterView(RecordAttendanceRosterData data) { failure = null; }
         @Override public void prepareFailView(String message) { failure = message; }
     }
 }

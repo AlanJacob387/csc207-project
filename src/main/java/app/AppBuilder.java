@@ -21,6 +21,19 @@ import interface_adapter.record_attendance.RecordAttendanceViewModel;
 import use_case.record_attendance.RecordAttendanceInteractor;
 import use_case.current_user.CurrentUserInterface;
 import view.RecordAttendanceView;
+import view.RsvpView;
+import view.EditAttendanceView;
+import view.MyStatsView;
+import interface_adapter.rsvp.*;
+import interface_adapter.edit_attendance.*;
+import interface_adapter.view_attendance_history.*;
+import interface_adapter.view_stats.*;
+import use_case.rsvp.*;
+import use_case.edit_attendance.*;
+import use_case.view_attendance_history.*;
+import use_case.view_stats.*;
+import use_case.list_available_events.*;
+import interface_adapter.list_available_events.*;
 import interface_adapter.ViewManagerModel;
 import interface_adapter.create_event.CreateEventController;
 import interface_adapter.create_event.CreateEventPresenter;
@@ -124,8 +137,6 @@ public class AppBuilder {
 
         appShell.addPage("Calendar", new CalendarView());
         appShell.addPage("Events", placeholder("Events - TODO (event list page)"));
-        appShell.addPage("My Stats",
-                placeholder("My Stats - TODO (view_stats use case)"), Role.PLAYER);
         appShell.addPage("Roster",
                 placeholder("Roster - TODO (manage_teams use case)"),
                 Role.ADMIN, Role.COACH);
@@ -191,8 +202,56 @@ public class AppBuilder {
         final RecordAttendanceViewModel vm = new RecordAttendanceViewModel();
         final RecordAttendanceController controller = new RecordAttendanceController(
                 new RecordAttendanceInteractor(dataAccess, new RecordAttendancePresenter(vm), session));
-        appShell.addPage("Attendance", pad(new RecordAttendanceView(controller, vm, dataAccess, session)),
+        final ListAvailableEventsViewModel eventVm = new ListAvailableEventsViewModel();
+        final ListAvailableEventsController listController = new ListAvailableEventsController(
+                new ListAvailableEventsInteractor(dataAccess,
+                        new ListAvailableEventsPresenter(eventVm), session));
+        appShell.addPage("Attendance", pad(new RecordAttendanceView(controller, vm, session,
+                listController, eventVm)),
                 Role.COACH);
+        return this;
+    }
+
+    /** Adds event RSVPs and coach read-only response list. */
+    public AppBuilder addRsvpUseCase() {
+        final RsvpViewModel vm = new RsvpViewModel();
+        final RsvpController controller = new RsvpController(
+                new RsvpInteractor(dataAccess, new RsvpPresenter(vm), session));
+        final ListAvailableEventsViewModel eventVm = new ListAvailableEventsViewModel();
+        final ListAvailableEventsController listController = new ListAvailableEventsController(
+                new ListAvailableEventsInteractor(dataAccess,
+                        new ListAvailableEventsPresenter(eventVm), session));
+        appShell.addPage("RSVP", pad(new RsvpView(controller, vm, session, listController, eventVm)),
+                Role.PLAYER, Role.COACH);
+        return this;
+    }
+
+    /** Adds the coach-only attendance correction form. */
+    public AppBuilder addEditAttendanceUseCase() {
+        final EditAttendanceViewModel vm = new EditAttendanceViewModel();
+        final EditAttendanceController controller = new EditAttendanceController(
+                new EditAttendanceInteractor(dataAccess, new EditAttendancePresenter(vm), session));
+        final ListAvailableEventsViewModel eventVm = new ListAvailableEventsViewModel();
+        final ListAvailableEventsController listController = new ListAvailableEventsController(
+                new ListAvailableEventsInteractor(dataAccess,
+                        new ListAvailableEventsPresenter(eventVm), session));
+        appShell.addPage("Edit Attendance", pad(new EditAttendanceView(controller, vm, session,
+                listController, eventVm)),
+                Role.COACH);
+        return this;
+    }
+
+    /** Adds player-only history and summary, each backed by a separate use case. */
+    public AppBuilder addMyStatsUseCases() {
+        final ViewAttendanceHistoryViewModel history = new ViewAttendanceHistoryViewModel();
+        final ViewStatsViewModel stats = new ViewStatsViewModel();
+        final ViewAttendanceHistoryController historyController = new ViewAttendanceHistoryController(
+                new ViewAttendanceHistoryInteractor(dataAccess,
+                        new ViewAttendanceHistoryPresenter(history), session));
+        final ViewStatsController statsController = new ViewStatsController(
+                new ViewStatsInteractor(dataAccess, new ViewStatsPresenter(stats), session));
+        appShell.addPage("My Stats", new MyStatsView(historyController, history,
+                statsController, stats, session), Role.PLAYER);
         return this;
     }
 

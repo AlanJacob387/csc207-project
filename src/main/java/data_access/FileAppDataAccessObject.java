@@ -21,10 +21,16 @@ import entity.Announcement;
 import entity.AttendanceRecord;
 import entity.Event;
 import entity.Role;
+import entity.RsvpRecord;
 import entity.Team;
 import entity.User;
 import use_case.create_event.CreateEventDataAccessInterface;
 import use_case.record_attendance.RecordAttendanceDataAccessInterface;
+import use_case.edit_attendance.EditAttendanceDataAccessInterface;
+import use_case.view_attendance_history.ViewAttendanceHistoryDataAccessInterface;
+import use_case.view_stats.ViewStatsDataAccessInterface;
+import use_case.rsvp.RsvpDataAccessInterface;
+import use_case.list_available_events.ListAvailableEventsDataAccessInterface;
 import use_case.login.LoginUserDataAccessInterface;
 import use_case.post_announcement.PostAnnouncementDataAccessInterface;
 import use_case.signup.SignupUserDataAccessInterface;
@@ -46,6 +52,11 @@ public class FileAppDataAccessObject implements
         SignupUserDataAccessInterface,
         CreateEventDataAccessInterface,
         RecordAttendanceDataAccessInterface,
+        EditAttendanceDataAccessInterface,
+        ViewAttendanceHistoryDataAccessInterface,
+        ViewStatsDataAccessInterface,
+        RsvpDataAccessInterface,
+        ListAvailableEventsDataAccessInterface,
         PostAnnouncementDataAccessInterface,
         ViewAnnouncementsDataAccessInterface {
 
@@ -57,12 +68,14 @@ public class FileAppDataAccessObject implements
     private static final String EVENTS = "events";
     private static final String ATTENDANCE = "attendance";
     private static final String ANNOUNCEMENTS = "announcements";
+    private static final String RSVPS = "rsvps";
 
     private final Path file;
     private final Map<String, User> users = new LinkedHashMap<>();
     private final Map<String, Team> teams = new LinkedHashMap<>();
     private final Map<String, Event> events = new LinkedHashMap<>();
     private final List<AttendanceRecord> attendance = new ArrayList<>();
+    private final List<RsvpRecord> rsvps = new ArrayList<>();
     private final Map<String, Announcement> announcements = new LinkedHashMap<>();
     private JSONObject storedDocument = new JSONObject();
 
@@ -233,6 +246,66 @@ public class FileAppDataAccessObject implements
         return matches;
     }
 
+    /** Look up exactly one previously saved attendance record. */
+    @Override
+    public AttendanceRecord getAttendanceRecord(String eventId, String username) {
+        for (AttendanceRecord record : attendance) {
+            if (record.getEventId().equals(eventId)
+                    && record.getPlayerUsername().equals(username)) {
+                return record;
+            }
+        }
+        return null;
+    }
+
+    /** Return only this player's attendance; the interactor enforces authorization. */
+    @Override
+    public List<AttendanceRecord> getAttendanceForPlayer(String username) {
+        final List<AttendanceRecord> results = new ArrayList<>();
+        for (AttendanceRecord record : attendance) {
+            if (record.getPlayerUsername().equals(username)) { results.add(record); }
+        }
+        return results;
+    }
+
+    /** Replace one existing attendance record while retaining rollback on write failure. */
+    @Override
+    public void updateAttendanceRecord(AttendanceRecord updated) {
+        final AttendanceRecord old = getAttendanceRecord(updated.getEventId(), updated.getPlayerUsername());
+        if (old == null) { throw new IllegalStateException("Attendance record does not exist."); }
+        final List<AttendanceRecord> previous = new ArrayList<>(attendance);
+        attendance.remove(old);
+        attendance.add(updated);
+        try { persist(); }
+        catch (RuntimeException ex) {
+            attendance.clear(); attendance.addAll(previous);
+            throw ex;
+        }
+    }
+
+    /** Replace one player's RSVP, preserving the earlier response if writing fails. */
+    @Override
+    public void saveRsvp(RsvpRecord record) {
+        final List<RsvpRecord> previous = new ArrayList<>(rsvps);
+        rsvps.removeIf(old -> old.getEventId().equals(record.getEventId())
+                && old.getPlayerUsername().equals(record.getPlayerUsername()));
+        rsvps.add(record);
+        try { persist(); }
+        catch (RuntimeException ex) {
+            rsvps.clear(); rsvps.addAll(previous);
+            throw ex;
+        }
+    }
+
+    @Override
+    public List<RsvpRecord> getRsvpsForEvent(String eventId) {
+        final List<RsvpRecord> results = new ArrayList<>();
+        for (RsvpRecord record : rsvps) {
+            if (record.getEventId().equals(eventId)) { results.add(record); }
+        }
+        return results;
+    }
+
     // ------------------------------------------------------------------
     // Announcements
     // ------------------------------------------------------------------
@@ -310,6 +383,13 @@ public class FileAppDataAccessObject implements
                     throw new IllegalStateException("Duplicate announcement id in " + file);
                 }
             }
+            final JSONArray rsvpJson = arrayOrEmpty(root, RSVPS);
+            for (int i = 0; i < rsvpJson.length(); i++) {
+                final JSONObject record = rsvpJson.getJSONObject(i);
+                rsvps.add(new RsvpRecord(record.getString("eventId"),
+                        record.getString("playerUsername"),
+                        RsvpRecord.Response.valueOf(record.getString("response"))));
+            }
             storedDocument = root;
         }
         catch (IOException ex) {
@@ -360,6 +440,14 @@ public class FileAppDataAccessObject implements
                     "announcementId"));
         }
         root.put(ANNOUNCEMENTS, announcementsJson);
+
+        final JSONArray rsvpJson = new JSONArray();
+        for (RsvpRecord record : rsvps) {
+            rsvpJson.put(new JSONObject().put("eventId", record.getEventId())
+                    .put("playerUsername", record.getPlayerUsername())
+                    .put("response", record.getResponse().name()));
+        }
+        root.put(RSVPS, rsvpJson);
 
         try {
             writeAtomically(root.toString(2));

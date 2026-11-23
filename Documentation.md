@@ -1104,14 +1104,14 @@ A probability of at least 60% produces a rain-risk flag. Missing numbers, out-of
 
 | Check | Result |
 |---|---|
-| `./gradlew --offline build installDist` | 291 tests, 0 failures. The installed application and distribution archives were built |
-| `./gradlew --offline test -Pnetwork` | 292 tests, 0 failures, including the live Open-Meteo test |
+| `./gradlew --offline build installDist` | 297 tests, 0 failures. The installed application and distribution archives were built |
+| `./gradlew --offline test -Pnetwork` | 298 tests, 0 failures, including the live Open-Meteo test |
 | Live coordinate forecast for November 23 | Toronto high 10.0 °C, rain probability 20% |
 | Actual event-weather panel for November 24 | Resolved Toronto, Ontario, Canada, high 2.7 °C, rain probability 1%, fetched at `2026-11-23T20:42:14Z` |
 | Actual entry point and forms | `Main.configure` exercised the configured application, including linked-parent access, notice submission, event changes, and authorization boundaries |
 | Screenshot inspection | Actual Swing pages captured and visually inspected at `docs/images/notifications.png`, `docs/images/absence-notices.png`, and `docs/images/weather.png` |
 
-The live batch used three public requests in total, consisting of one coordinate forecast and a city geocoding/forecast pair through the actual event panel. It used the public educational, noncommercial service, incurred no service charge, and created no account, subscription, or recurring activity. Weather attribution appears in the interface as Open-Meteo, CC BY 4.0.
+The live batch used four public requests in total, consisting of two coordinate forecasts and a city geocoding/forecast pair through the actual event panel. The estimated provider charge was CAD $0 under the published noncommercial terms. The checks created no account, subscription, or recurring activity. Weather attribution appears in the interface as Open-Meteo, CC BY 4.0.
 
 The offline suite includes regressions for two issues found during final integration. Successful create/edit/cancel flows cancel and clear obsolete rain-risk flags. Event mutations require the actor's current stored COACH role, so a former coach who is now a linked parent cannot retain event-management access. The suite also covers the configured application form flows, rollback, parent-link authorization, repeated absence updates, session clearing, and unavailable forecasts.
 

@@ -60,7 +60,7 @@ The L5 features below are implemented on `daniel/l5-completion` and await teamma
 
 ## Delivery checks — November 23, 2026
 
-`./gradlew --offline build installDist` passed all 291 offline tests and built the runnable distribution. `./gradlew --offline test -Pnetwork` passed all 292 tests including the live weather check. The actual `Main.configure` application path was exercised through the forms, and the screenshots below were captured from Swing pages with a live event forecast. Teammate review remains pending for `daniel/l5-completion`.
+`./gradlew --offline build installDist` passed all 297 offline tests and built the runnable distribution. `./gradlew --offline test -Pnetwork` passed all 298 tests including the live weather check. The actual `Main.configure` application path was exercised through the forms, and the screenshots below were captured from Swing pages with a live event forecast. Teammate review remains pending for `daniel/l5-completion`.
 
 The installed application is in `build/install/team-sports-platform`, and the ZIP distribution is `build/distributions/team-sports-platform-0.1.0.zip`. These are local build outputs. Detailed evidence and independent branch findings are in `Documentation.md`.
 

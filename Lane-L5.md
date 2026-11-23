@@ -12,9 +12,9 @@ On November 23, independent L2 and L4 suites passed at `977b912` (120 tests) and
 
 ### Delivery verification
 
-On November 23, `./gradlew --offline build installDist` passed 291 tests with zero failures and built the installed application and ZIP distribution. `./gradlew --offline test -Pnetwork` passed 292 tests with zero failures, including the live Toronto weather test (10.0 °C, 20% rain). The actual application configured by `Main.configure` was exercised through its forms, including parent links, absences, notifications, and authorization boundaries.
+On November 23, `./gradlew --offline build installDist` passed 297 tests with zero failures and built the installed application and ZIP distribution. `./gradlew --offline test -Pnetwork` passed 298 tests with zero failures, including the live Toronto weather test (10.0 °C, 20% rain). The actual application configured by `Main.configure` was exercised through its forms, including parent links, absences, notifications, and authorization boundaries.
 
-A live event-panel check for November 24 resolved Toronto, Ontario, Canada and displayed 2.7 °C and 1% rain probability, fetched at `2026-11-23T20:42:14Z`. The three screenshots in `docs/images/` were captured from actual Swing pages and visually inspected. The live checks used three public API requests in total and incurred no service charge. They created no provider account, subscription, or recurring activity.
+A live event-panel check for November 24 resolved Toronto, Ontario, Canada and displayed 2.7 °C and 1% rain probability, fetched at `2026-11-23T20:42:14Z`. The three screenshots in `docs/images/` were captured from actual Swing pages and visually inspected. The live checks used four public API requests in total, with an estimated provider charge of CAD $0 under the published noncommercial terms. They created no provider account, subscription, or recurring activity.
 
 Regression coverage also verifies that actual create/edit/cancel flows clear and cancel obsolete rain flags, and that event management requires a current stored COACH role even for a previously assigned coach who is now a linked parent. The remaining merge step requires the owning lanes' review.
 

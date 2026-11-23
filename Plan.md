@@ -43,7 +43,7 @@ Every interaction a user can trigger is its own Clean Architecture slice: its ow
 |------|-------|-----------|-------|------|
 | L1 | Alan | UC-B1 to UC-B7 | 7 | 1 |
 | L2 | Aidan | UC-C1 to UC-C6 | 6 | 0 |
-| L3 | Andy | UC-A1 to UC-A7 | 7 | 4 |
+| L3 | Andy | UC-A1 to UC-A7 | 7 | 7 |
 | L4 | Aarav | UC-D1 to UC-D6 | 6 | 0 |
 | L5 | Daniel | UC-E1 to UC-E5, UC-F1 and UC-F2 | 7 | 0 |
 
@@ -55,9 +55,9 @@ Every interaction a user can trigger is its own Clean Architecture slice: its ow
 | UC-A2 | `signup` | Login page - Create an Account | L3 | 1 | P0 | done |
 | UC-A3 | `logout` | App shell - Log out | L3 | 2 | P0 | done |
 | UC-A4 | `change_password` | Account page | L3 | 3 | P1 | done |
-| UC-A5 | `create_user` | Admin - Manage Users | L3 | 3 | P2 | |
-| UC-A6 | `change_user_role` | Admin - Manage Users | L3 | 3 | P2 | |
-| UC-A7 | `deactivate_user` | Admin - Manage Users | L3 | 4 | P2 | |
+| UC-A5 | `create_user` | Admin - Manage Users | L3 | 3 | P2 | done |
+| UC-A6 | `change_user_role` | Admin - Manage Users | L3 | 3 | P2 | done |
+| UC-A7 | `deactivate_user` | Admin - Manage Users | L3 | 4 | P2 | done |
 | UC-B1 | `create_event` | New Event page (coach) | L1 | 1 | P0 | done |
 | UC-B2 | `view_schedule` | Calendar - month and week views | L1 | 2 | P0 | |
 | UC-B3 | `view_event_details` | Calendar - open an event | L1 | 2 | P0 | |
@@ -132,7 +132,7 @@ Nothing can be built in parallel until persistence, navigation and roles are rea
 
 ## Sprint 3 — Stats, rosters and communications (Thu 2026-11-12 → Wed 2026-11-18)
 
-**Progress (2026-11-02):** 1 of 12 done - 3.10 (`change_password`, built ahead of schedule as part of the account refactor). The rest not started.
+**Progress (2026-11-23):** 2 of 12 done - 3.10 (`change_password`) and 3.5 (`manage_users`). The rest not started.
 
 | ID | Task | Use cases | Owner | Depends on | Deliverable | Due | Done |
 |----|------|------|-------|------------|-------------|-----|------|
@@ -140,7 +140,7 @@ Nothing can be built in parallel until persistence, navigation and roles are rea
 | 3.2 | Implement the stats decision from 1.1 (structured per-sport stats if voted in) | UC-C6 | L2 | 1.1, 3.1 | stats captured and displayed | Tue 11-17 | |
 | 3.3 | Parent↔child linking (invite/accept flow) + parent view of a child's schedule | UC-D5, UC-D6 | L4 | 2.6, 1.3 | parent sees their child's events | Tue 11-17 | |
 | 3.4 | `submit_absence_notice` use case: parent submits, coach sees it | UC-E4, UC-E5 | L5 | 3.3 | coach sees absence notices | Wed 11-18 | |
-| 3.5 | `manage_users` use case: admin creates/deactivates accounts and changes roles | UC-A5, UC-A6, UC-A7 | L3 | 1.3 | admin page works and roles are enforced | Wed 11-18 | |
+| 3.5 | `manage_users` use case: admin creates/deactivates accounts and changes roles | UC-A5, UC-A6, UC-A7 | L3 | 1.3 | admin page works and roles are enforced | Wed 11-18 | ✅ 2026-11-23 |
 | 3.6 | `export_schedule` use case: promote `IcsExporter` behind a data-access gateway | UC-B7 | L1 | 2.1 | export runs from the calendar UI | Wed 11-18 | |
 | 3.7 | `view_event_weather` use case: forecast for an event (Open-Meteo gateway + controller/presenter) | UC-F1 | L5 | 2.3 | forecast shown on event details | Wed 11-18 | |
 | 3.8 | `Documentation.md`: sequence diagrams, one per lane for their own use cases |  | All (L5 coordinates) | 1.3, 2.4 | diagrams committed | Wed 11-18 | |

@@ -14,7 +14,7 @@
 | 1.5 | Role-based navigation in `AppShell` | done 2026-10-29 |
 | 2.10 | `logout` use case | done 2026-11-02 |
 | 3.10 | `change_password` use case | done 2026-11-02 |
-| 3.5 | `manage_users` (admin) | deferred — P2, Sprint 3 |
+| 3.5 | `manage_users` (admin) | done 2026-11-23: three use cases (create, change role, deactivate) behind one administrators-only page |
 | 4.8 | Hosted database store (revision of D6): Supabase Postgres, schema, in-app connection settings | done 2026-11-23 |
 | 4.3 | Validation / robustness pass | Sprint 4 |
 | — | Week-1 API items (spike + README API section) | done 2026-10-29 |
@@ -166,6 +166,7 @@ Same as `Plan.md`: the six `use_case/<name>` files, the three `interface_adapter
 
 | Date | Change |
 |------|--------|
+| 2026-11-23 | `manage_users` built (UC-A5 to UC-A7): create an account, change a role, deactivate an account, on one administrators-only page. Authorization and the "last active administrator" rule live in `AdminPolicy`, so they hold even if the page is called directly; a deactivated account is kept for its history and refused at login. 41 new tests, 203 green |
 | 2026-11-23 | Persistence moved to a hosted **Supabase Postgres** database (D6 revised): `db/schema.sql` (five tables, camelCase quoted columns, constraints, row level security), `SupabaseAppDataAccessObject`, `AppDataStore` as the wiring contract, `DatabaseConfig` + an in-app Database settings page so no key enters git and nobody needs a terminal; passwords now stored as PBKDF2 hashes; the local file remains the offline default; 162 tests green |
 | 2026-10-29 | File created: scope, decisions, storage design, phases, API items |
 | 2026-10-29 | Course API dropped (retired host, not a course requirement); storage is the local JSON file; `DBDataAccessObject` deleted; statuses restored |

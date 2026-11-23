@@ -19,14 +19,19 @@ Team Sports is a desktop application that brings everything a sports team needs 
 *Refer to (`Proposal.md`) for a more detailed description*
 
 ## User stories
-    1. As a coach, I want to create and schedule practices and games (date, time, location) so that my team always knows when and where to show up all in one platform.
-    2. As a coach, I want to record player attendance and performance stats after each practice or game so that I can track player development over the season.
-    3. As a player, I want to view my team’s upcoming schedule and RSVP to practices and games so that my coach knows whether I’ll be attending.
-    4. As a player, I want to view my personal stats and attendance history so that I can monitor my own progress.
-    5. As a parent, I want to receive notifications when events are added, changed, or cancelled so that I can stay informed about my child’s commitments.
-    6. As a parent, I want to view my child’s schedule and submit absence notices so that the coach is informed ahead of time.
-    7. As an admin, I want to create teams and assign coaches and players to them so that the platform’s rosters stay organized and up to date.
-    8. As an admin, I want to manage user accounts and roles (coach, player, parent) so that each user only has access to the features appropriate to them.
+
+| # | User story | Owner |
+|---|-----------|-------|
+| 1 | As a coach, I want to create and schedule practices and games (date, time, location) so that my team always knows when and where to show up all in one platform. | Alan (L1) |
+| 2 | As a coach, I want to record player attendance and performance stats after each practice or game so that I can track player development over the season. | Aidan (L2) |
+| 3 | As a player, I want to view my team's upcoming schedule and RSVP to practices and games so that my coach knows whether I'll be attending. | Alan + Aidan (L1/L2) |
+| 4 | As a player, I want to view my personal stats and attendance history so that I can monitor my own progress. | Aidan (L2) |
+| 5 | As a parent, I want to receive notifications when events are added, changed, or cancelled so that I can stay informed about my child's commitments. | L5 |
+| 6 | As a parent, I want to view my child's schedule and submit absence notices so that the coach is informed ahead of time. | Aarav + L5 (L4/L5) |
+| 7 | As an admin, I want to create teams and assign coaches and players to them so that the platform's rosters stay organized and up to date. | Aarav (L4) |
+| 8 | As an admin, I want to manage user accounts and roles (coach, player, parent) so that each user only has access to the features appropriate to them. | Andy (L3) |
+
+The individual use cases behind each story are catalogued in `Plan.md`.
 
 ## APIs
 
@@ -45,6 +50,20 @@ Team Sports is a desktop application that brings everything a sports team needs 
 ### Where data lives
 - App data (accounts, teams, events, attendance) is kept in a local JSON file (`data/app-data.json`), so it is **per machine** - nothing is shared between devices yet. A hosted store can be added later behind the same interfaces.
 
+## How to run
+
+```bash
+./gradlew build             # compile
+./gradlew test              # unit tests (network tests are skipped, so this works offline)
+./gradlew test -Pnetwork    # also runs the live Open-Meteo check
+./gradlew run               # start the app
+```
+
+Demo accounts are created automatically the first time the app runs (password `pw`): `coach1` (coach), `player1` (player), `parent1` (parent), `admin1` (admin). Each role sees only the pages it may use, and **Create an Account** makes a new one. App data lives in `data/app-data.json`, which is git-ignored.
+
+## Screenshots or animations demonstrating current functionality
+
+*To be added - see `Plan.md` task 4.6.*
 ## Screenshots or animations demonstrating current functionality
 <img width="2880" height="1772" alt="image" src="https://github.com/user-attachments/assets/5bedcc77-7dd2-4c83-a515-e4efa756f474" />
 

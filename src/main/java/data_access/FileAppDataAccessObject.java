@@ -24,6 +24,7 @@ import entity.Role;
 import entity.Team;
 import entity.User;
 import use_case.assign_coach.AssignCoachDataAccessInterface;
+import use_case.change_password.ChangePasswordUserDataAccessInterface;
 import use_case.create_event.CreateEventDataAccessInterface;
 import use_case.create_team.CreateTeamDataAccessInterface;
 import use_case.login.LoginUserDataAccessInterface;
@@ -48,6 +49,7 @@ public class FileAppDataAccessObject implements
         LoginUserDataAccessInterface,
         SignupUserDataAccessInterface,
         CreateEventDataAccessInterface,
+        ChangePasswordUserDataAccessInterface,
         PostAnnouncementDataAccessInterface,
         ViewAnnouncementsDataAccessInterface,
         CreateTeamDataAccessInterface,
@@ -118,7 +120,7 @@ public class FileAppDataAccessObject implements
 
     /**
      * Updates only the profile fields of a user, leaving the stored password
-     * untouched. Useful when credentials are kept somewhere else, such as a hosted store.
+     * untouched.
      *
      * @param username    the user's username
      * @param displayName the name to display

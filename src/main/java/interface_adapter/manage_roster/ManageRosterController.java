@@ -25,6 +25,6 @@ public class ManageRosterController {
     }
 
     private String currentUser() {
-        return session.isLoggedIn() ? session.getUsername() : "";
+        return session.isLoggedIn() ? session.getCurrentUsername() : "";
     }
 }

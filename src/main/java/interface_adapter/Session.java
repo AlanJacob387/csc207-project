@@ -4,15 +4,19 @@ import java.beans.PropertyChangeListener;
 import java.beans.PropertyChangeSupport;
 
 import entity.Role;
+import entity.User;
+import use_case.current_user.CurrentUserInterface;
 
 /**
  * Who is currently signed in.
  *
- * Created once in {@code Main} and shared by the login presenter (which fills
- * it in) and the app shell (which uses the role to decide which pages to show).
- * A null role means nobody is signed in.
+ * Implements the CurrentUserInterface port, so the use cases own the
+ * transitions - the login interactor records the user and the logout
+ * interactor clears them - while this class stays plain observable state.
+ * The app shell listens for changes so it can rebuild the sidebar for the new
+ * role. A null role means nobody is signed in.
  */
-public class Session {
+public class Session implements CurrentUserInterface {
 
     private final PropertyChangeSupport support = new PropertyChangeSupport(this);
 
@@ -20,30 +24,25 @@ public class Session {
     private String displayName = "";
     private Role role;
 
-    /**
-     * Records a successful login.
-     *
-     * @param username    the user's username
-     * @param displayName the user's display name
-     * @param role        the user's role
-     */
-    public void logIn(String username, String displayName, Role role) {
-        this.username = username;
-        this.displayName = displayName;
-        this.role = role;
+    @Override
+    public String getCurrentUsername() {
+        return username;
+    }
+
+    @Override
+    public void setCurrentUser(User user) {
+        this.username = user.getUsername();
+        this.displayName = user.getDisplayName();
+        this.role = user.getRole();
         support.firePropertyChange("session", null, this);
     }
 
-    /** Clears the session, for example when the user logs out. */
-    public void logOut() {
+    @Override
+    public void clearCurrentUser() {
         this.username = "";
         this.displayName = "";
         this.role = null;
         support.firePropertyChange("session", null, this);
-    }
-
-    public String getUsername() {
-        return username;
     }
 
     public String getDisplayName() {

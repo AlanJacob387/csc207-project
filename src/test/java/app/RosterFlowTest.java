@@ -44,7 +44,7 @@ class RosterFlowTest {
         store.save(new User("player1", "pw", "Pat Player", Role.PLAYER));
 
         final Session session = new Session();
-        session.logIn("admin1", "Ada Admin", Role.ADMIN);
+        session.setCurrentUser(new User("admin1", "pw", "Ada Admin", Role.ADMIN));
 
         final CreateTeamViewModel createViewModel = new CreateTeamViewModel();
         new CreateTeamController(new CreateTeamInteractor(store,
@@ -65,7 +65,7 @@ class RosterFlowTest {
 
         // A fresh store reads the file again, as the app does after a restart.
         final FileAppDataAccessObject reloaded = new FileAppDataAccessObject(file);
-        session.logIn("coach1", "Coach One", Role.COACH);
+        session.setCurrentUser(new User("coach1", "pw", "Coach One", Role.COACH));
         final ViewRosterViewModel viewModel = new ViewRosterViewModel();
         new ViewRosterController(new ViewRosterInteractor(reloaded,
                 new ViewRosterPresenter(viewModel)), session).execute();

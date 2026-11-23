@@ -19,6 +19,9 @@ import interface_adapter.ViewManagerModel;
 import interface_adapter.assign_coach.AssignCoachController;
 import interface_adapter.assign_coach.AssignCoachPresenter;
 import interface_adapter.assign_coach.AssignCoachViewModel;
+import interface_adapter.change_password.ChangePasswordController;
+import interface_adapter.change_password.ChangePasswordPresenter;
+import interface_adapter.change_password.ChangePasswordViewModel;
 import interface_adapter.create_event.CreateEventController;
 import interface_adapter.create_event.CreateEventPresenter;
 import interface_adapter.create_event.CreateEventViewModel;
@@ -28,6 +31,8 @@ import interface_adapter.create_team.CreateTeamViewModel;
 import interface_adapter.login.LoginController;
 import interface_adapter.login.LoginPresenter;
 import interface_adapter.login.LoginViewModel;
+import interface_adapter.logout.LogoutController;
+import interface_adapter.logout.LogoutPresenter;
 import interface_adapter.manage_roster.ManageRosterController;
 import interface_adapter.manage_roster.ManageRosterPresenter;
 import interface_adapter.manage_roster.ManageRosterViewModel;
@@ -44,9 +49,11 @@ import interface_adapter.view_roster.ViewRosterController;
 import interface_adapter.view_roster.ViewRosterPresenter;
 import interface_adapter.view_roster.ViewRosterViewModel;
 import use_case.assign_coach.AssignCoachInteractor;
+import use_case.change_password.ChangePasswordInteractor;
 import use_case.create_event.CreateEventInteractor;
 import use_case.create_team.CreateTeamInteractor;
 import use_case.login.LoginInteractor;
+import use_case.logout.LogoutInteractor;
 import use_case.manage_roster.ManageRosterInteractor;
 import use_case.post_announcement.PostAnnouncementInteractor;
 import use_case.signup.SignupInteractor;
@@ -54,6 +61,7 @@ import use_case.view_announcements.ViewAnnouncementsInteractor;
 import use_case.view_roster.ViewRosterInteractor;
 import view.AnnouncementsView;
 import view.AppShell;
+import view.ChangePasswordView;
 import view.CalendarView;
 import view.CreateEventView;
 import view.LoginView;
@@ -90,6 +98,8 @@ public class AppBuilder {
     private SignupViewModel signupViewModel;
     private AppShell appShell;
     private CreateEventViewModel createEventViewModel;
+    private ChangePasswordView changePasswordView;
+    private ChangePasswordViewModel changePasswordViewModel;
 
     /** Sets up the collaborators and makes sure a fresh install is usable. */
     public AppBuilder() {
@@ -127,10 +137,7 @@ public class AppBuilder {
      * @return this builder, so the calls can be chained
      */
     public AppBuilder addAppShell() {
-        appShell = new AppShell(() -> {
-            session.logOut();
-            navigate(ViewManagerModel.LOGIN);
-        });
+        appShell = new AppShell();
         session.addPropertyChangeListener(evt -> appShell.applyRole(session.getRole()));
 
         appShell.addPage("Calendar", new CalendarView());
@@ -149,9 +156,9 @@ public class AppBuilder {
      */
     public AppBuilder addLoginUseCase() {
         final LoginPresenter presenter =
-                new LoginPresenter(viewManagerModel, loginViewModel, session);
+                new LoginPresenter(viewManagerModel, loginViewModel);
         final LoginController controller =
-                new LoginController(new LoginInteractor(dataAccess, presenter));
+                new LoginController(new LoginInteractor(dataAccess, presenter, session));
 
         loginView.setLoginController(controller);
         loginView.setOnGoToSignup(() -> navigate(ViewManagerModel.SIGNUP));
@@ -247,6 +254,49 @@ public class AppBuilder {
      *
      * @return the application window
      */
+    /**
+     * Wires the Log Out use case into the shell Log out button.
+     *
+     * @return this builder, so the calls can be chained
+     */
+    public AppBuilder addLogoutUseCase() {
+        final LogoutPresenter presenter =
+                new LogoutPresenter(viewManagerModel, loginViewModel);
+        final LogoutController controller =
+                new LogoutController(new LogoutInteractor(session, presenter));
+
+        appShell.setLogoutController(controller);
+        return this;
+    }
+
+    /**
+     * Adds the Account page, where a signed-in user changes their own password.
+     * Call it after addAppShell().
+     *
+     * @return this builder, so the calls can be chained
+     */
+    public AppBuilder addChangePasswordView() {
+        changePasswordViewModel = new ChangePasswordViewModel();
+        changePasswordView = new ChangePasswordView(changePasswordViewModel, session);
+        appShell.addPage("Account", pad(changePasswordView));
+        return this;
+    }
+
+    /**
+     * Wires the Change Password use case into the account page.
+     *
+     * @return this builder, so the calls can be chained
+     */
+    public AppBuilder addChangePasswordUseCase() {
+        final ChangePasswordPresenter presenter =
+                new ChangePasswordPresenter(changePasswordViewModel);
+        final ChangePasswordController controller = new ChangePasswordController(
+                new ChangePasswordInteractor(dataAccess, presenter, session, userFactory));
+
+        changePasswordView.setChangePasswordController(controller);
+        return this;
+    }
+
     public JFrame build() {
         final JFrame frame = new JFrame("Team Sports Management Platform");
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);

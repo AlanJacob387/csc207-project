@@ -17,7 +17,7 @@ public class ViewAnnouncementsController {
 
     /** Loads a selected team, or the first accessible team when none is selected. */
     public void execute(String teamId) {
-        final String username = session.isLoggedIn() ? session.getUsername() : "";
+        final String username = session.isLoggedIn() ? session.getCurrentUsername() : "";
         interactor.execute(new ViewAnnouncementsInputData(username, teamId));
     }
 }

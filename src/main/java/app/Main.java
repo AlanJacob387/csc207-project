@@ -21,7 +21,10 @@ public class Main {
                     .addAppShell()
                     .addLoginUseCase()
                     .addSignupUseCase()
+                    .addLogoutUseCase()
                     .addCreateEventUseCase()
+                    .addChangePasswordView()
+                    .addChangePasswordUseCase()
                     .addAnnouncementUseCases()
                     .addRosterUseCases()
                     .build();

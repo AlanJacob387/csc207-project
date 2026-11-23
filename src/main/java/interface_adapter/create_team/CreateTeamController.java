@@ -16,7 +16,7 @@ public class CreateTeamController {
 
     /** Attempts to create a team with the entered details. */
     public void execute(String teamId, String name, String sport) {
-        final String username = session.isLoggedIn() ? session.getUsername() : "";
+        final String username = session.isLoggedIn() ? session.getCurrentUsername() : "";
         interactor.execute(new CreateTeamInputData(username, teamId, name, sport));
     }
 }

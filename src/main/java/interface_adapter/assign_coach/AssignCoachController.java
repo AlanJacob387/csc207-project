@@ -16,7 +16,7 @@ public class AssignCoachController {
 
     /** Attempts to make the given coach the coach of the given team. */
     public void execute(String teamId, String coachUsername) {
-        final String username = session.isLoggedIn() ? session.getUsername() : "";
+        final String username = session.isLoggedIn() ? session.getCurrentUsername() : "";
         interactor.execute(new AssignCoachInputData(username, teamId, coachUsername));
     }
 }

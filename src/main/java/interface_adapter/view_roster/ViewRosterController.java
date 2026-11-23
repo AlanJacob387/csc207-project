@@ -16,7 +16,7 @@ public class ViewRosterController {
 
     /** Reloads the roster list. */
     public void execute() {
-        final String username = session.isLoggedIn() ? session.getUsername() : "";
+        final String username = session.isLoggedIn() ? session.getCurrentUsername() : "";
         interactor.execute(new ViewRosterInputData(username));
     }
 }

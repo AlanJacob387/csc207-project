@@ -17,7 +17,7 @@
 |------|-------|-------|--------------------------|--------------|----------|
 | L1 | Alan | Scheduling & events | `create_event` (existing), `view_schedule`, `export_schedule`, event details/edit/cancel, `CalendarView`, `IcsExporter`, `AppBuilder` | 1, 3 (view half), 5 (trigger) | P0 |
 | L2 | Aidan | Attendance & stats | `record_attendance`, `view_stats`, `AttendanceRecord`, stats entities, "My Stats" page | 2, 4 | P0 / P1 |
-| L3 | Andy | Accounts & auth | `login`, `signup`, `manage_users`, `AppShell` role filtering, build file | 8 | P0 (login) / P2 (admin) |
+| L3 | Andy | Accounts & auth | `login`, `signup`, `logout`, `change_password`, `manage_users`, the `CurrentUserInterface` port, `AppShell` role filtering, build file | 8 | P0 (login) / P2 (admin) |
 | L4 | Aarav | Teams & roster | `manage_teams`, roster page, parent↔child linking, entity model owner | 7, 6 (link half) | P0 / P1 |
 | L5 | Daniel | Communication & weather | `post_announcement`, `view_announcements`, `view_notifications`, `submit_absence_notice`, `view_absence_notices`, the weather channel (`view_event_weather`, `flag_rain_risk`), build/test instructions in the README | 5, 6 (notice half) | P1 / P2 |
 
@@ -39,13 +39,13 @@ Every interaction a user can trigger is its own Clean Architecture slice: its ow
 
 **Everyone owns at least two use cases** - the course requires at least one per person:
 
-| Lane | Owner | Use cases | Count |
-|------|-------|-----------|-------|
-| L1 | Alan | UC-B1 to UC-B7 | 7 |
-| L2 | Aidan | UC-C1 to UC-C6 | 6 |
-| L3 | Andy | UC-A1 to UC-A7 | 7 |
-| L4 | Aarav | UC-D1 to UC-D6 | 6 |
-| L5 | Daniel | UC-E1 to UC-E5 plus the weather channel, UC-F1 and UC-F2 | 7 |
+| Lane | Owner | Use cases | Count | Done |
+|------|-------|-----------|-------|------|
+| L1 | Alan | UC-B1 to UC-B7 | 7 | 1 |
+| L2 | Aidan | UC-C1 to UC-C6 | 6 | 0 |
+| L3 | Andy | UC-A1 to UC-A7 | 7 | 4 |
+| L4 | Aarav | UC-D1 to UC-D6 | 6 | 0 |
+| L5 | Daniel | UC-E1 to UC-E5, UC-F1 and UC-F2 | 7 | 0 |
 
 ### Catalogue
 
@@ -53,8 +53,8 @@ Every interaction a user can trigger is its own Clean Architecture slice: its ow
 |----|----------|----------------|------|--------|----------|--------|
 | UC-A1 | `login` | Login page - Log In | L3 | 1 | P0 | done |
 | UC-A2 | `signup` | Login page - Create an Account | L3 | 1 | P0 | done |
-| UC-A3 | `logout` | App shell - Log out | L3 | 2 | P0 | |
-| UC-A4 | `change_password` | Account page | L3 | 3 | P1 | |
+| UC-A3 | `logout` | App shell - Log out | L3 | 2 | P0 | done |
+| UC-A4 | `change_password` | Account page | L3 | 3 | P1 | done |
 | UC-A5 | `create_user` | Admin - Manage Users | L3 | 3 | P2 | |
 | UC-A6 | `change_user_role` | Admin - Manage Users | L3 | 3 | P2 | |
 | UC-A7 | `deactivate_user` | Admin - Manage Users | L3 | 4 | P2 | |
@@ -113,7 +113,7 @@ Nothing can be built in parallel until persistence, navigation and roles are rea
 
 ## Sprint 2 — Scheduling, RSVP and attendance (Thu 2026-11-05 → Wed 2026-11-11)
 
-**Progress (2026-10-29):** not started.
+**Progress (2026-11-02):** 1 of 10 done - 2.10 (`logout`, built ahead of schedule as part of the account refactor). The rest not started.
 
 | ID | Task | Use cases | Owner | Depends on | Deliverable | Due | Done |
 |----|------|------|-------|------------|-------------|-----|------|
@@ -126,13 +126,13 @@ Nothing can be built in parallel until persistence, navigation and roles are rea
 | 2.7 | `Announcement` entity + `post_announcement` use case | UC-E1, UC-E2 | L5 | 1.1 | Announcements page lists posts | Tue 11-10 | |
 | 2.8 | Event-change notification feed (created / changed / cancelled) | UC-E3 | L5 | 2.3, 2.7 | players and parents see a notification feed | Wed 11-11 | |
 | 2.9 | Sprint 2 test verification + coverage check (non-authors only) |  | L3 | 2.1–2.8 | green suite, gaps logged as issues | Wed 11-11 | |
-| 2.10 | `logout` use case: end the session and return to the login page | UC-A3 | L3 | 1.3 | the Log out button really logs out | Wed 11-11 | |
+| 2.10 | `logout` use case: end the session and return to the login page | UC-A3 | L3 | 1.3 | the Log out button really logs out | Wed 11-11 | ✅ |
 
 **Sprint 2 review (Wed 11-11):** demo calendar → attendance → RSVP end-to-end on the seed data. Each slice author writes their own unit tests (part of the Definition of Done); task 2.9 is an independent check by someone who did not write those slices.
 
 ## Sprint 3 — Stats, rosters and communications (Thu 2026-11-12 → Wed 2026-11-18)
 
-**Progress (2026-10-29):** not started.
+**Progress (2026-11-02):** 1 of 12 done - 3.10 (`change_password`, built ahead of schedule as part of the account refactor). The rest not started.
 
 | ID | Task | Use cases | Owner | Depends on | Deliverable | Due | Done |
 |----|------|------|-------|------------|-------------|-----|------|
@@ -145,7 +145,7 @@ Nothing can be built in parallel until persistence, navigation and roles are rea
 | 3.7 | `view_event_weather` use case: forecast for an event (Open-Meteo gateway + controller/presenter) | UC-F1 | L5 | 2.3 | forecast shown on event details | Wed 11-18 | |
 | 3.8 | `Documentation.md`: sequence diagrams, one per lane for their own use cases |  | All (L5 coordinates) | 1.3, 2.4 | diagrams committed | Wed 11-18 | |
 | 3.9 | Sprint 3 test verification (non-authors only) |  | L5 | 3.1–3.7 | green suite | Wed 11-18 | |
-| 3.10 | `change_password` use case: a user changes their own password | UC-A4 | L3 | 1.3 | new password stored and usable | Wed 11-18 | |
+| 3.10 | `change_password` use case: a user changes their own password | UC-A4 | L3 | 1.3 | new password stored and usable | Wed 11-18 | ✅ |
 | 3.11 | `edit_attendance` use case: correct an attendance record after the fact | UC-C2 | L2 | 2.4 | records can be fixed | Wed 11-18 | |
 | 3.12 | `flag_rain_risk` use case: flag upcoming events with a high chance of rain | UC-F2 | L5 | 3.7 | rain-risk flags on the calendar and events list | Wed 11-18 | |
 
@@ -190,15 +190,15 @@ These feed the existing tasks: 1.7 (skeleton), 3.8 (sequence diagrams, one per l
 
 1. **Freeze shared contracts before parallel work.** Task 1.1 locks the entities and every `...DataAccessInterface`. After that, changing a shared entity or interface needs sign-off from two lanes, because everyone else depends on it.
 2. **One slice, one owner, one package.** A lane never edits another lane's `use_case/<name>` or `interface_adapter/<name>` package; open a PR or send an interface-change request instead.
-3. **One page owner per shared file.** `Main.java` (later `AppBuilder`) and `AppShell` are the most conflict-prone files: L1 owns `AppBuilder`, L4 owns `AppShell`, everyone else asks them to add a page or button.
+3. **One page owner per shared file.** `AppBuilder` and `AppShell` are the most conflict-prone files: L1 owns `AppBuilder`, L4 owns `AppShell`, everyone else asks them to add a page or button.
 4. **Interfaces first, then UI.** Each slice lands as two commits — use case + tests, then the view — so a reviewer can test the slice without the UI.
 5. **Branches:** `feature/<use-case>` (e.g. `feature/record_attendance`). PRs are reviewed by a non-author and `main` must stay runnable (TeamContract).
 6. **Daily async check-in** in the group chat — done / doing / blocked — and blockers are raised within 24 h (TeamContract).
 
 ## Definition of Done (every slice)
 
-- `use_case/<name>/`: InputBoundary, InputData, OutputData, DataAccessInterface, OutputBoundary, Interactor
-- `interface_adapter/<name>/`: Controller, Presenter, ViewModel
+- `use_case/<name>/`: InputBoundary, InputData, OutputData, DataAccessInterface, OutputBoundary, Interactor - as the slice needs them (for example `logout` has no input data and uses the shared `CurrentUserInterface` instead of a data-access interface of its own)
+- `interface_adapter/<name>/`: Controller, Presenter, ViewModel (a view model only when the page holds state - `logout` needs none, because its presenter only navigates)
 - One use case = one reason to change: no logic shared between slices, narrow data-access interfaces, and interactors that depend only on interfaces (single responsibility, interface segregation, dependency inversion)
 - View wired in (via `AppBuilder`) with no leftover TODOs in that package
 - JUnit tests for the interactor: success path plus at least two failure paths
@@ -207,13 +207,14 @@ These feed the existing tasks: 1.7 (skeleton), 3.8 (sequence diagrams, one per l
 
 ## Critical path and dependencies
 
-- `1.0 build file` → `1.2 DB gateway` → `1.3 login/role` → everything role-gated (`1.5`, `3.5`)
+- `1.0 build file` → `1.2 storage layer` → `1.3 login/role` → everything role-gated (`1.5`, `3.5`)
 - `1.1 frozen entities` → every slice in Sprints 2–4
 - `1.4 AppBuilder / ViewManagerModel` → every new page
 - `2.1 view_schedule` → `2.2`, `2.3`, `2.5`, `3.6`, `3.7`
 - `2.6 manage_teams` → `3.3` → `3.4`
+- `1.3 login` → `2.10 logout`, `3.10 change_password`, `3.5 manage_users` (all four account use cases share the `CurrentUserInterface` port)
 
-**If Sprint 1 slips, Sprints 2–4 slip.** Mitigation: only `1.0`, `1.1` and `1.2` are hard blockers — L1, L2, L4 and L5 can start building slices against the frozen entities and an in-memory fake while L3 finishes the DB gateway.
+**If Sprint 1 slips, Sprints 2–4 slip.** Mitigation: only `1.0`, `1.1` and `1.2` are hard blockers — L1, L2, L4 and L5 can start building slices against the frozen entities and an in-memory fake while L3 finishes the storage layer.
 
 ## Risks
 
@@ -246,7 +247,6 @@ These feed the existing tasks: 1.7 (skeleton), 3.8 (sequence diagrams, one per l
 
 ## Unclaimed backlog (pull when a lane finishes early)
 
-- Full signup page (currently only a TODO in `LoginView`)
 - Event search / filter by date range
 - Per-team attendance summary (coach dashboard)
 - Reminder for events happening in the next 48 hours

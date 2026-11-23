@@ -5,6 +5,7 @@ import java.util.Map;
 
 import entity.User;
 import use_case.login.LoginUserDataAccessInterface;
+import use_case.change_password.ChangePasswordUserDataAccessInterface;
 import use_case.signup.SignupUserDataAccessInterface;
 
 /**
@@ -14,7 +15,8 @@ import use_case.signup.SignupUserDataAccessInterface;
  * a use case can be programmed before the real persistence is finished.
  */
 public class InMemoryUserDataAccessObject
-        implements LoginUserDataAccessInterface, SignupUserDataAccessInterface {
+        implements LoginUserDataAccessInterface, SignupUserDataAccessInterface,
+                ChangePasswordUserDataAccessInterface {
 
     private final Map<String, User> users = new HashMap<>();
 

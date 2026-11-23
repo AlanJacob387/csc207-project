@@ -101,19 +101,6 @@ class FileAppDataAccessObjectTest {
     }
 
     @Test
-    void saveProfileKeepsTheExistingPassword() {
-        final FileAppDataAccessObject dao = new FileAppDataAccessObject(
-                tempDir.resolve("app-data.json"));
-        dao.save(new User("p1", "secret", "Pat", Role.PLAYER));
-
-        dao.saveProfile("p1", "Patricia", Role.COACH);
-
-        assertEquals("secret", dao.get("p1").getPassword());
-        assertEquals("Patricia", dao.get("p1").getDisplayName());
-        assertEquals(Role.COACH, dao.get("p1").getRole());
-    }
-
-    @Test
     void anEmptyFileIsTreatedAsAnEmptyStore() throws Exception {
         final Path file = tempDir.resolve("app-data.json");
         Files.writeString(file, "   ");

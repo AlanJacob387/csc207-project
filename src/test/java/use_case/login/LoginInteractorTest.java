@@ -10,13 +10,16 @@ import org.junit.jupiter.api.Test;
 import data_access.InMemoryUserDataAccessObject;
 import entity.Role;
 import entity.User;
+import interface_adapter.Session;
 
 /**
- * Tests the Log In use case: success, and every way it can fail.
+ * Tests the Log In use case: success (which records the current user) and every
+ * way it can fail.
  */
 class LoginInteractorTest {
 
     private InMemoryUserDataAccessObject dataAccess;
+    private Session session;
     private RecordingPresenter presenter;
     private LoginInteractor interactor;
 
@@ -41,18 +44,21 @@ class LoginInteractorTest {
     void setUp() {
         dataAccess = new InMemoryUserDataAccessObject();
         dataAccess.save(new User("coach1", "pw", "Coach One", Role.COACH));
+        session = new Session();
         presenter = new RecordingPresenter();
-        interactor = new LoginInteractor(dataAccess, presenter);
+        interactor = new LoginInteractor(dataAccess, presenter, session);
     }
 
     @Test
-    void correctDetailsLogIn() {
+    void correctDetailsLogInAndRecordTheCurrentUser() {
         interactor.execute(new LoginInputData("coach1", "pw"));
 
         assertNull(presenter.error);
         assertEquals("coach1", presenter.success.getUsername());
-        assertEquals("Coach One", presenter.success.getDisplayName());
-        assertEquals(Role.COACH, presenter.success.getRole());
+        assertEquals("coach1", session.getCurrentUsername());
+        assertEquals("Coach One", session.getDisplayName());
+        assertEquals(Role.COACH, session.getRole());
+        assertTrue(session.isLoggedIn());
     }
 
     @Test
@@ -69,6 +75,14 @@ class LoginInteractorTest {
 
         assertEquals("Incorrect password.", presenter.error);
         assertNull(presenter.success);
+    }
+
+    @Test
+    void aFailedLoginRecordsNobody() {
+        interactor.execute(new LoginInputData("coach1", "nope"));
+
+        assertEquals("", session.getCurrentUsername());
+        assertNull(session.getRole());
     }
 
     @Test
@@ -102,14 +116,10 @@ class LoginInteractorTest {
             public User get(String username) {
                 throw new IllegalStateException("the file is unreadable");
             }
-
-            @Override
-            public boolean existsByName(String username) {
-                return false;
-            }
         };
 
-        new LoginInteractor(broken, presenter).execute(new LoginInputData("coach1", "pw"));
+        new LoginInteractor(broken, presenter, session)
+                .execute(new LoginInputData("coach1", "pw"));
 
         assertTrue(presenter.error.startsWith("Could not read the account store:"));
         assertNull(presenter.success);

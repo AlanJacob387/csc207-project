@@ -23,6 +23,16 @@
 
 **Floating capacity:** whoever finishes their lane early takes the top item from the *Unclaimed backlog* at the bottom of this file. Lanes are re-balanced at every sprint review.
 
+## L5 implementation update — November 23, 2026
+
+Daniel's seven assigned use cases (UC-E1–E5 and UC-F1–F2) are implemented on `daniel/l5-completion`. Announcements previously merged in PR #9. The current branch adds durable event-change notifications, parent absence submission and coach viewing, event weather and rain-risk flags. Implementation is recorded separately from teammate approval, which remains pending.
+
+The requested parent features required a minimal L4 dependency bridge. Administrators now link or unlink existing parent/player accounts, and those relationships authorize parent schedule, announcement, notification, and absence access. This uses an admin-controlled link in place of the original proposed invitation flow. The shared model and wiring still require the owning lanes' review. PR #10 was integrated as a merge to supply scheduling, event details, mutations, and export before L5 integration.
+
+For tasks 2.7–2.8, 3.4, 3.7, and 3.12, the local implementation is ready for review. Task 3.8 has L5 sequence diagrams, an entity relationship diagram, and CRC tables in `Documentation.md`. Task 3.9 has independent L2/L4 test runs and reproducible findings there. Tasks 4.4–4.6 have a separate demo seeder, the five-minute script, current run instructions, and L5 documentation. On November 23, the integrated offline build and installed distribution passed 291 tests, the live-enabled suite passed 292 tests, and three actual Swing screenshots were captured and visually checked. The results and API request details are recorded in `Documentation.md`. The existing sprint dates below remain the original targets.
+
+Attendance, RSVP, stats, and roster work remain on their respective lanes' branches. Their passing suites are review evidence and do not substitute for fixing the recorded issues or receiving teammate approval.
+
 ## Sprint overview
 
 | Sprint | Dates (inclusive) | Theme | Exit criterion (must be demoable) |
@@ -77,13 +87,13 @@ Every interaction a user can trigger is its own Clean Architecture slice: its ow
 | UC-D4 | `view_roster` | Roster page | L4 | 2 | P0 | |
 | UC-D5 | `link_parent_to_player` | Parent - link to a player | L4 | 3 | P1 | |
 | UC-D6 | `view_child_schedule` | Calendar (parent) | L4 | 3 | P1 | |
-| UC-E1 | `post_announcement` | Announcements page (coach) | L5 | 2 | P1 | |
-| UC-E2 | `view_announcements` | Announcements page | L5 | 2 | P1 | |
-| UC-E3 | `view_notifications` | Notification feed | L5 | 2 | P1 | |
-| UC-E4 | `submit_absence_notice` | Parent - report an absence | L5 | 3 | P1 | |
-| UC-E5 | `view_absence_notices` | Coach - absence notices | L5 | 3 | P1 | |
-| UC-F1 | `view_event_weather` | Event details - forecast for the event | L5 | 3 | P1 | |
-| UC-F2 | `flag_rain_risk` | Calendar and events list - rain-risk flags | L5 | 3 | P2 | |
+| UC-E1 | `post_announcement` | Announcements page (coach) | L5 | 2 | P1 | implemented on `daniel/l5-completion`; review pending |
+| UC-E2 | `view_announcements` | Announcements page | L5 | 2 | P1 | implemented on `daniel/l5-completion`; review pending |
+| UC-E3 | `view_notifications` | Notification feed | L5 | 2 | P1 | implemented on `daniel/l5-completion`; review pending |
+| UC-E4 | `submit_absence_notice` | Parent - report an absence | L5 | 3 | P1 | implemented on `daniel/l5-completion`; review pending |
+| UC-E5 | `view_absence_notices` | Coach - absence notices | L5 | 3 | P1 | implemented on `daniel/l5-completion`; review pending |
+| UC-F1 | `view_event_weather` | Event details - forecast for the event | L5 | 3 | P1 | implemented on `daniel/l5-completion`; review pending |
+| UC-F2 | `flag_rain_risk` | Calendar and events list - rain-risk flags | L5 | 3 | P2 | implemented on `daniel/l5-completion`; review pending |
 
 **Priority:** P0 lands first. P2 items are stretch goals and are the first to be cut (see Priority if time runs short). UC-C6 only exists if decision D1 comes back as structured stats.
 

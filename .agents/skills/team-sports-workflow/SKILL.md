@@ -21,7 +21,7 @@ description: Review and change the CSC207 Team Sports repository using its owner
 - Check the current branch, status, staged changes, and relevant diff before
   editing. Keep the user's uncommitted and staged work intact.
 - Work on a descriptive branch. Daniel's current branch is
-  `daniel/communications-weather`; later feature branches may use names such as
+  `daniel/l5-completion`; later feature branches may use names such as
   `feature/post-announcement` or `daniel/absence-notices`.
 - Add a missing file only after confirming the path is unused. Patch existing
   files narrowly. Do not replace files wholesale, reset the working tree, amend
@@ -69,8 +69,8 @@ description: Review and change the CSC207 Team Sports repository using its owner
 ## Validation and costs
 
 - The reviewed baseline uses JDK 21 and targets Java 17 bytecode. The wrapper
-  currently lacks an executable bit, so use `bash ./gradlew build` and
-  `bash ./gradlew test` on macOS/Linux without changing permissions incidentally.
+  is executable, so use `./gradlew build` and `./gradlew test` on macOS/Linux.
+  An explicit `bash ./gradlew` invocation also works.
   Add `--offline` when dependencies are already cached and no downloads are
   intended. On Windows, use `gradlew.bat`.
 - The default test suite excludes network-tagged tests. Only run

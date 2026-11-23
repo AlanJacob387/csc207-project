@@ -1,5 +1,27 @@
 # Daniel — communication and weather
 
+## Current delivery — November 23, 2026
+
+Working branch `daniel/l5-completion` implements all seven L5 use cases. UC-E1/E2 announcements were delivered in PR #9. UC-E3 now reads durable created/changed/cancelled event notifications. UC-E4/E5 let a linked parent submit or update an upcoming absence and let the team's coach read it. UC-F1/F2 provide explicit weather lookups and measured rain-risk flags with background workers, bounded caching, and unavailable states.
+
+The parent flows include the requested minimal L4 dependency bridge, with administrator-controlled link/unlink for existing parent/player accounts. Those links also authorize parent calendar, announcement, and notification reads. PR #10 was merged to supply the scheduling foundation. Shared L4 entities and L1 wiring still need owner review before merging this branch.
+
+The presentation dataset has one admin, two coaches, eight players, four parents, three teams, 42 upcoming events, and eight links. `seedDemo` creates a separate store only at an unused path. The app seeds only a genuinely empty store. Run commands, schema, CRC cards, L5 sequence diagrams, screenshots, and the five-minute script are documented in the README and `Documentation.md`.
+
+On November 23, independent L2 and L4 suites passed at `977b912` (120 tests) and `d171e05` (126 tests). Reproduced persistence and missing-coach issues are recorded in `Documentation.md` with owner follow-up. Those checks establish suite results, while teammate review and final integrated verification are recorded separately.
+
+### Delivery verification
+
+On November 23, `./gradlew --offline build installDist` passed 291 tests with zero failures and built the installed application and ZIP distribution. `./gradlew --offline test -Pnetwork` passed 292 tests with zero failures, including the live Toronto weather test (10.0 °C, 20% rain). The actual application configured by `Main.configure` was exercised through its forms, including parent links, absences, notifications, and authorization boundaries.
+
+A live event-panel check for November 24 resolved Toronto, Ontario, Canada and displayed 2.7 °C and 1% rain probability, fetched at `2026-11-23T20:42:14Z`. The three screenshots in `docs/images/` were captured from actual Swing pages and visually inspected. The live checks used three public API requests in total and incurred no service charge. They created no provider account, subscription, or recurring activity.
+
+Regression coverage also verifies that actual create/edit/cancel flows clear and cancel obsolete rain flags, and that event management requires a current stored COACH role even for a previously assigned coach who is now a linked parent. The remaining merge step requires the owning lanes' review.
+
+## Historical review — November 9, 2026
+
+The sections below preserve the review at `7a754ee` and the announcement delivery on `daniel/communications-weather`. Their open-work and code-location statements describe that earlier state. The current delivery above and current source are the references for what is implemented now.
+
 Reviewed on November 9, 2026 against `main` at `7a754ee`.
 Working branch: `daniel/communications-weather`.
 

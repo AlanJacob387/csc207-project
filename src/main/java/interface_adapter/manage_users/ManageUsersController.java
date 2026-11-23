@@ -6,6 +6,7 @@ import use_case.manage_users.CreateUserInputBoundary;
 import use_case.manage_users.CreateUserInputData;
 import use_case.manage_users.DeactivateUserInputBoundary;
 import use_case.manage_users.DeactivateUserInputData;
+import use_case.manage_users.ListAccountsInputBoundary;
 
 /**
  * Controller for the administrator page.
@@ -18,6 +19,7 @@ public class ManageUsersController {
     private final CreateUserInputBoundary createUser;
     private final ChangeUserRoleInputBoundary changeUserRole;
     private final DeactivateUserInputBoundary deactivateUser;
+    private final ListAccountsInputBoundary listAccounts;
 
     /**
      * Creates the controller.
@@ -25,13 +27,21 @@ public class ManageUsersController {
      * @param createUser     the Create User use case
      * @param changeUserRole the Change User Role use case
      * @param deactivateUser the Deactivate User use case
+     * @param listAccounts   the read use case that fills the page
      */
     public ManageUsersController(CreateUserInputBoundary createUser,
                                  ChangeUserRoleInputBoundary changeUserRole,
-                                 DeactivateUserInputBoundary deactivateUser) {
+                                 DeactivateUserInputBoundary deactivateUser,
+                                 ListAccountsInputBoundary listAccounts) {
         this.createUser = createUser;
         this.changeUserRole = changeUserRole;
         this.deactivateUser = deactivateUser;
+        this.listAccounts = listAccounts;
+    }
+
+    /** Loads the account list, for example when the page is opened. */
+    public void listAccounts() {
+        listAccounts.execute();
     }
 
     /**

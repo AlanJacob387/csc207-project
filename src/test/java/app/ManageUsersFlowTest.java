@@ -26,6 +26,7 @@ import use_case.login.LoginInteractor;
 import use_case.manage_users.ChangeUserRoleInteractor;
 import use_case.manage_users.CreateUserInteractor;
 import use_case.manage_users.DeactivateUserInteractor;
+import use_case.manage_users.ListAccountsInteractor;
 
 /**
  * Integration test for the administrator page wired the way AppBuilder wires it,
@@ -57,7 +58,8 @@ class ManageUsersFlowTest {
             this.manageUsersController = new ManageUsersController(
                     new CreateUserInteractor(dataAccess, presenter, session, new UserFactory()),
                     new ChangeUserRoleInteractor(dataAccess, presenter, session),
-                    new DeactivateUserInteractor(dataAccess, presenter, session));
+                    new DeactivateUserInteractor(dataAccess, presenter, session),
+                    new ListAccountsInteractor(dataAccess, presenter, session));
         }
 
         void signInAs(String username, String password) {
@@ -126,6 +128,33 @@ class ManageUsersFlowTest {
         w.signInAs("player1", "pw");
         assertEquals("This account has been deactivated.", w.loginViewModel.getErrorMessage());
         assertFalse(w.session.isLoggedIn());
+    }
+
+    @Test
+    void anAdministratorCanReadTheAccountList() {
+        final Wiring w = wiring();
+        w.signInAs("admin1", "pw");
+
+        w.manageUsersController.listAccounts();
+
+        assertTrue(w.manageUsersViewModel.getAccounts().stream()
+                        .anyMatch(account -> "admin1".equals(account.getUsername())),
+                "the page should show the administrator who is signed in");
+        assertEquals("", w.manageUsersViewModel.getErrorMessage());
+    }
+
+    @Test
+    void aNonAdministratorCannotReadTheAccountList() {
+        final Wiring w = wiring();
+        w.dataAccess.save(new User("player1", "pw", "Pat Player", Role.PLAYER));
+        w.signInAs("player1", "pw");
+
+        w.manageUsersController.listAccounts();
+
+        assertEquals("Only an administrator can manage users.",
+                w.manageUsersViewModel.getErrorMessage());
+        assertTrue(w.manageUsersViewModel.getAccounts().isEmpty(),
+                "no accounts may reach a non-administrator");
     }
 
     @Test

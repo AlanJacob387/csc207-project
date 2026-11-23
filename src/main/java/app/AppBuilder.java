@@ -48,6 +48,7 @@ import use_case.logout.LogoutInteractor;
 import use_case.manage_users.ChangeUserRoleInteractor;
 import use_case.manage_users.CreateUserInteractor;
 import use_case.manage_users.DeactivateUserInteractor;
+import use_case.manage_users.ListAccountsInteractor;
 import use_case.post_announcement.PostAnnouncementInteractor;
 import use_case.signup.SignupInteractor;
 import use_case.view_announcements.ViewAnnouncementsInteractor;
@@ -255,9 +256,11 @@ public class AppBuilder {
         final ManageUsersController controller = new ManageUsersController(
                 new CreateUserInteractor(dataAccess, presenter, session, userFactory),
                 new ChangeUserRoleInteractor(dataAccess, presenter, session),
-                new DeactivateUserInteractor(dataAccess, presenter, session));
+                new DeactivateUserInteractor(dataAccess, presenter, session),
+                new ListAccountsInteractor(dataAccess, presenter, session));
 
-        appShell.addPage("Manage Users", new ManageUsersView(controller, viewModel), Role.ADMIN);
+        appShell.addPage("Manage Users", new ManageUsersView(controller, viewModel, session),
+                Role.ADMIN);
         return this;
     }
 

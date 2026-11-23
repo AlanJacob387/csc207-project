@@ -22,6 +22,7 @@ import javax.swing.JTextArea;
 import javax.swing.JTextField;
 
 import entity.Role;
+import interface_adapter.Session;
 import interface_adapter.manage_users.ManageUsersController;
 import interface_adapter.manage_users.ManageUsersViewModel;
 import use_case.manage_users.ManageUsersOutputData.AccountData;
@@ -43,6 +44,7 @@ public class ManageUsersView extends JPanel implements PropertyChangeListener {
 
     private final ManageUsersController controller;
     private final ManageUsersViewModel viewModel;
+    private final Session session;
 
     private final JTextArea accountList = new JTextArea(7, 52);
     private final JTextField usernameField = new JTextField(16);
@@ -57,13 +59,18 @@ public class ManageUsersView extends JPanel implements PropertyChangeListener {
     /**
      * Creates the page.
      *
-     * @param controller the controller for the three actions
+     * @param controller the controller for the read and the three actions
      * @param viewModel  the page state
+     * @param session    who is signed in, so the list loads when an administrator
+     *                   arrives and empties when they leave
      */
-    public ManageUsersView(ManageUsersController controller, ManageUsersViewModel viewModel) {
+    public ManageUsersView(ManageUsersController controller, ManageUsersViewModel viewModel,
+                           Session session) {
         this.controller = controller;
         this.viewModel = viewModel;
+        this.session = session;
         this.viewModel.addPropertyChangeListener(this);
+        this.session.addPropertyChangeListener(this::onSessionChanged);
 
         setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
         setBackground(Color.WHITE);
@@ -105,13 +112,23 @@ public class ManageUsersView extends JPanel implements PropertyChangeListener {
     }
 
     private JComponent buildAccountList() {
+        final JPanel panel = section("Accounts");
+
         accountList.setEditable(false);
         accountList.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
         accountList.setBackground(new Color(248, 249, 251));
         final JScrollPane scroll = new JScrollPane(accountList);
         scroll.setAlignmentX(Component.LEFT_ALIGNMENT);
         scroll.setMaximumSize(new Dimension(Integer.MAX_VALUE, 170));
-        return scroll;
+
+        final JButton refreshButton = new JButton("Refresh");
+        refreshButton.setAlignmentX(Component.LEFT_ALIGNMENT);
+        refreshButton.addActionListener(e -> onRefresh());
+
+        panel.add(scroll);
+        panel.add(Box.createVerticalStrut(8));
+        panel.add(refreshButton);
+        return panel;
     }
 
     private JPanel buildCreateForm() {
@@ -239,6 +256,32 @@ public class ManageUsersView extends JPanel implements PropertyChangeListener {
             return;
         }
         controller.deactivateUser(selectedAccount());
+    }
+
+    /** Presses Refresh: reloads the account list. */
+    void onRefresh() {
+        if (controller == null) {
+            show("Managing users is not wired up in this preview.", PROBLEM);
+            return;
+        }
+        controller.listAccounts();
+    }
+
+    /**
+     * Loads the list when an administrator signs in, and empties the page when
+     * anybody else does. The role check here is only about when to ask; whether
+     * the caller may read accounts is decided by the interactor.
+     *
+     * @param evt the session change
+     */
+    private void onSessionChanged(PropertyChangeEvent evt) {
+        if (!"session".equals(evt.getPropertyName())) {
+            return;
+        }
+        viewModel.clear();
+        if (controller != null && session.getCurrentRole() == Role.ADMIN) {
+            controller.listAccounts();
+        }
     }
 
     @Override
@@ -388,5 +431,10 @@ public class ManageUsersView extends JPanel implements PropertyChangeListener {
     /** Presses Deactivate the way a test would. */
     void clickDeactivate() {
         onDeactivate();
+    }
+
+    /** Presses Refresh the way a test would. */
+    void clickRefresh() {
+        onRefresh();
     }
 }

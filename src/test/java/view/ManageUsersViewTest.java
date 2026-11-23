@@ -11,11 +11,13 @@ import org.junit.jupiter.api.Test;
 
 import entity.Role;
 import entity.User;
+import interface_adapter.Session;
 import interface_adapter.manage_users.ManageUsersController;
 import interface_adapter.manage_users.ManageUsersViewModel;
 import use_case.manage_users.ChangeUserRoleInputBoundary;
 import use_case.manage_users.CreateUserInputBoundary;
 import use_case.manage_users.DeactivateUserInputBoundary;
+import use_case.manage_users.ListAccountsInputBoundary;
 import use_case.manage_users.ManageUsersOutputData;
 
 /**
@@ -26,6 +28,7 @@ import use_case.manage_users.ManageUsersOutputData;
 class ManageUsersViewTest {
 
     private final List<String> calls = new ArrayList<>();
+    private Session session;
     private ManageUsersViewModel viewModel;
     private ManageUsersView view;
 
@@ -38,10 +41,36 @@ class ManageUsersViewTest {
                 + inputData.getUsername() + "|" + inputData.getRoleName());
         final DeactivateUserInputBoundary deactivate = inputData ->
                 calls.add("deactivate:" + inputData.getUsername());
+        final ListAccountsInputBoundary list = () -> calls.add("list");
 
+        session = new Session();
         viewModel = new ManageUsersViewModel();
         view = new ManageUsersView(
-                new ManageUsersController(create, change, deactivate), viewModel);
+                new ManageUsersController(create, change, deactivate, list), viewModel, session);
+    }
+
+    @Test
+    void refreshAsksForTheAccountList() {
+        view.clickRefresh();
+
+        assertEquals(List.of("list"), calls);
+    }
+
+    @Test
+    void signingInAsAnAdministratorLoadsTheList() {
+        session.setCurrentUser(new User("admin1", "pw", "Ada Admin", Role.ADMIN));
+
+        assertEquals(List.of("list"), calls);
+    }
+
+    @Test
+    void signingInAsAnyoneElseEmptiesThePageWithoutAsking() {
+        showAccounts(new User("admin1", "pw", "Ada Admin", Role.ADMIN));
+
+        session.setCurrentUser(new User("player1", "pw", "Pat Player", Role.PLAYER));
+
+        assertTrue(calls.isEmpty(), "a non-administrator should not trigger a read");
+        assertTrue(view.listedAccounts().contains("No accounts"), view.listedAccounts());
     }
 
     @Test

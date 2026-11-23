@@ -6,10 +6,10 @@ import entity.AttendanceRecord;
 import entity.Event;
 import entity.Role;
 import entity.Team;
-import entity.User;
 import use_case.change_password.ChangePasswordUserDataAccessInterface;
 import use_case.create_event.CreateEventDataAccessInterface;
 import use_case.login.LoginUserDataAccessInterface;
+import use_case.manage_users.ManageUsersDataAccessInterface;
 import use_case.post_announcement.PostAnnouncementDataAccessInterface;
 import use_case.signup.SignupUserDataAccessInterface;
 import use_case.view_announcements.ViewAnnouncementsDataAccessInterface;
@@ -32,14 +32,8 @@ public interface AppDataStore extends
         ChangePasswordUserDataAccessInterface,
         CreateEventDataAccessInterface,
         PostAnnouncementDataAccessInterface,
-        ViewAnnouncementsDataAccessInterface {
-
-    /**
-     * Returns every stored account.
-     *
-     * @return the accounts, in a stable order
-     */
-    List<User> getAllUsers();
+        ViewAnnouncementsDataAccessInterface,
+        ManageUsersDataAccessInterface {
 
     /**
      * Updates a user's display name and role, leaving the credential and the

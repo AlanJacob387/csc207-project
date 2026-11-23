@@ -1,11 +1,14 @@
 package data_access;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import entity.User;
-import use_case.login.LoginUserDataAccessInterface;
 import use_case.change_password.ChangePasswordUserDataAccessInterface;
+import use_case.login.LoginUserDataAccessInterface;
+import use_case.manage_users.ManageUsersDataAccessInterface;
 import use_case.signup.SignupUserDataAccessInterface;
 
 /**
@@ -16,7 +19,7 @@ import use_case.signup.SignupUserDataAccessInterface;
  */
 public class InMemoryUserDataAccessObject
         implements LoginUserDataAccessInterface, SignupUserDataAccessInterface,
-                ChangePasswordUserDataAccessInterface {
+                ChangePasswordUserDataAccessInterface, ManageUsersDataAccessInterface {
 
     private final Map<String, User> users = new HashMap<>();
 
@@ -33,5 +36,10 @@ public class InMemoryUserDataAccessObject
     @Override
     public void save(User user) {
         users.put(user.getUsername(), user);
+    }
+
+    @Override
+    public List<User> getAllUsers() {
+        return new ArrayList<>(users.values());
     }
 }

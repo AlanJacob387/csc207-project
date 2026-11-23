@@ -40,6 +40,15 @@ public final class L2WorkflowTest {
         assertEquals("two baskets", fake.attendance.get(0).getStatsNotes());
     }
 
+    @Test void clearingNotesInARecordedAttendanceCorrection() {
+        fake.attendance.add(withNotes("Old note"));
+        current.username = "coach";
+        new EditAttendanceInteractor(fake, editOutput, current).execute(
+                new EditAttendanceInputData("e", "p", AttendanceRecord.Status.PRESENT, ""));
+        assertNull(editOutput.error);
+        assertEquals("", fake.attendance.get(0).getStatsNotes());
+    }
+
     @Test void rejectsNonCoachEdit() {
         fake.attendance.add(withNotes(""));
         current.username = "p";
@@ -57,6 +66,14 @@ public final class L2WorkflowTest {
         assertNull(rsvpOutput.error);
         assertEquals(1, fake.responses.size());
         assertEquals(RsvpRecord.Response.NO, fake.responses.get(0).getResponse());
+    }
+
+    @Test void playerCannotSubmitLegacyMaybeResponse() {
+        current.username = "p";
+        new RsvpInteractor(fake, rsvpOutput, current, CLOCK).execute(
+                new RsvpInputData("e", RsvpRecord.Response.MAYBE));
+        assertNotNull(rsvpOutput.error);
+        assertTrue(fake.responses.isEmpty());
     }
 
     @Test void coachCanSeeResponsesButOtherPlayerCannot() {

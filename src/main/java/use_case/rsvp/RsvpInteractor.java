@@ -48,6 +48,10 @@ public final class RsvpInteractor implements RsvpInputBoundary {
    if (event.getDateTime() == null || !event.getDateTime().isAfter(LocalDateTime.now(clock))) {
     presenter.prepareFailView("RSVPs are only allowed for future events."); return;
    }
+   if (input.getResponse() != RsvpRecord.Response.YES
+           && input.getResponse() != RsvpRecord.Response.NO) {
+    presenter.prepareFailView("Choose YES or NO for your RSVP."); return;
+   }
    dao.saveRsvp(new RsvpRecord(event.getEventId(), user.getUsername(), input.getResponse()));
    presenter.prepareSuccessView(new RsvpOutputData("RSVP saved.", List.of()));
   }

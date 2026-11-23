@@ -1,6 +1,7 @@
 package entity;
 /** A player's intended attendance before an event; distinct from actual attendance. */
 public final class RsvpRecord {
+ /** MAYBE is legacy-only, retained so existing saved JSON can still be read. */
  public enum Response { YES, NO, MAYBE }
  private final String eventId;
  private final String playerUsername;

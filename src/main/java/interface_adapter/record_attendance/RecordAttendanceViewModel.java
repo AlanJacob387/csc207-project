@@ -11,11 +11,18 @@ public final class RecordAttendanceViewModel {
     private String message = "";
     private boolean success;
     private Map<String, AttendanceRecord.Status> roster = Map.of();
+    private Map<String, String> notes = Map.of();
     public String getMessage() { return message; }
     public boolean isSuccess() { return success; }
     public Map<String, AttendanceRecord.Status> getRoster() { return roster; }
+    public Map<String, String> getNotes() { return notes; }
     public void setRoster(Map<String, AttendanceRecord.Status> roster) {
+        setRoster(roster, Map.of());
+    }
+    public void setRoster(Map<String, AttendanceRecord.Status> roster,
+            Map<String, String> notes) {
         this.roster = Collections.unmodifiableMap(new LinkedHashMap<>(roster));
+        this.notes = Collections.unmodifiableMap(new LinkedHashMap<>(notes));
         message = "Roster loaded.";
         support.firePropertyChange("roster", null, this);
     }

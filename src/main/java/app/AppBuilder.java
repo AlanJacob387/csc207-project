@@ -22,7 +22,6 @@ import use_case.record_attendance.RecordAttendanceInteractor;
 import use_case.current_user.CurrentUserInterface;
 import view.RecordAttendanceView;
 import view.RsvpView;
-import view.EditAttendanceView;
 import view.MyStatsView;
 import interface_adapter.rsvp.*;
 import interface_adapter.edit_attendance.*;
@@ -197,18 +196,23 @@ public class AppBuilder {
         return this;
     }
 
-    /** Wires the coach-only complete-roster attendance page. */
+    /** One coach-facing attendance page, with separate record/edit use-case slices. */
     public AppBuilder addRecordAttendanceUseCase() {
-        final RecordAttendanceViewModel vm = new RecordAttendanceViewModel();
-        final RecordAttendanceController controller = new RecordAttendanceController(
-                new RecordAttendanceInteractor(dataAccess, new RecordAttendancePresenter(vm), session));
-        final ListAvailableEventsViewModel eventVm = new ListAvailableEventsViewModel();
-        final ListAvailableEventsController listController = new ListAvailableEventsController(
+        final RecordAttendanceViewModel recordModel = new RecordAttendanceViewModel();
+        final RecordAttendanceController recordController = new RecordAttendanceController(
+                new RecordAttendanceInteractor(dataAccess,
+                        new RecordAttendancePresenter(recordModel), session));
+        final EditAttendanceViewModel editModel = new EditAttendanceViewModel();
+        final EditAttendanceController editController = new EditAttendanceController(
+                new EditAttendanceInteractor(dataAccess,
+                        new EditAttendancePresenter(editModel), session));
+        final ListAvailableEventsViewModel eventModel = new ListAvailableEventsViewModel();
+        final ListAvailableEventsController eventsController = new ListAvailableEventsController(
                 new ListAvailableEventsInteractor(dataAccess,
-                        new ListAvailableEventsPresenter(eventVm), session));
-        appShell.addPage("Attendance", pad(new RecordAttendanceView(controller, vm, session,
-                listController, eventVm)),
-                Role.COACH);
+                        new ListAvailableEventsPresenter(eventModel), session));
+        appShell.addPage("Attendance", pad(new RecordAttendanceView(
+                recordController, recordModel, editController, editModel, session,
+                eventsController, eventModel)), Role.COACH);
         return this;
     }
 
@@ -223,21 +227,6 @@ public class AppBuilder {
                         new ListAvailableEventsPresenter(eventVm), session));
         appShell.addPage("RSVP", pad(new RsvpView(controller, vm, session, listController, eventVm)),
                 Role.PLAYER, Role.COACH);
-        return this;
-    }
-
-    /** Adds the coach-only attendance correction form. */
-    public AppBuilder addEditAttendanceUseCase() {
-        final EditAttendanceViewModel vm = new EditAttendanceViewModel();
-        final EditAttendanceController controller = new EditAttendanceController(
-                new EditAttendanceInteractor(dataAccess, new EditAttendancePresenter(vm), session));
-        final ListAvailableEventsViewModel eventVm = new ListAvailableEventsViewModel();
-        final ListAvailableEventsController listController = new ListAvailableEventsController(
-                new ListAvailableEventsInteractor(dataAccess,
-                        new ListAvailableEventsPresenter(eventVm), session));
-        appShell.addPage("Edit Attendance", pad(new EditAttendanceView(controller, vm, session,
-                listController, eventVm)),
-                Role.COACH);
         return this;
     }
 

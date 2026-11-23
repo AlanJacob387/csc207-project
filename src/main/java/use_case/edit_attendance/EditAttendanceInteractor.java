@@ -30,8 +30,8 @@ public final class EditAttendanceInteractor implements EditAttendanceInputBounda
    AttendanceRecord old = dao.getAttendanceRecord(data.getEventId(), data.getPlayerUsername());
    if (old == null) { presenter.prepareFailView("No existing attendance record to edit."); return; }
    AttendanceRecord updated = new AttendanceRecord(data.getEventId(), data.getPlayerUsername(), data.getStatus());
-   updated.setStatsNotes(data.getNotes() == null || data.getNotes().isBlank()
-           ? old.getStatsNotes() : data.getNotes());
+   // Null means the caller did not edit notes; an empty string explicitly clears them.
+   updated.setStatsNotes(data.getNotes() == null ? old.getStatsNotes() : data.getNotes().trim());
    dao.updateAttendanceRecord(updated);
    presenter.prepareSuccessView(new EditAttendanceOutputData("Attendance updated."));
   }

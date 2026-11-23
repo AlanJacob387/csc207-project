@@ -23,7 +23,6 @@ public class Main {
                     .addSignupUseCase()
                     .addCreateEventUseCase()
                     .addRecordAttendanceUseCase()
-                    .addEditAttendanceUseCase()
                     .addRsvpUseCase()
                     .addMyStatsUseCases()
                     .addAnnouncementUseCases()

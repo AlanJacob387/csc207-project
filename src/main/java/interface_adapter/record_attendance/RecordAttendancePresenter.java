@@ -14,7 +14,7 @@ public final class RecordAttendancePresenter implements RecordAttendanceOutputBo
     }
     @Override
     public void prepareRosterView(RecordAttendanceRosterData data) {
-        viewModel.setRoster(data.getStatuses());
+        viewModel.setRoster(data.getStatuses(), data.getNotes());
     }
     @Override
     public void prepareFailView(String message) {

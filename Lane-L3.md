@@ -15,6 +15,7 @@
 | 2.10 | `logout` use case | done 2026-11-02 |
 | 3.10 | `change_password` use case | done 2026-11-02 |
 | 3.5 | `manage_users` (admin) | deferred — P2, Sprint 3 |
+| 4.8 | Hosted database store (revision of D6): Supabase Postgres, schema, in-app connection settings | done 2026-11-23 |
 | 4.3 | Validation / robustness pass | Sprint 4 |
 | — | Week-1 API items (spike + README API section) | done 2026-10-29 |
 
@@ -22,9 +23,9 @@
 
 | # | Decision | Choice | Why |
 |---|----------|--------|-----|
-| D6 | Persistence | **Local JSON file only** (`data/app-data.json`): users incl. passwords, roles, teams, events, attendance | No server is needed, and the 2025F course API turned out to be retired (dead host and port, and not a course requirement). A hosted store (Firebase RTDB, JSONBin) is a later one-class swap behind the same interfaces |
+| D6 | Persistence | **Revised 2026-11-23: hosted Supabase Postgres** over its REST API (PostgREST), one table per entity, written with `?on_conflict=` upserts | Data is now shared between devices instead of living on one laptop, and two clients no longer overwrite each other's unrelated records the way a whole-document file did. The local JSON file stays as the offline default when nothing is configured, so a clean clone and the tests need no account. Connection settings are saved per user by the in-app **Database settings** page, so no key enters git and nobody needs a terminal |
 | — | Role at signup | Dropdown on the signup form, defaults to `PLAYER` | Lets all four roles be demoed without admin tooling |
-| — | Passwords | Plaintext in the local store; to be recorded in `Documentation.md` (task 4.5) | Course scope; hashing adds work with no graded benefit. Revisit before any real deployment |
+| — | Passwords | **PBKDF2-HMAC-SHA256 hashes** (`entity/PasswordHasher`): 120 000 iterations, a per-user salt, iteration count stored with the hash; a value written before hashing is still accepted so an older store keeps working | Once the data became shared, a plaintext store plus the publishable key would have exposed every password. Hashing arrived with the hosted store (2026-11-23) and is recorded in `Documentation.md` §4 |
 | — | `manage_users` | Deferred to P2 / Sprint 3 | No API support for listing users; needs the local registry first |
 | — | Java toolchain | Pin a Java 21 toolchain **only if** Gradle 9.8.2 fails on JDK 26 | Keeps `options.release = 17` working without forcing everyone's JDK down |
 
@@ -66,9 +67,12 @@ Follows the course convention: **one narrow data-access interface per use case**
 | `use_case/change_password/ChangePasswordUserDataAccessInterface` | `User get(String username)`, `void save(User user)` |
 | `use_case/current_user/CurrentUserInterface` | `getCurrentUsername()`, `setCurrentUser(User)`, `clearCurrentUser()`. Implemented by `interface_adapter.Session`, so the account use cases own the session transitions instead of the view wiring |
 | ~~`data_access/DBDataAccessObject`~~ | **Deleted 2026-10-29** — it targeted the retired 2025F course API and could not be verified. A hosted store can be added later behind the same interfaces |
-| `data_access/FileAppDataAccessObject` | Local JSON store for app data; implements the per-use-case interfaces it needs |
-| `data_access/InMemoryUserDataAccessObject` | Test fake for accounts (no network, no disk). App data is tested against a temporary file via `@TempDir` |
-| `data_access/EntityJsonMapper` | Entity ⇄ JSON in **one** place, so the on-disk shape is unit-testable and reusable by a future Firebase DAO |
+| `data_access/AppDataStore` | The union of the per-use-case interfaces plus the app-wide reads, held by `AppBuilder`, so the file store and the database are interchangeable and no interactor changes |
+| `data_access/SupabaseAppDataAccessObject` | Hosted store: one table per entity; a read filters on the key (`?username=eq.coach1`), a save posts to `?on_conflict=<key>` with `Prefer: resolution=merge-duplicates`, and an announcement is inserted strictly so a duplicate id answers 409 instead of replacing a post |
+| `data_access/DatabaseConfig` | Where the connection comes from: `TEAMSPORTS_DB_URL`/`TEAMSPORTS_DB_KEY`, then `-Dteamsports.db.*`, then `%USERPROFILE%\.team-sports\database.properties` (written by the in-app settings page). Refuses a secret key, which would bypass row level security |
+| `data_access/FileAppDataAccessObject` | Local JSON store, used when nothing is configured: the offline default for a clean clone and for the tests |
+| `data_access/InMemoryUserDataAccessObject` | Test fake for accounts (no network, no disk). App data is tested against a temporary file via `@TempDir`, and the hosted store against a local stub server |
+| `data_access/EntityJsonMapper` | Entity ⇄ JSON in **one** place, shared by the file store and the database so the record shape cannot drift |
 
 **On-disk shape** (`data/app-data.json`, git-ignored; created on first write):
 
@@ -81,9 +85,9 @@ Follows the course convention: **one narrow data-access interface per use case**
 }
 ```
 
-Note: passwords **are** stored in this file as plaintext (see the decision table above), so the local store can serve login with no server at all. The file is git-ignored - do not commit real credentials.
+Note: passwords are stored as PBKDF2 hashes (`entity/PasswordHasher`), not plaintext; a value written before hashing existed is still accepted, so an older file keeps working. The file is git-ignored - do not commit real credentials. The database tables in `db/schema.sql` mirror this shape exactly (camelCase quoted columns), so the same `EntityJsonMapper` serves both stores.
 
-**Hosted-store swap path** (if the team later wants cross-device state): add e.g. `FirebaseDataAccessObject` or `JsonBinDataAccessObject` implementing the same interfaces, reuse `EntityJsonMapper` unchanged, change one line in the wiring. Unit tests keep using the in-memory fakes and do not change.
+**Hosted-store swap (done 2026-11-23):** `SupabaseAppDataAccessObject` implements the same interfaces and reuses `EntityJsonMapper` unchanged; `AppBuilder.createStore` picks it when settings exist and keeps the file otherwise. The use cases, their tests and the in-memory fakes did not change - only the wiring did, which is what this design was for.
 
 ## Phases and tasks
 
@@ -155,13 +159,14 @@ Same as `Plan.md`: the six `use_case/<name>` files, the three `interface_adapter
 |------|-----------|
 | Gradle 9.8.2 may not support the local JDK 26 | Pin a Java 21 toolchain in `build.gradle` (L3 owns the build file) |
 | First `gradlew` run downloads ~130 MB | One-time; caches in `~/.gradle` |
-| Data is per machine: a coach's laptop and a player's laptop share nothing | Accepted for now and documented as a known limitation; a hosted store behind the same interfaces fixes it later |
+| The hosted project pauses after 7 days idle, or there is no network | Resume it from the Supabase dashboard (data is kept for a year); the app reports the failure instead of silently using a local file; `db/probe.ps1` names the cause; with no settings at all the file store still runs |
 | The local JSON file is deleted or corrupted | `load()` treats a missing file as an empty store; keep the demo seed script (task 4.4) able to recreate data |
 
 ## Change log
 
 | Date | Change |
 |------|--------|
+| 2026-11-23 | Persistence moved to a hosted **Supabase Postgres** database (D6 revised): `db/schema.sql` (five tables, camelCase quoted columns, constraints, row level security), `SupabaseAppDataAccessObject`, `AppDataStore` as the wiring contract, `DatabaseConfig` + an in-app Database settings page so no key enters git and nobody needs a terminal; passwords now stored as PBKDF2 hashes; the local file remains the offline default; 162 tests green |
 | 2026-10-29 | File created: scope, decisions, storage design, phases, API items |
 | 2026-10-29 | Course API dropped (retired host, not a course requirement); storage is the local JSON file; `DBDataAccessObject` deleted; statuses restored |
 | 2026-10-29 | `AppBuilder` created and `Main` reduced to the view/use-case chain; `BackgroundImage` extracted so login and signup share the stadium photo; `SignupView` redesigned (labelled fields, link-style back button) |

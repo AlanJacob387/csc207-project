@@ -40,30 +40,37 @@ The individual use cases behind each story are catalogued in `Plan.md`.
 - **How it is used:** the schedule shows the forecast for the date and place of each practice or game, and an event whose chance of rain is 60% or higher is flagged as at risk of cancellation. Code: `data_access/OpenMeteoWeatherGateway`.
 - **Called successfully?** **Yes.** First successful call from Java (OkHttp) on 2026-10-29: `Open-Meteo replied for 2026-10-29: max 21.3 C, rain chance 19%`. No key or account needed. Live check: `gradlew test -Pnetwork` (network-tagged tests are skipped by default so the suite stays green offline).
 
+### Supabase (Postgres + REST) — the shared database (in use)
+- **Documentation:** https://supabase.com/docs/guides/api
+- **How it is used:** accounts, teams, events, attendance and announcements live in a Supabase Postgres database and are read and written through its REST API (PostgREST): a read filters on the key, and a save posts to `?on_conflict=<key>` with `Prefer: resolution=merge-duplicates`. Code: `data_access/SupabaseAppDataAccessObject`; schema in `db/schema.sql`; setup in `db/README.md`. The connection comes from the in-app **Database settings** page (stored in `%USERPROFILE%\.team-sports\database.properties`) or from `TEAMSPORTS_DB_URL` / `TEAMSPORTS_DB_KEY`. Only the **publishable** key is used - a secret key bypasses row level security and the app refuses one.
+- **Called successfully?** **Yes.** First verified against the project on 2026-11-23: all five tables answered `200 []`, and `/rest/v1/` answered `401 Secret API key required`, which is the healthy answer for that route and proves PostgREST is reachable. Live check: `gradlew test -Pnetwork`.
+
 ### Ideas we have not called yet
 - **TheSportsDB** — https://www.thesportsdb.com/free_sports_api — link a team to a real pro team and import names or photos (free test key).
 - **Nominatim (OpenStreetMap)** — https://nominatim.org/release-docs/latest/api/Overview/ — turn a typed venue address into coordinates.
 - **Nager.Date** — https://date.nager.at/swagger/index.html — warn when a practice lands on a holiday or long weekend.
 - **API-Ninjas (Exercises)** — https://api-ninjas.com/api/exercises — drill suggestions for practice plans (free key in a header).
-- **Firebase Realtime Database REST** — https://firebase.google.com/docs/reference/rest/database — a shared JSON store instead of the local file.
 
 ### Where data lives
-- App data (accounts, teams, events, attendance) is kept in a local JSON file (`data/app-data.json`), so it is **per machine** - nothing is shared between devices yet. A hosted store can be added later behind the same interfaces.
+- **Shared:** accounts, teams, events, attendance and announcements live in the Supabase database above, so every device that connects with the same project sees the same data.
+- **Local fallback:** with no database configured the app uses `data/app-data.json` (git-ignored), which is also what the unit tests use. The sign-in page always shows which store is active.
+- **Connection settings are per user and per machine**, outside the repository: `%USERPROFILE%\.team-sports\database.properties` on Windows, `~/.team-sports/database.properties` on macOS and Linux.
 
 ## How to run
+
+Needs JDK 17 or newer, with `JAVA_HOME` pointing at it.
 
 ```bash
 ./gradlew build             # compile
 ./gradlew test              # unit tests (network tests are skipped, so this works offline)
-./gradlew test -Pnetwork    # also runs the live Open-Meteo check
+./gradlew test -Pnetwork    # also runs the live Open-Meteo and database checks
 ./gradlew run               # start the app
 ```
 
-Demo accounts are created automatically the first time the app runs (password `pw`): `coach1` (coach), `player1` (player), `parent1` (parent), `admin1` (admin). Each role sees only the pages it may use, and **Create an Account** makes a new one. App data lives in `data/app-data.json`, which is git-ignored.
+Demo accounts are created automatically the first time the app runs (password `pw`): `coach1` (coach), `player1` (player), `parent1` (parent), `admin1` (admin). Their passwords are stored hashed. Each role sees only the pages it may use, and **Create an Account** makes a new one.
 
-## Screenshots or animations demonstrating current functionality
+To use the shared database, open **Database settings** on the sign-in page and paste the project URL and publishable key (see `db/README.md`) - nothing is needed in a terminal. Without it the app keeps its data in `data/app-data.json`, which is git-ignored.
 
-*To be added - see `Plan.md` task 4.6.*
 ## Screenshots or animations demonstrating current functionality
 <img width="2880" height="1772" alt="image" src="https://github.com/user-attachments/assets/5bedcc77-7dd2-4c83-a515-e4efa756f474" />
 

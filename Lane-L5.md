@@ -20,11 +20,12 @@ snapshot of the starting point at `7a754ee`.
 - Announcements appear newest first with author and posting time. The page
   supports team selection, refresh, empty states, and posting feedback. Failed
   posts retain the draft; signing out or changing users clears previous content.
-- Posts persist in an added `announcements` array in `data/app-data.json`.
-  Older stores without that array still load. Saves preserve existing records
-  and unrecognised sections/fields, reject duplicate announcement IDs, and stage
-  complete file contents before replacement. Failed announcement writes do not
-  publish the post in memory.
+- Posts persist in the `announcements` table when the hosted database is
+  configured, and otherwise in an added `announcements` array in
+  `data/app-data.json`. Older stores without that array still load. Saves
+  preserve existing records and unrecognised sections/fields, reject duplicate
+  announcement IDs, and stage complete file contents before replacement. Failed
+  announcement writes do not publish the post in memory.
 - Parent reads remain unavailable until the parent-to-player link contract
   exists. Event-change notifications and absence notices remain separate work.
 - `AppBuilder` and `Main` contain narrow page-wiring changes. Shared-file and
@@ -41,8 +42,9 @@ legacy account-save memory findings remain separate follow-up work.
 
 ## What exists
 
-- Login, signup, role-filtered navigation, local JSON persistence, and the
-  create-event slice are implemented. Login/signup are the useful slice examples.
+- Login, signup, role-filtered navigation, shared database persistence (local
+  file fallback), and the create-event slice are implemented. Login/signup are
+  the useful slice examples.
 - `AppBuilder.java:112–113` still registers an Announcements placeholder.
   There are no announcement, notification, absence-notice, or weather use-case
   packages, and no entities/storage for the three communication features.
@@ -106,7 +108,7 @@ paths are covered by the current tests.
 
 | Priority | Finding and evidence | Action / owner |
 |---|---|---|
-| High | Startup can overwrite records. `AppBuilder.java:208–219` checks only for `coach1`, then upserts `player1`, `parent1`, `admin1`, and `demo-team`. A store missing only `coach1` can lose existing passwords, profiles, or its team roster. | Alan/Andy: make demo initialization insert-only or explicitly separate it from real stores. Verify customized records survive startup. |
+| High | Startup can overwrite records. `AppBuilder.java:208–219` checks only for `coach1`, then upserts `player1`, `parent1`, `admin1`, and `demo-team`. A store missing only `coach1` can lose existing passwords, profiles, or its team roster. | Alan/Andy: make demo initialization insert-only or explicitly separate it from real stores. Verify customized records survive startup. **Resolved 2026-11-23:** each demo account is inserted only when that username is missing, the demo team only when its id is absent, and demo passwords are hashed as they are written. |
 | High | Failed writes leave memory changed. `FileAppDataAccessObject.java:86–88` puts a user into memory before persistence; the same pattern exists for other writes. A reported failed signup can still make that account usable until restart. Writes at `:288` also replace the only data file directly. | Andy: commit memory only after a successful durable write, or roll back; use a temporary sibling file and atomic replacement where supported. Add failed-write preservation tests before extending persistence for L5. |
 | High | A present, wrong-typed top-level JSON field is silently treated as empty by `FileAppDataAccessObject.java:295–298`. The next save rewrites that section and can discard data. | Andy: reject invalid schema while preserving the original file; distinguish absent collections from corrupt ones. Add a startup error/recovery path because eager loading at `AppBuilder.java:55` currently aborts startup on malformed storage. |
 | Medium | Missing forecast numbers become `NaN` temperature and `-1` precipitation (`OpenMeteoWeatherGateway.java:139–142`); `isRainRisk()` returns false for that unavailable precipitation (`:83–84`). HTTP success is not checked before parsing (`:101–106`). | Daniel: introduce explicit unavailable data and transport errors. Add offline tests for null/short arrays, invalid values, absent dates, HTTP failures, and the 59/60% boundary. |
@@ -114,9 +116,9 @@ paths are covered by the current tests.
 | Medium | The calendar and its export read a demo map rather than stored events (`CalendarView.java:134,229`). There is no create-event test package, despite the slice being marked done. | Alan: implement `view_schedule` and refresh after changes. Aidan/Alan: finish task 1.8 with interactor success/failure coverage. These are prerequisites for dependable event notifications and weather integration. |
 | Low | Export assigns an overnight event's end to the original date (`IcsExporter.java:73–75`), so a 23:30 event can end at 00:30 before it starts. | Alan: calculate the end as a date-time and cover midnight rollover when building `export_schedule`. |
 
-The signup role dropdown and plaintext local passwords are documented demo
-choices in `Lane-L3.md`, rather than newly discovered defects. Changes to that
-policy belong with Andy and the team.
+The signup role dropdown remains a documented demo choice in `Lane-L3.md`.
+Passwords are no longer plaintext: they are stored as PBKDF2 hashes since
+2026-11-23. Changes to either policy belong with Andy and the team.
 
 ## Planning inconsistencies to reconcile
 
@@ -156,11 +158,12 @@ memory, and a subsequent login succeeded despite no data file being created.
 Both checks reproduced the findings above. The harness and temporary data were
 removed; the repository's default store was not created or modified.
 
-The wrapper is tracked without an executable bit (`100644`), so the explicit
-`bash` invocation works on macOS/Linux without altering the existing file.
+The wrapper is now tracked with its executable bit (`100755`), so `./gradlew`
+works on a clean macOS/Linux checkout.
 Demo usernames are `coach1`, `player1`, `parent1`, and `admin1`, all seeded with
-password `pw`; use an isolated data directory until the startup overwrite risk
-is fixed. Runtime state belongs in the ignored `data/app-data.json` file.
+password `pw`; the startup seed is now insert-only per account, so an existing
+account is never overwritten. Runtime state lives in the hosted database when it
+is configured, and in the ignored `data/app-data.json` file otherwise.
 
 This review adds project instructions, a workflow skill, and this backlog only.
 Existing source files, shared documents, and runtime data are preserved.

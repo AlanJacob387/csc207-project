@@ -27,7 +27,7 @@
 
 | Sprint | Dates (inclusive) | Theme | Exit criterion (must be demoable) |
 |--------|-------------------|-------|-----------------------------------|
-| 1 | Thu 2026-10-29 → Wed 2026-11-04 | Foundation: build, persistence, login, wiring | A clean clone runs, a user logs in (accounts come from the local JSON store, not a server), sees only their role's pages, and a created event survives a restart |
+| 1 | Thu 2026-10-29 → Wed 2026-11-04 | Foundation: build, persistence, login, wiring | A clean clone runs, a user logs in (in Sprint 1 accounts came from the local JSON store; decision D6 was revised on 2026-11-23 to a hosted database, with the file kept as the offline default), sees only their role's pages, and a created event survives a restart |
 | 2 | Thu 2026-11-05 → Wed 2026-11-11 | Scheduling, RSVP, attendance | Coach sees real events in the calendar and marks attendance; player RSVPs |
 | 3 | Thu 2026-11-12 → Wed 2026-11-18 | Stats, rosters, communications | Player stats page works, admin manages a roster, announcements + notifications appear |
 | 4 | Thu 2026-11-19 → Wed 2026-11-25 | Parents, export, weather, polish | Parent flows work, `.ics` export runs as a use case, weather shows on event details |
@@ -100,7 +100,7 @@ Nothing can be built in parallel until persistence, navigation and roles are rea
 |----|----------------------|------|-------|------------|-------------|-----|------|
 | 1.0 | Add the Gradle build (`build.gradle`, `settings.gradle`) with OkHttp, `org.json`, JUnit; document `gradle run` / `gradle test` in the README |  | L3 | — | app builds from a clean clone | Fri 10-30 | ✅ |
 | 1.1 | **Decision gate:** freeze the entity model (`User`, `Team`, `Event`, `AttendanceRecord`, plus any new `Announcement` / parent-link / stats entity) — majority vote per TeamContract |  | All (L4 leads) | — | frozen entities on `main`, recorded in Documentation.md | Sat 10-31 | |
-| 1.2 | Storage layer: local JSON store (`FileAppDataAccessObject`) plus in-memory fakes for tests |  | L3 | 1.0 | accounts, teams, events and attendance persist locally | Mon 11-02 | ✅ |
+| 1.2 | Storage layer: local JSON store (`FileAppDataAccessObject`) plus in-memory fakes for tests |  | L3 | 1.0 | accounts, teams, events and attendance persist locally (shared storage arrives in 4.8) | Mon 11-02 | ✅ |
 | 1.3 | `login` + `signup` use cases; replace the TODOs in `LoginView` (login button + "go to signup") | UC-A1, UC-A2 | L3 (reviewer: L2) | 1.2 | real login, logged-in role available to the shell | Tue 11-03 | ✅ |
 | 1.4 | `AppBuilder` refactor + `ViewManagerModel` so presenters can trigger navigation |  | L3 (taken over from L1) | 1.0 | `Main` slimmed to one `add...UseCase()` per feature | Tue 11-03 | ✅ |
 | 1.5 | Role-based nav filtering in `AppShell` (existing TODO in that file) |  | L3 (done) - review: L4 | 1.3 | sidebar shows only the pages the role may use | Wed 11-04 | ✅ |
@@ -151,7 +151,7 @@ Nothing can be built in parallel until persistence, navigation and roles are rea
 
 ## Sprint 4 — Integration, polish and demo data (Thu 2026-11-19 → Wed 2026-11-25)
 
-**Progress (2026-10-29):** not started.
+**Progress (2026-11-23):** 4.8 is partly done - the hosted store, its schema and the in-app connection settings have landed; validation (4.3) is the remaining work.
 
 | ID | Task | Use cases | Owner | Depends on | Deliverable | Due | Done |
 |----|------|------|-------|------------|-------------|-----|------|
@@ -162,6 +162,7 @@ Nothing can be built in parallel until persistence, navigation and roles are rea
 | 4.5 | `Documentation.md` final pass: class diagram, CRC cards, API descriptions |  | L5 | 4.1 | docs complete | Tue 11-24 | |
 | 4.6 | README: screenshots/GIFs, API section, user-story ownership table, run instructions |  | L5 | 4.1 | README current | Tue 11-24 | |
 | 4.7 | Demo dry run #1 with timings |  | All | 4.4 | script + timing notes | Wed 11-25 | |
+| 4.8 | **Hosted database store** (revision of D6): Supabase Postgres behind the same data-access interfaces, `db/schema.sql`, in-app connection settings, live check |  | L3 | 1.2 | data is shared between devices; `gradlew test -Pnetwork` reads the real project | Wed 11-25 | ⚠️ store, schema and settings done; validation open |
 
 ## Sprint 5 — Hardening and presentation (Thu 2026-11-26 → Sun 2026-11-29)
 
@@ -221,7 +222,7 @@ These feed the existing tasks: 1.7 (skeleton), 3.8 (sequence diagrams, one per l
 | Risk | Impact | Mitigation |
 |------|--------|-----------|
 | No build file exists yet, so nothing can be run or tested | Everything blocks | Task 1.0 lands on day one (Fri 10-30) |
-| Course DB API retired (dead host and port) | Login would have been blocked | Resolved 2026-10-29: accounts use the local JSON store, no server needed |
+| Hosted database unavailable (free project paused after 7 days idle, or no network) | Nobody can log in or save | Resume the project from the Supabase dashboard (data is kept for a year); the app reports the failure instead of quietly switching to a local file, and `db/probe.ps1` names the cause |
 | Entity churn after Sprint 1 | Simultaneous rework in several lanes | Decision gate 1.1, then two-lane sign-off |
 | Merge conflicts in `Main.java` / `AppShell` | Weekly friction and lost work | AppBuilder refactor (1.4) plus one page owner per file |
 | External API unavailable during the demo | Demo failure | Cache the last response and show a graceful "unavailable" state |
@@ -242,7 +243,7 @@ These feed the existing tasks: 1.7 (skeleton), 3.8 (sequence diagrams, one per l
 | D3 | Parent↔child link | invite code, admin-assigned, or parent enters the player's username | L4 |
 | D4 | Children per parent | one child vs many | L4 |
 | D5 | Roles per user | one role (`User.role`, current) vs multi-role | L3 |
-| D6 | Persistence | **Decided 2026-10-29:** local JSON file only (`data/app-data.json`) for accounts, teams, events and attendance. The 2025F course API is retired and not required; a hosted store is a later one-class swap | L3 |
+| D6 | Persistence | **Revised 2026-11-23:** a hosted **Supabase Postgres** database, reached over its REST API (PostgREST), holds accounts, teams, events, attendance and announcements, so data is shared between devices instead of living on one laptop. The local JSON file stays as the offline default when no project is configured, and a new in-app **Database settings** page stores the URL and publishable key per user (`%USERPROFILE%\.team-sports\database.properties`), so nobody needs a terminal and no key enters git. The 2025F course API remains retired. Schema: `db/schema.sql`; setup: `db/README.md` | L3 |
 | D7 | External API | **Decided 2026-10-29:** Open-Meteo - called successfully from Java and documented in the README. The other ideas stay in the README list | L1 |
 
 ## Unclaimed backlog (pull when a lane finishes early)

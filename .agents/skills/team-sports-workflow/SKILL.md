@@ -68,9 +68,10 @@ description: Review and change the CSC207 Team Sports repository using its owner
 
 ## Validation and costs
 
-- The reviewed baseline uses JDK 21 and targets Java 17 bytecode. The wrapper
-  currently lacks an executable bit, so use `bash ./gradlew build` and
-  `bash ./gradlew test` on macOS/Linux without changing permissions incidentally.
+- The reviewed baseline uses JDK 21 and targets Java 17 bytecode. The wrapper is
+  committed with its executable bit (mode 100755), so `./gradlew build` and
+  `./gradlew test` work on a clean macOS/Linux checkout; use `gradlew.bat` on
+  Windows. `JAVA_HOME` must point at a JDK 17 or newer, or Gradle refuses to start.
   Add `--offline` when dependencies are already cached and no downloads are
   intended. On Windows, use `gradlew.bat`.
 - The default test suite excludes network-tagged tests. Only run

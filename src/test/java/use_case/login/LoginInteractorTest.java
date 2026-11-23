@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 import data_access.InMemoryUserDataAccessObject;
 import entity.Role;
 import entity.User;
+import entity.UserFactory;
 import interface_adapter.Session;
 
 /**
@@ -57,7 +58,7 @@ class LoginInteractorTest {
         assertEquals("coach1", presenter.success.getUsername());
         assertEquals("coach1", session.getCurrentUsername());
         assertEquals("Coach One", session.getDisplayName());
-        assertEquals(Role.COACH, session.getRole());
+        assertEquals(Role.COACH, session.getCurrentRole());
         assertTrue(session.isLoggedIn());
     }
 
@@ -82,7 +83,7 @@ class LoginInteractorTest {
         interactor.execute(new LoginInputData("coach1", "nope"));
 
         assertEquals("", session.getCurrentUsername());
-        assertNull(session.getRole());
+        assertNull(session.getCurrentRole());
     }
 
     @Test
@@ -97,6 +98,7 @@ class LoginInteractorTest {
     void blankFieldsFail() {
         interactor.execute(new LoginInputData("", "pw"));
         assertEquals("Enter both a username and a password.", presenter.error);
+
 
         interactor.execute(new LoginInputData("coach1", ""));
         assertEquals("Enter both a username and a password.", presenter.error);
@@ -123,5 +125,36 @@ class LoginInteractorTest {
 
         assertTrue(presenter.error.startsWith("Could not read the account store:"));
         assertNull(presenter.success);
+    }
+
+    @Test
+    void anAccountCreatedThroughTheFactoryLogsInWithItsTypedPassword() {
+        dataAccess.save(new UserFactory().create("newbie", "secret", "New Bie", Role.PLAYER));
+
+        interactor.execute(new LoginInputData("newbie", "secret"));
+
+        assertNull(presenter.error);
+        assertEquals("newbie", presenter.success.getUsername());
+        assertEquals(Role.PLAYER, session.getCurrentRole());
+    }
+
+    @Test
+    void aDeactivatedAccountIsRefusedWithTheRightPassword() {
+        dataAccess.save(new User("gone1", "pw", "Gone", Role.PLAYER, false));
+
+        interactor.execute(new LoginInputData("gone1", "pw"));
+
+        assertEquals("This account has been deactivated.", presenter.error);
+        assertNull(presenter.success);
+        assertEquals("", session.getCurrentUsername());
+    }
+
+    @Test
+    void aDeactivatedAccountDoesNotRevealItselfWithAWrongPassword() {
+        dataAccess.save(new User("gone1", "pw", "Gone", Role.PLAYER, false));
+
+        interactor.execute(new LoginInputData("gone1", "nope"));
+
+        assertEquals("Incorrect password.", presenter.error);
     }
 }

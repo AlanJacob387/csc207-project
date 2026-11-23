@@ -1,5 +1,6 @@
 package use_case.current_user;
 
+import entity.Role;
 import entity.User;
 
 /**
@@ -8,8 +9,10 @@ import entity.User;
  * The account use cases own the transitions through this port: the login
  * interactor records the user, the logout interactor clears them, and the
  * change-password interactor reads them so a user can only change their own
- * password. The session state in interface_adapter implements it, so no use
- * case depends on a concrete class.
+ * password. The administrative use cases read the role here as well, so an
+ * authorization rule lives in the interactor and not only in the sidebar.
+ * The session state in interface_adapter implements it, so no use case depends
+ * on a concrete class.
  */
 public interface CurrentUserInterface {
 
@@ -19,6 +22,13 @@ public interface CurrentUserInterface {
      * @return the signed-in username, or an empty string if nobody is signed in
      */
     String getCurrentUsername();
+
+    /**
+     * Says which role the signed-in user has.
+     *
+     * @return the role, or null if nobody is signed in
+     */
+    Role getCurrentRole();
 
     /**
      * Records the signed-in user.

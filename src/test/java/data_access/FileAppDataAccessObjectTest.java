@@ -98,6 +98,7 @@ class FileAppDataAccessObjectTest {
         assertEquals(1, dao.getAttendanceFor("e1").size());
         assertEquals(AttendanceRecord.Status.PRESENT,
                 dao.getAttendanceFor("e1").get(0).getStatus());
+
     }
 
     @Test
@@ -121,5 +122,35 @@ class FileAppDataAccessObjectTest {
 
         assertEquals(2, dao.getAllTeams().size());
         assertEquals(1, dao.getAllEvents().size());
+    }
+
+    @Test
+    void everyAccountIsListedWithItsRoleAndStatus() {
+        final FileAppDataAccessObject dao = new FileAppDataAccessObject(
+                tempDir.resolve("app-data.json"));
+        dao.save(new User("c1", "pw", "Coach One", Role.COACH));
+        dao.save(new User("p1", "pw", "Pat", Role.PLAYER, false));
+
+        assertEquals(2, dao.getAllUsers().size());
+        assertFalse(dao.get("p1").isActive());
+        assertTrue(dao.get("c1").isActive());
+    }
+
+    @Test
+    void savingAProfileKeepsTheCredentialAndTheStatus() {
+        final Path file = tempDir.resolve("app-data.json");
+        final FileAppDataAccessObject dao = new FileAppDataAccessObject(file);
+        dao.save(new User("p1", "pbkdf2$1000$c2FsdA==$aGFzaA==", "Pat", Role.PLAYER, false));
+
+        dao.saveProfile("p1", "Patricia", Role.COACH);
+
+        assertEquals("Patricia", dao.get("p1").getDisplayName());
+        assertEquals(Role.COACH, dao.get("p1").getRole());
+        assertEquals("pbkdf2$1000$c2FsdA==$aGFzaA==", dao.get("p1").getPassword());
+        assertFalse(dao.get("p1").isActive());
+
+        final FileAppDataAccessObject reloaded = new FileAppDataAccessObject(file);
+        assertEquals("Patricia", reloaded.get("p1").getDisplayName());
+        assertFalse(reloaded.get("p1").isActive());
     }
 }

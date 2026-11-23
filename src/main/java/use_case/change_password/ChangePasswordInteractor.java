@@ -3,7 +3,6 @@ package use_case.change_password;
 import java.io.UncheckedIOException;
 
 import entity.User;
-import entity.UserFactory;
 import use_case.current_user.CurrentUserInterface;
 
 /**
@@ -18,7 +17,6 @@ public class ChangePasswordInteractor implements ChangePasswordInputBoundary {
     private final ChangePasswordUserDataAccessInterface dataAccess;
     private final ChangePasswordOutputBoundary presenter;
     private final CurrentUserInterface currentUser;
-    private final UserFactory userFactory;
 
     /**
      * Creates the interactor.
@@ -26,16 +24,13 @@ public class ChangePasswordInteractor implements ChangePasswordInputBoundary {
      * @param dataAccess  where accounts are read and written
      * @param presenter   where the result is sent
      * @param currentUser the port that says who is signed in
-     * @param userFactory builds the updated user entity
      */
     public ChangePasswordInteractor(ChangePasswordUserDataAccessInterface dataAccess,
                                     ChangePasswordOutputBoundary presenter,
-                                    CurrentUserInterface currentUser,
-                                    UserFactory userFactory) {
+                                    CurrentUserInterface currentUser) {
         this.dataAccess = dataAccess;
         this.presenter = presenter;
         this.currentUser = currentUser;
-        this.userFactory = userFactory;
     }
 
     @Override
@@ -78,14 +73,15 @@ public class ChangePasswordInteractor implements ChangePasswordInputBoundary {
             presenter.prepareFailView("No account found for " + username + ".");
             return;
         }
-        if (!user.getPassword().equals(currentPassword)) {
+        if (!user.matches(currentPassword)) {
             presenter.prepareFailView("The current password is incorrect.");
             return;
         }
 
         try {
-            dataAccess.save(userFactory.create(user.getUsername(), newPassword,
-                    user.getDisplayName(), user.getRole()));
+            // The entity hashes the new password, so the stored credential is
+            // never the plaintext the user typed.
+            dataAccess.save(user.withNewPassword(newPassword));
         }
         catch (IllegalStateException | UncheckedIOException ex) {
             presenter.prepareFailView("Could not save the new password: " + ex.getMessage());

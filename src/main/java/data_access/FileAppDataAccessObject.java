@@ -102,8 +102,21 @@ public class FileAppDataAccessObject implements
     }
 
     /**
-     * Updates only the profile fields of a user, leaving the stored password
-     * untouched.
+     * Returns every stored account.
+     *
+     * @return a copy of the account list, safe to sort or iterate
+     */
+    public List<User> getAllUsers() {
+        return new ArrayList<>(users.values());
+    }
+
+    /**
+     * Updates only the profile fields of a user, leaving the stored credential
+     * and the active flag untouched.
+     *
+     * The credential is copied as stored - it is already hashed - and an account
+     * that was deactivated stays deactivated. A username that is not stored yet
+     * becomes an active account.
      *
      * @param username    the user's username
      * @param displayName the name to display
@@ -112,7 +125,8 @@ public class FileAppDataAccessObject implements
     public void saveProfile(String username, String displayName, Role role) {
         final User existing = users.get(username);
         final String password = existing == null ? "" : existing.getPassword();
-        users.put(username, new User(username, password, displayName, role));
+        final boolean active = existing == null || existing.isActive();
+        users.put(username, new User(username, password, displayName, role, active));
         persist();
     }
 

@@ -53,7 +53,7 @@ class SignupInteractorTest {
         assertEquals("newbie", presenter.success.getUsername());
         assertEquals(Role.PLAYER, dataAccess.get("newbie").getRole());
         assertEquals("New Bie", dataAccess.get("newbie").getDisplayName());
-        assertEquals("pw", dataAccess.get("newbie").getPassword());
+        assertTrue(dataAccess.get("newbie").matches("pw"));
     }
 
     @Test

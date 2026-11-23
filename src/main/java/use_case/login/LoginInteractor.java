@@ -58,8 +58,14 @@ public class LoginInteractor implements LoginInputBoundary {
             presenter.prepareFailView("No account found for " + username + ".");
             return;
         }
-        if (!user.getPassword().equals(password)) {
+        if (!user.matches(password)) {
             presenter.prepareFailView("Incorrect password.");
+            return;
+        }
+        // The password is checked first, so this message cannot be used to find
+        // out which accounts an administrator deactivated.
+        if (!user.isActive()) {
+            presenter.prepareFailView("This account has been deactivated.");
             return;
         }
 

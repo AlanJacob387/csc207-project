@@ -199,7 +199,7 @@ public class AnnouncementsView extends JPanel {
             return "Sign in to view announcements.";
         }
         if (viewModel.getTeams().isEmpty()) {
-            return session.getRole() == Role.PARENT
+            return session.getCurrentRole() == Role.PARENT
                     ? "No linked teams are available for your account."
                     : "No teams are available for your account.";
         }

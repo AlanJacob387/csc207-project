@@ -86,7 +86,7 @@ class LoginFlowWiringTest {
             this.changePasswordController = new ChangePasswordController(
                     new ChangePasswordInteractor(dataAccess,
                             new ChangePasswordPresenter(changePasswordViewModel),
-                            session, new UserFactory()));
+                            session));
         }
     }
 
@@ -109,7 +109,7 @@ class LoginFlowWiringTest {
         w.loginController.execute("newcoach", "pw");
 
         assertTrue(w.session.isLoggedIn());
-        assertEquals(Role.COACH, w.session.getRole());
+        assertEquals(Role.COACH, w.session.getCurrentRole());
         assertEquals("New Coach", w.session.getDisplayName());
         assertEquals(ViewManagerModel.APP, w.viewManagerModel.getState());
         assertTrue(w.loginViewModel.getSuccessMessage().isEmpty());
@@ -138,7 +138,7 @@ class LoginFlowWiringTest {
         w.logoutController.execute();
 
         assertFalse(w.session.isLoggedIn());
-        assertNull(w.session.getRole());
+        assertNull(w.session.getCurrentRole());
         assertEquals("", w.session.getCurrentUsername());
         assertEquals(ViewManagerModel.LOGIN, w.viewManagerModel.getState());
     }
@@ -152,7 +152,7 @@ class LoginFlowWiringTest {
         w.changePasswordController.execute("pw", "secret", "secret");
 
         assertEquals("Password changed.", w.changePasswordViewModel.getSuccessMessage());
-        assertEquals("secret", w.dataAccess.get("player1").getPassword());
+        assertTrue(w.dataAccess.get("player1").matches("secret"));
         assertEquals(Role.PLAYER, w.dataAccess.get("player1").getRole());
     }
 

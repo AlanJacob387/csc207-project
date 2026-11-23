@@ -31,6 +31,7 @@ public final class EntityJsonMapper {
     private static final String PASSWORD = "password";
     private static final String DISPLAY_NAME = "displayName";
     private static final String ROLE = "role";
+    private static final String ACTIVE = "active";
     // team keys
     private static final String TEAM_ID = "teamId";
     private static final String NAME = "name";
@@ -57,23 +58,40 @@ public final class EntityJsonMapper {
     private EntityJsonMapper() {
     }
 
-    /** Converts a user to JSON. */
+    /**
+     * Converts a user to JSON.
+     *
+     * The active flag is written only when the account is deactivated, so a
+     * document written before accounts could be deactivated keeps exactly its
+     * old shape and a missing flag keeps meaning "active". A store that needs
+     * the flag spelled out on every row (the database) adds it explicitly.
+     */
     public static JSONObject toJson(User user) {
         final JSONObject json = new JSONObject();
         json.put(USERNAME, user.getUsername());
         json.put(PASSWORD, user.getPassword());
         json.put(DISPLAY_NAME, user.getDisplayName());
         json.put(ROLE, user.getRole().name());
+        if (!user.isActive()) {
+            json.put(ACTIVE, false);
+        }
         return json;
     }
 
-    /** Rebuilds a user from JSON. */
+    /**
+     * Rebuilds a user from JSON.
+     *
+     * A record written before accounts could be deactivated has no active flag;
+     * treating a missing flag as true keeps older files and older database rows
+     * usable.
+     */
     public static User userFromJson(JSONObject json) {
         return new User(
                 json.getString(USERNAME),
                 json.getString(PASSWORD),
                 json.getString(DISPLAY_NAME),
-                Role.valueOf(json.getString(ROLE))
+                Role.valueOf(json.getString(ROLE)),
+                json.optBoolean(ACTIVE, true)
         );
     }
 

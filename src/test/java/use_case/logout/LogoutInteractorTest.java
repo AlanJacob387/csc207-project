@@ -54,7 +54,7 @@ class LogoutInteractorTest {
         assertNull(presenter.error);
         assertEquals("coach1", presenter.success.getUsername());
         assertEquals("", session.getCurrentUsername());
-        assertNull(session.getRole());
+        assertNull(session.getCurrentRole());
         assertFalse(session.isLoggedIn());
     }
 

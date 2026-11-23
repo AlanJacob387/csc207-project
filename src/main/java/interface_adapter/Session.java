@@ -49,7 +49,8 @@ public class Session implements CurrentUserInterface {
         return displayName;
     }
 
-    public Role getRole() {
+    @Override
+    public Role getCurrentRole() {
         return role;
     }
 

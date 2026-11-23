@@ -12,7 +12,6 @@ import javax.swing.SwingConstants;
 import data_access.FileAppDataAccessObject;
 import entity.Role;
 import entity.Team;
-import entity.User;
 import entity.UserFactory;
 import interface_adapter.Session;
 import interface_adapter.ViewManagerModel;
@@ -68,6 +67,9 @@ public class AppBuilder {
     /** Password given to the demo accounts seeded on first run. */
     private static final String DEMO_PASSWORD = "pw";
 
+    /** Id of the demo team seeded on first run. */
+    private static final String DEMO_TEAM_ID = "demo-team";
+
     // Shared collaborators, created once and handed to whatever needs them.
     private final FileAppDataAccessObject dataAccess = new FileAppDataAccessObject();
     private final ViewManagerModel viewManagerModel = new ViewManagerModel();
@@ -121,7 +123,7 @@ public class AppBuilder {
      */
     public AppBuilder addAppShell() {
         appShell = new AppShell();
-        session.addPropertyChangeListener(evt -> appShell.applyRole(session.getRole()));
+        session.addPropertyChangeListener(evt -> appShell.applyRole(session.getCurrentRole()));
 
         appShell.addPage("Calendar", new CalendarView());
         appShell.addPage("Events", placeholder("Events - TODO (event list page)"));
@@ -244,7 +246,7 @@ public class AppBuilder {
         final ChangePasswordPresenter presenter =
                 new ChangePasswordPresenter(changePasswordViewModel);
         final ChangePasswordController controller = new ChangePasswordController(
-                new ChangePasswordInteractor(dataAccess, presenter, session, userFactory));
+                new ChangePasswordInteractor(dataAccess, presenter, session));
 
         changePasswordView.setChangePasswordController(controller);
         return this;
@@ -274,21 +276,38 @@ public class AppBuilder {
 
     /**
      * Creates one demo account per role (password "pw") and a demo team, but
-     * only when the store is empty, so the app can be tried straight away.
-     * Replace this with the team''s real seed data (task 4.4).
+     * only where they are missing, so the app can be tried straight away.
+     *
+     * Every account is checked separately: a store that already holds a
+     * customised player1 keeps it, instead of being overwritten because only
+     * coach1 had been deleted. The factory hashes each demo password, so a fresh
+     * store never holds plaintext credentials. Replace this with the team's real
+     * seed data (task 4.4).
      */
     private void seedDemoDataIfEmpty() {
-        if (dataAccess.existsByName("coach1")) {
-            return;
-        }
-        dataAccess.save(new User("coach1", DEMO_PASSWORD, "Coach One", Role.COACH));
-        dataAccess.save(new User("player1", DEMO_PASSWORD, "Pat Player", Role.PLAYER));
-        dataAccess.save(new User("parent1", DEMO_PASSWORD, "Sam Parent", Role.PARENT));
-        dataAccess.save(new User("admin1", DEMO_PASSWORD, "Ada Admin", Role.ADMIN));
+        seedUser("coach1", "Coach One", Role.COACH);
+        seedUser("player1", "Pat Player", Role.PLAYER);
+        seedUser("parent1", "Sam Parent", Role.PARENT);
+        seedUser("admin1", "Ada Admin", Role.ADMIN);
 
-        final Team team = new Team("demo-team", "Demo Team", "Basketball", "coach1");
-        team.addPlayer("player1");
-        dataAccess.saveTeam(team);
+        if (dataAccess.getTeam(DEMO_TEAM_ID) == null) {
+            final Team team = new Team(DEMO_TEAM_ID, "Demo Team", "Basketball", "coach1");
+            team.addPlayer("player1");
+            dataAccess.saveTeam(team);
+        }
+    }
+
+    /**
+     * Inserts one demo account only when that username is still free.
+     *
+     * @param username    the demo username
+     * @param displayName the name to show in the app
+     * @param role        the role to give the account
+     */
+    private void seedUser(String username, String displayName, Role role) {
+        if (!dataAccess.existsByName(username)) {
+            dataAccess.save(userFactory.create(username, DEMO_PASSWORD, displayName, role));
+        }
     }
 
     /** Wraps a form view with breathing room so it doesn''t stretch edge to edge. */

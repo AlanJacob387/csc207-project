@@ -124,16 +124,17 @@ class DeactivateUserInteractorTest {
     }
 
     @Test
-    void anInactiveAdministratorDoesNotCountTowardsTheLastOne() {
-        final InMemoryUserDataAccessObject twoAdmins = new InMemoryUserDataAccessObject();
-        twoAdmins.save(new User("ada2", "pw", "Ada Two", Role.ADMIN));
-        twoAdmins.save(new User("ada3", "pw", "Ada Three", Role.ADMIN, false));
-        interactor = new DeactivateUserInteractor(twoAdmins, presenter, session);
+    void anInactiveAdministratorDoesNotCountAsAReplacement() {
+        final InMemoryUserDataAccessObject oneActiveAdmin = new InMemoryUserDataAccessObject();
+        oneActiveAdmin.save(new User("ada2", "pw", "Ada Two", Role.ADMIN));
+        oneActiveAdmin.save(new User("ada3", "pw", "Ada Three", Role.ADMIN, false));
+        interactor = new DeactivateUserInteractor(oneActiveAdmin, presenter, session);
 
-        interactor.execute(new DeactivateUserInputData("ada3"));
+        interactor.execute(new DeactivateUserInputData("ada2"));
 
-        assertEquals("ada3 is already deactivated.", presenter.error);
-        assertTrue(twoAdmins.get("ada2").isActive());
+        assertEquals(AdminPolicy.LAST_ADMIN, presenter.error,
+                "an inactive administrator cannot sign in, so it is no replacement");
+        assertTrue(oneActiveAdmin.get("ada2").isActive());
     }
 
     @Test

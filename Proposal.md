@@ -61,7 +61,7 @@ Each feature is one **Clean Architecture vertical slice**: `use_case/<name>/` �
 **How we'll implement it.** `OpenMeteoWeatherGateway` (already written and proven to work from Java) is surfaced through a controller and presenter on the event details page, and a second use case, `flag_rain_risk`, flags at-risk events on the calendar and the events list. *(Plan.md → 3.7 and 3.12, UC-F1 and UC-F2, lane L5, Sprint 3.)*
 
 ## 14. Admin — managing user accounts
-**What it is.** An admin creates or deactivates accounts and changes a user's role.
+**What it is.** An admin creates, deactivates or reactivates accounts and changes a user's role.
 **How we'll implement it.** A `manage_users` use case on an admin-only page, reading and writing the same store that login uses - the hosted database, so an admin sees every account rather than one device's file. *(Plan.md → 3.5, lane L3, Sprint 3; user story 8.)*
 
 ---

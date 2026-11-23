@@ -38,7 +38,7 @@ Built so far:
 | `logout` (UC-A3) | `use_case/logout` + `interface_adapter/logout` | Log out button in `AppShell` | `LogoutInteractorTest` (2) |
 | `change_password` (UC-A4) | `use_case/change_password` + `interface_adapter/change_password` | `ChangePasswordView` (Account page) | `ChangePasswordInteractorTest` (8), `ChangePasswordViewTest` (3) |
 | `create_event` (UC-B1) | `use_case/create_event` + `interface_adapter/create_event` | `CreateEventView` | owed by L2 (task 1.8) |
-| `manage_users` (UC-A5, UC-A6, UC-A7) | `use_case/manage_users` + `interface_adapter/manage_users` | `ManageUsersView` (Manage Users page, administrators only) | `CreateUserInteractorTest` (11), `ChangeUserRoleInteractorTest` (9), `DeactivateUserInteractorTest` (9), `ListAccountsInteractorTest` (5), `ManageUsersViewTest` (10), `ManageUsersFlowTest` (7) |
+| `manage_users` (UC-A5, UC-A6, UC-A7) | `use_case/manage_users` + `interface_adapter/manage_users` | `ManageUsersView` (Manage Users page, administrators only) | `CreateUserInteractorTest` (11), `ChangeUserRoleInteractorTest` (9), `DeactivateUserInteractorTest` (9), `ReactivateUserInteractorTest` (6), `ListAccountsInteractorTest` (5), `ManageUsersViewTest` (11), `ManageUsersFlowTest` (8) |
 | `post_announcement` (UC-E1) | `use_case/post_announcement` + `interface_adapter/post_announcement` | Announcements page | `PostAnnouncementInteractorTest` (17) |
 | `view_announcements` (UC-E2) | `use_case/view_announcements` + `interface_adapter/view_announcements` | Announcements page | `ViewAnnouncementsInteractorTest` (17) |
 
@@ -120,7 +120,25 @@ sign-in page, paste the project URL and publishable key, test and save
   and demo data is reset from the Supabase SQL editor.
 - The calendar still shows hard-coded demo events until `view_schedule` lands
   (task 2.1).
-- Roles are still chosen at sign-up, including `ADMIN`, so the administrator page is not the only route to an administrative account. Restricting self-signup is part of the 4.3 validation pass.
+- **The administrator page's role check runs in the app, not in Postgres.** Every
+  client connects as the same `anon` role, so the database cannot tell an
+  administrator from a player. `AdminPolicy` refuses a non-administrator inside
+  each use case and the sidebar only hides the page, so the guard holds in
+  business logic, but a client holding the key could still read the accounts
+  table through REST directly.
+- **Remote calls run on the Swing event thread**, like every other page. With a
+  slow project or a paused one the window waits for the request (5 s to connect,
+  10 s to read) instead of showing a progress state; a background worker for the
+  store is the fix we would make next.
+- **Creating an account validates the username and then upserts.** Two
+  administrators submitting the same username in the same moment would have the
+  second write replace the first account's credential, because `save` is an
+  upsert. The window is milliseconds and the username is checked first; an
+  insert-only path for account creation belongs to the 4.3 pass.
+- **Password rules and sign-up are still loose.** Any non-empty password is
+  accepted and sign-up admits `ADMIN`, so the administrator page is not the only
+  route to an administrative account. One shared password policy and a restricted
+  sign-up belong to the 4.3 validation pass.
 - One role per user (decision D5).
 
 ## 7. API notes

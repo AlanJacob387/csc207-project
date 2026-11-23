@@ -140,7 +140,7 @@ Nothing can be built in parallel until persistence, navigation and roles are rea
 | 3.2 | Implement the stats decision from 1.1 (structured per-sport stats if voted in) | UC-C6 | L2 | 1.1, 3.1 | stats captured and displayed | Tue 11-17 | |
 | 3.3 | Parent↔child linking (invite/accept flow) + parent view of a child's schedule | UC-D5, UC-D6 | L4 | 2.6, 1.3 | parent sees their child's events | Tue 11-17 | |
 | 3.4 | `submit_absence_notice` use case: parent submits, coach sees it | UC-E4, UC-E5 | L5 | 3.3 | coach sees absence notices | Wed 11-18 | |
-| 3.5 | `manage_users` use case: admin creates/deactivates accounts and changes roles | UC-A5, UC-A6, UC-A7 | L3 | 1.3 | admin page works and roles are enforced | Wed 11-18 | ✅ 2026-11-23 |
+| 3.5 | `manage_users` use case: admin creates, deactivates or reactivates accounts and changes roles | UC-A5, UC-A6, UC-A7 | L3 | 1.3 | admin page works and roles are enforced | Wed 11-18 | ✅ 2026-11-23 |
 | 3.6 | `export_schedule` use case: promote `IcsExporter` behind a data-access gateway | UC-B7 | L1 | 2.1 | export runs from the calendar UI | Wed 11-18 | |
 | 3.7 | `view_event_weather` use case: forecast for an event (Open-Meteo gateway + controller/presenter) | UC-F1 | L5 | 2.3 | forecast shown on event details | Wed 11-18 | |
 | 3.8 | `Documentation.md`: sequence diagrams, one per lane for their own use cases |  | All (L5 coordinates) | 1.3, 2.4 | diagrams committed | Wed 11-18 | |

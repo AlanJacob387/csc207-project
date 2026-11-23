@@ -47,8 +47,9 @@ function Show-Response {
 
 $apiKey = @{ apikey = $key }
 
-# No key needed: proves the project ref is right and the project is not paused.
-Show-Response 'auth health' "$base/auth/v1/health" @{}
+# The gateway rejects a request without a key, so send one: with a key this route
+# answers 200, and the point is only that the project ref is reachable.
+Show-Response 'auth health' "$base/auth/v1/health" $apiKey
 # The OpenAPI root only accepts a secret key, so 401 here means "PostgREST is alive".
 Show-Response 'rest root' "$base/rest/v1/" $apiKey
 

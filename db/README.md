@@ -48,6 +48,16 @@ tells them apart:
 | `auth health 200`, `rest root 404` | The Data API is switched off | **Integrations -> Data API -> Enable** |
 | `auth health` fails | Wrong URL, or the free project is paused | Check the project ref; resume the project |
 
+On a working project the probe prints a 200 with `[]` for each of the five
+tables. Two lines look like errors but are healthy:
+
+- `rest root -> HTTP 401 {"message":"Secret API key required"}`: that route only
+  accepts a secret key, so a 401 proves PostgREST is running and the project ref
+  is right.
+- `auth health -> HTTP 401 {"message":"No API key found in request"}` from an
+  older copy of the script: the gateway wants the `apikey` header there too. The
+  current script sends it.
+
 Check that the tables exist independently of the REST layer:
 
 ```sql

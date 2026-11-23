@@ -15,22 +15,33 @@ if (-not $base -or -not $key) {
     exit 1
 }
 
-$base = $base.TrimEnd('/')
+# The Data API panel shows the REST URL, which ends in /rest/v1; only the project
+# URL belongs in the variable, so drop the suffix and the stray slashes instead of
+# building "…/rest/v1/rest/v1/users".
+$base = $base.Trim().TrimEnd('/')
+if ($base -match '/rest/v1$') {
+    $base = $base -replace '/rest/v1$', ''
+    Write-Host 'Note: TEAMSPORTS_DB_URL ended in /rest/v1 - using the project URL instead.'
+}
+$key = $key.Trim()
+
 Write-Host "Project: $base"
 
 function Show-Response {
     param([string] $Name, [string] $Url, [hashtable] $Headers)
 
+    Write-Host ""
+    Write-Host "$Name  <-  $Url"
     try {
         $response = Invoke-WebRequest -Uri $Url -Headers $Headers -UseBasicParsing
         $body = "$($response.Content)"
-        Write-Host ("{0,-14} HTTP {1} :: {2}" -f $Name, $response.StatusCode, $body.Substring(0, [Math]::Min(240, $body.Length)))
+        Write-Host ("  HTTP {0} :: {1}" -f $response.StatusCode, $body.Substring(0, [Math]::Min(240, $body.Length)))
     }
     catch {
         $code = $_.Exception.Response.StatusCode.value__
         $body = $_.ErrorDetails.Message
         if (-not $body) { $body = $_.Exception.Message }
-        Write-Host ("{0,-14} HTTP {1} :: {2}" -f $Name, $code, $body.Substring(0, [Math]::Min(240, $body.Length)))
+        Write-Host ("  HTTP {0} :: {1}" -f $code, $body.Substring(0, [Math]::Min(240, $body.Length)))
     }
 }
 

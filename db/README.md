@@ -21,6 +21,11 @@ without any setup.
 | Data API URL | Dashboard -> **Integrations -> Data API** | `https://<project-ref>.supabase.co` |
 | Publishable key | Dashboard -> **Settings -> API Keys** | `sb_publishable_...` |
 
+The Data API panel prints the REST URL with `/rest/v1` on the end. Only the part
+up to `.supabase.co` belongs in `TEAMSPORTS_DB_URL`; the client adds `/rest/v1`
+itself. Keeping the suffix builds `.../rest/v1/rest/v1/users`, which answers 404
+for every table.
+
 Use the **publishable** key, never the secret key. Supabase is retiring the old
 `anon` / `service_role` keys, and a secret key bypasses Row Level Security, so it
 must never be shipped in a desktop application.
@@ -53,7 +58,9 @@ order by table_name;
 ```
 
 Five rows in `public` means the schema is there and only the REST cache or the
-Data API setting is behind.
+Data API setting is behind. Add `and table_schema = 'public'` if you want to be
+strict: an unfiltered search also matches `auth.users`, which every Supabase
+project has, so six rows is the healthy answer rather than a stray table.
 
 
 Check that it worked:

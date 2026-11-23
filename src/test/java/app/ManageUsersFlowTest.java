@@ -27,6 +27,7 @@ import use_case.manage_users.ChangeUserRoleInteractor;
 import use_case.manage_users.CreateUserInteractor;
 import use_case.manage_users.DeactivateUserInteractor;
 import use_case.manage_users.ListAccountsInteractor;
+import use_case.manage_users.ReactivateUserInteractor;
 
 /**
  * Integration test for the administrator page wired the way AppBuilder wires it,
@@ -59,6 +60,7 @@ class ManageUsersFlowTest {
                     new CreateUserInteractor(dataAccess, presenter, session, new UserFactory()),
                     new ChangeUserRoleInteractor(dataAccess, presenter, session),
                     new DeactivateUserInteractor(dataAccess, presenter, session),
+                    new ReactivateUserInteractor(dataAccess, presenter, session),
                     new ListAccountsInteractor(dataAccess, presenter, session));
         }
 
@@ -155,6 +157,24 @@ class ManageUsersFlowTest {
                 w.manageUsersViewModel.getErrorMessage());
         assertTrue(w.manageUsersViewModel.getAccounts().isEmpty(),
                 "no accounts may reach a non-administrator");
+    }
+
+    @Test
+    void aDeactivationCanBeUndone() {
+        final Wiring w = wiring();
+        w.dataAccess.save(new User("player1", "pw", "Pat Player", Role.PLAYER));
+        w.signInAs("admin1", "pw");
+
+        w.manageUsersController.deactivateUser("player1");
+        assertFalse(w.dataAccess.get("player1").isActive());
+        w.manageUsersController.reactivateUser("player1");
+
+        assertTrue(w.dataAccess.get("player1").isActive());
+        assertEquals("Account reactivated: player1.", w.manageUsersViewModel.getSuccessMessage());
+        w.session.clearCurrentUser();
+        w.signInAs("player1", "pw");
+        assertEquals(Role.PLAYER, w.session.getCurrentRole(),
+                "the same account can sign in again after reactivation");
     }
 
     @Test

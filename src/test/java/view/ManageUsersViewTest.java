@@ -19,6 +19,7 @@ import use_case.manage_users.CreateUserInputBoundary;
 import use_case.manage_users.DeactivateUserInputBoundary;
 import use_case.manage_users.ListAccountsInputBoundary;
 import use_case.manage_users.ManageUsersOutputData;
+import use_case.manage_users.ReactivateUserInputBoundary;
 
 /**
  * Tests the administrator page: what it passes to the three actions, what it
@@ -41,12 +42,15 @@ class ManageUsersViewTest {
                 + inputData.getUsername() + "|" + inputData.getRoleName());
         final DeactivateUserInputBoundary deactivate = inputData ->
                 calls.add("deactivate:" + inputData.getUsername());
+        final ReactivateUserInputBoundary reactivate = inputData ->
+                calls.add("reactivate:" + inputData.getUsername());
         final ListAccountsInputBoundary list = () -> calls.add("list");
 
         session = new Session();
         viewModel = new ManageUsersViewModel();
         view = new ManageUsersView(
-                new ManageUsersController(create, change, deactivate, list), viewModel, session);
+                new ManageUsersController(create, change, deactivate, reactivate, list),
+                viewModel, session);
     }
 
     @Test
@@ -102,6 +106,16 @@ class ManageUsersViewTest {
         view.clickDeactivate();
 
         assertEquals(List.of("deactivate:player1"), calls);
+    }
+
+    @Test
+    void reactivatingPassesTheSelectedAccount() {
+        showAccounts(new User("player1", "pw", "Pat Player", Role.PLAYER, false));
+        view.selectAccount("player1");
+
+        view.clickReactivate();
+
+        assertEquals(List.of("reactivate:player1"), calls);
     }
 
     @Test

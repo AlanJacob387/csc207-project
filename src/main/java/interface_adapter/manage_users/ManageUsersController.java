@@ -7,6 +7,8 @@ import use_case.manage_users.CreateUserInputData;
 import use_case.manage_users.DeactivateUserInputBoundary;
 import use_case.manage_users.DeactivateUserInputData;
 import use_case.manage_users.ListAccountsInputBoundary;
+import use_case.manage_users.ReactivateUserInputBoundary;
+import use_case.manage_users.ReactivateUserInputData;
 
 /**
  * Controller for the administrator page.
@@ -19,6 +21,7 @@ public class ManageUsersController {
     private final CreateUserInputBoundary createUser;
     private final ChangeUserRoleInputBoundary changeUserRole;
     private final DeactivateUserInputBoundary deactivateUser;
+    private final ReactivateUserInputBoundary reactivateUser;
     private final ListAccountsInputBoundary listAccounts;
 
     /**
@@ -27,15 +30,18 @@ public class ManageUsersController {
      * @param createUser     the Create User use case
      * @param changeUserRole the Change User Role use case
      * @param deactivateUser the Deactivate User use case
+     * @param reactivateUser the Reactivate User use case
      * @param listAccounts   the read use case that fills the page
      */
     public ManageUsersController(CreateUserInputBoundary createUser,
                                  ChangeUserRoleInputBoundary changeUserRole,
                                  DeactivateUserInputBoundary deactivateUser,
+                                 ReactivateUserInputBoundary reactivateUser,
                                  ListAccountsInputBoundary listAccounts) {
         this.createUser = createUser;
         this.changeUserRole = changeUserRole;
         this.deactivateUser = deactivateUser;
+        this.reactivateUser = reactivateUser;
         this.listAccounts = listAccounts;
     }
 
@@ -76,5 +82,14 @@ public class ManageUsersController {
      */
     public void deactivateUser(String username) {
         deactivateUser.execute(new DeactivateUserInputData(username));
+    }
+
+    /**
+     * Reactivates one account.
+     *
+     * @param username the account to reactivate
+     */
+    public void reactivateUser(String username) {
+        reactivateUser.execute(new ReactivateUserInputData(username));
     }
 }

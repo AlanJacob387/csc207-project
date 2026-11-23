@@ -49,6 +49,7 @@ import use_case.manage_users.ChangeUserRoleInteractor;
 import use_case.manage_users.CreateUserInteractor;
 import use_case.manage_users.DeactivateUserInteractor;
 import use_case.manage_users.ListAccountsInteractor;
+import use_case.manage_users.ReactivateUserInteractor;
 import use_case.post_announcement.PostAnnouncementInteractor;
 import use_case.signup.SignupInteractor;
 import use_case.view_announcements.ViewAnnouncementsInteractor;
@@ -244,9 +245,9 @@ public class AppBuilder {
     }
 
     /**
-     * Adds the administrator page and wires the three account-management use
-     * cases. Call it after addAppShell(): the page is only visible to
-     * administrators.
+     * Adds the administrator page and wires the read and the four
+     * account-management use cases. Call it after addAppShell(): the page is only
+     * visible to administrators.
      *
      * @return this builder, so the calls can be chained
      */
@@ -257,6 +258,7 @@ public class AppBuilder {
                 new CreateUserInteractor(dataAccess, presenter, session, userFactory),
                 new ChangeUserRoleInteractor(dataAccess, presenter, session),
                 new DeactivateUserInteractor(dataAccess, presenter, session),
+                new ReactivateUserInteractor(dataAccess, presenter, session),
                 new ListAccountsInteractor(dataAccess, presenter, session));
 
         appShell.addPage("Manage Users", new ManageUsersView(controller, viewModel, session),

@@ -28,12 +28,14 @@ import interface_adapter.manage_users.ManageUsersViewModel;
 import use_case.manage_users.ManageUsersOutputData.AccountData;
 
 /**
- * Administrator page: every account on the platform, plus the three actions.
+ * Administrator page: every account on the platform, plus the read and the four
+ * actions.
  *
  * The page only collects input and shows messages; who may use it, which role may
- * be assigned and whether an account can be deactivated are all decided by the
- * interactors. An account is never deleted - deactivating keeps the history that
- * events, announcements and attendance point at.
+ * be assigned and whether an account can be deactivated or reactivated are all
+ * decided by the interactors. An account is never deleted - deactivating keeps the
+ * history that events, announcements and attendance point at, and reactivating
+ * undoes it.
  */
 public class ManageUsersView extends JPanel implements PropertyChangeListener {
 
@@ -154,31 +156,52 @@ public class ManageUsersView extends JPanel implements PropertyChangeListener {
     private JPanel buildActions() {
         final JPanel actions = section("Act on an account");
 
-        final JPanel row = new JPanel();
-        row.setLayout(new BoxLayout(row, BoxLayout.X_AXIS));
-        row.setBackground(Color.WHITE);
-        row.setAlignmentX(Component.LEFT_ALIGNMENT);
-
+        final JPanel roleRow = row();
         accountBox.setMaximumSize(new Dimension(170, 28));
         roleBox.setMaximumSize(new Dimension(130, 28));
 
         final JButton changeRoleButton = new JButton("Change role");
         changeRoleButton.addActionListener(e -> onChangeRole());
+
+        roleRow.add(new JLabel("Account "));
+        roleRow.add(accountBox);
+        roleRow.add(Box.createHorizontalStrut(12));
+        roleRow.add(new JLabel("Role "));
+        roleRow.add(roleBox);
+        roleRow.add(Box.createHorizontalStrut(12));
+        roleRow.add(changeRoleButton);
+        roleRow.add(Box.createHorizontalGlue());
+
+        final JPanel statusRow = row();
         final JButton deactivateButton = new JButton("Deactivate");
         deactivateButton.addActionListener(e -> onDeactivate());
+        final JButton reactivateButton = new JButton("Reactivate");
+        reactivateButton.addActionListener(e -> onReactivate());
 
-        row.add(new JLabel("Account "));
-        row.add(accountBox);
-        row.add(Box.createHorizontalStrut(12));
-        row.add(new JLabel("Role "));
-        row.add(roleBox);
-        row.add(Box.createHorizontalStrut(12));
-        row.add(changeRoleButton);
-        row.add(Box.createHorizontalStrut(8));
-        row.add(deactivateButton);
-        row.add(Box.createHorizontalGlue());
-        actions.add(row);
+        final JLabel hint = new JLabel("Deactivating keeps the account's history and refuses "
+                + "its next sign-in; reactivating undoes it.");
+        hint.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 12));
+        hint.setForeground(INK);
+
+        statusRow.add(deactivateButton);
+        statusRow.add(Box.createHorizontalStrut(8));
+        statusRow.add(reactivateButton);
+        statusRow.add(Box.createHorizontalStrut(16));
+        statusRow.add(hint);
+        statusRow.add(Box.createHorizontalGlue());
+
+        actions.add(roleRow);
+        actions.add(Box.createVerticalStrut(8));
+        actions.add(statusRow);
         return actions;
+    }
+
+    private static JPanel row() {
+        final JPanel row = new JPanel();
+        row.setLayout(new BoxLayout(row, BoxLayout.X_AXIS));
+        row.setBackground(Color.WHITE);
+        row.setAlignmentX(Component.LEFT_ALIGNMENT);
+        return row;
     }
 
     private static JPanel section(String heading) {
@@ -256,6 +279,15 @@ public class ManageUsersView extends JPanel implements PropertyChangeListener {
             return;
         }
         controller.deactivateUser(selectedAccount());
+    }
+
+    /** Presses Reactivate for the selected account. */
+    void onReactivate() {
+        if (controller == null) {
+            show("Managing users is not wired up in this preview.", PROBLEM);
+            return;
+        }
+        controller.reactivateUser(selectedAccount());
     }
 
     /** Presses Refresh: reloads the account list. */
@@ -436,5 +468,10 @@ public class ManageUsersView extends JPanel implements PropertyChangeListener {
     /** Presses Refresh the way a test would. */
     void clickRefresh() {
         onRefresh();
+    }
+
+    /** Presses Reactivate the way a test would. */
+    void clickReactivate() {
+        onReactivate();
     }
 }

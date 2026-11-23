@@ -3,28 +3,35 @@ package use_case.login;
 import java.io.UncheckedIOException;
 
 import entity.User;
+import use_case.current_user.CurrentUserInterface;
 
 /**
  * Interactor for the Log In use case.
  *
- * Checks the entered details against the stored account and either hands the
- * user's details to the presenter or reports why the login failed.
+ * Checks the entered details against the stored account, records the user as
+ * the current user and tells the presenter what happened. Recording the user
+ * here (rather than in the presenter) keeps every session transition inside a
+ * use case.
  */
 public class LoginInteractor implements LoginInputBoundary {
 
     private final LoginUserDataAccessInterface dataAccess;
     private final LoginOutputBoundary presenter;
+    private final CurrentUserInterface currentUser;
 
     /**
      * Creates the interactor.
      *
-     * @param dataAccess where accounts are read from
-     * @param presenter  where the result is sent
+     * @param dataAccess  where accounts are read from
+     * @param presenter   where the result is sent
+     * @param currentUser the port that records who is signed in
      */
     public LoginInteractor(LoginUserDataAccessInterface dataAccess,
-                           LoginOutputBoundary presenter) {
+                           LoginOutputBoundary presenter,
+                           CurrentUserInterface currentUser) {
         this.dataAccess = dataAccess;
         this.presenter = presenter;
+        this.currentUser = currentUser;
     }
 
     @Override
@@ -56,7 +63,7 @@ public class LoginInteractor implements LoginInputBoundary {
             return;
         }
 
-        presenter.prepareSuccessView(new LoginOutputData(
-                user.getUsername(), user.getDisplayName(), user.getRole()));
+        currentUser.setCurrentUser(user);
+        presenter.prepareSuccessView(new LoginOutputData(user.getUsername()));
     }
 }

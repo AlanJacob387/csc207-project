@@ -60,7 +60,7 @@ class AnnouncementsFlowTest {
     @Test
     void coachPostsThroughTheFormAndPlayerReadsThePersistedMessage() throws Exception {
         SwingUtilities.invokeAndWait(() -> {
-            session.logIn("coach1", "Coach One", Role.COACH);
+            session.setCurrentUser(new User("coach1", "pw", "Coach One", Role.COACH));
             draft().setText("  Practice moved to Gym B.\nBring your uniform.  ");
 
             button("Post announcement").doClick(0);
@@ -74,8 +74,8 @@ class AnnouncementsFlowTest {
                     .map(JTextArea.class::cast).anyMatch(area -> !area.isEditable()
                             && area.getText().contains("Practice moved to Gym B.")));
 
-            session.logOut();
-            session.logIn("player1", "Player One", Role.PLAYER);
+            session.clearCurrentUser();
+            session.setCurrentUser(new User("player1", "pw", "Player One", Role.PLAYER));
 
             assertEquals(1, reading.getAnnouncements().size());
             assertFalse(reading.canPost());
@@ -90,7 +90,7 @@ class AnnouncementsFlowTest {
     @Test
     void correctingAnInvalidPostClearsTheOldError() throws Exception {
         SwingUtilities.invokeAndWait(() -> {
-            session.logIn("coach1", "Coach One", Role.COACH);
+            session.setCurrentUser(new User("coach1", "pw", "Coach One", Role.COACH));
             draft().setText("   ");
             button("Post announcement").doClick(0);
 
@@ -118,7 +118,7 @@ class AnnouncementsFlowTest {
         seedAccounts(broken);
         SwingUtilities.invokeAndWait(() -> {
             wirePage(broken);
-            session.logIn("coach1", "Coach One", Role.COACH);
+            session.setCurrentUser(new User("coach1", "pw", "Coach One", Role.COACH));
             draft().setText("Keep this draft.");
             button("Post announcement").doClick(0);
 
@@ -132,23 +132,23 @@ class AnnouncementsFlowTest {
     @Test
     void sessionChangesClearThePreviousUsersPostsDraftAndFeedback() throws Exception {
         SwingUtilities.invokeAndWait(() -> {
-            session.logIn("coach1", "Coach One", Role.COACH);
+            session.setCurrentUser(new User("coach1", "pw", "Coach One", Role.COACH));
             draft().setText("Team one only.");
             button("Post announcement").doClick(0);
             draft().setText("Unsent draft");
 
-            session.logOut();
+            session.clearCurrentUser();
 
             assertTrue(reading.getAnnouncements().isEmpty());
             assertTrue(reading.getTeams().isEmpty());
             assertEquals("", draft().getText());
             assertEquals("", posting.getSuccessMessage());
 
-            session.logIn("coach2", "Coach Two", Role.COACH);
+            session.setCurrentUser(new User("coach2", "pw", "Coach Two", Role.COACH));
             assertEquals("t2", reading.getSelectedTeamId());
             assertTrue(reading.getAnnouncements().isEmpty());
 
-            session.logIn("parent1", "Parent One", Role.PARENT);
+            session.setCurrentUser(new User("parent1", "pw", "Parent One", Role.PARENT));
             assertTrue(reading.getTeams().isEmpty());
             assertTrue(reading.getAnnouncements().isEmpty());
             assertFalse(button("Post announcement").isEnabled());
@@ -159,7 +159,7 @@ class AnnouncementsFlowTest {
     @Test
     void deniedTeamReadClearsOldContentAndRefreshRecovers() throws Exception {
         SwingUtilities.invokeAndWait(() -> {
-            session.logIn("coach1", "Coach One", Role.COACH);
+            session.setCurrentUser(new User("coach1", "pw", "Coach One", Role.COACH));
             draft().setText("Team one only.");
             button("Post announcement").doClick(0);
 
@@ -184,7 +184,7 @@ class AnnouncementsFlowTest {
         store.saveAnnouncement(new Announcement("existing", "t3", "coach1", "Third team's post.",
                 LocalDateTime.of(2026, 11, 9, 12, 0)));
         SwingUtilities.invokeAndWait(() -> {
-            session.logIn("coach1", "Coach One", Role.COACH);
+            session.setCurrentUser(new User("coach1", "pw", "Coach One", Role.COACH));
             assertEquals("t1", reading.getSelectedTeamId());
 
             teamChoice().setSelectedIndex(1);
@@ -203,7 +203,7 @@ class AnnouncementsFlowTest {
     @Test
     void longAnnouncementsRemainReadableWhenTheWindowNarrows() throws Exception {
         SwingUtilities.invokeAndWait(() -> {
-            session.logIn("coach1", "Coach One", Role.COACH);
+            session.setCurrentUser(new User("coach1", "pw", "Coach One", Role.COACH));
             draft().setText("Practice has moved to the north gym. Bring water and arrive early. ".repeat(18)
                     + "\n\nThe final pickup point is the south entrance.");
             button("Post announcement").doClick(0);

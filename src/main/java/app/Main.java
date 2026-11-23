@@ -26,6 +26,7 @@ public class Main {
                     .addChangePasswordView()
                     .addChangePasswordUseCase()
                     .addAnnouncementUseCases()
+                    .addRosterUseCases()
                     .build();
 
             frame.setVisible(true);

@@ -23,12 +23,16 @@ import entity.Event;
 import entity.Role;
 import entity.Team;
 import entity.User;
+import use_case.assign_coach.AssignCoachDataAccessInterface;
 import use_case.change_password.ChangePasswordUserDataAccessInterface;
 import use_case.create_event.CreateEventDataAccessInterface;
+import use_case.create_team.CreateTeamDataAccessInterface;
 import use_case.login.LoginUserDataAccessInterface;
+import use_case.manage_roster.ManageRosterDataAccessInterface;
 import use_case.post_announcement.PostAnnouncementDataAccessInterface;
 import use_case.signup.SignupUserDataAccessInterface;
 import use_case.view_announcements.ViewAnnouncementsDataAccessInterface;
+import use_case.view_roster.ViewRosterDataAccessInterface;
 
 /**
  * Local JSON store for users, teams, events, attendance and announcements.
@@ -47,7 +51,11 @@ public class FileAppDataAccessObject implements
         CreateEventDataAccessInterface,
         ChangePasswordUserDataAccessInterface,
         PostAnnouncementDataAccessInterface,
-        ViewAnnouncementsDataAccessInterface {
+        ViewAnnouncementsDataAccessInterface,
+        CreateTeamDataAccessInterface,
+        AssignCoachDataAccessInterface,
+        ManageRosterDataAccessInterface,
+        ViewRosterDataAccessInterface {
 
     /** Default store location, relative to the working directory. */
     public static final Path DEFAULT_PATH = Path.of("data", "app-data.json");
@@ -99,6 +107,15 @@ public class FileAppDataAccessObject implements
     public void save(User user) {
         users.put(user.getUsername(), user);
         persist();
+    }
+
+    /**
+     * Returns every stored user.
+     *
+     * @return a copy of the user list
+     */
+    public List<User> getAllUsers() {
+        return new ArrayList<>(users.values());
     }
 
     /**

@@ -16,17 +16,26 @@ import entity.User;
 import entity.UserFactory;
 import interface_adapter.Session;
 import interface_adapter.ViewManagerModel;
+import interface_adapter.assign_coach.AssignCoachController;
+import interface_adapter.assign_coach.AssignCoachPresenter;
+import interface_adapter.assign_coach.AssignCoachViewModel;
 import interface_adapter.change_password.ChangePasswordController;
 import interface_adapter.change_password.ChangePasswordPresenter;
 import interface_adapter.change_password.ChangePasswordViewModel;
 import interface_adapter.create_event.CreateEventController;
 import interface_adapter.create_event.CreateEventPresenter;
 import interface_adapter.create_event.CreateEventViewModel;
+import interface_adapter.create_team.CreateTeamController;
+import interface_adapter.create_team.CreateTeamPresenter;
+import interface_adapter.create_team.CreateTeamViewModel;
 import interface_adapter.login.LoginController;
 import interface_adapter.login.LoginPresenter;
 import interface_adapter.login.LoginViewModel;
 import interface_adapter.logout.LogoutController;
 import interface_adapter.logout.LogoutPresenter;
+import interface_adapter.manage_roster.ManageRosterController;
+import interface_adapter.manage_roster.ManageRosterPresenter;
+import interface_adapter.manage_roster.ManageRosterViewModel;
 import interface_adapter.post_announcement.PostAnnouncementController;
 import interface_adapter.post_announcement.PostAnnouncementPresenter;
 import interface_adapter.post_announcement.PostAnnouncementViewModel;
@@ -36,19 +45,27 @@ import interface_adapter.signup.SignupViewModel;
 import interface_adapter.view_announcements.ViewAnnouncementsController;
 import interface_adapter.view_announcements.ViewAnnouncementsPresenter;
 import interface_adapter.view_announcements.ViewAnnouncementsViewModel;
+import interface_adapter.view_roster.ViewRosterController;
+import interface_adapter.view_roster.ViewRosterPresenter;
+import interface_adapter.view_roster.ViewRosterViewModel;
+import use_case.assign_coach.AssignCoachInteractor;
 import use_case.change_password.ChangePasswordInteractor;
 import use_case.create_event.CreateEventInteractor;
+import use_case.create_team.CreateTeamInteractor;
 import use_case.login.LoginInteractor;
 import use_case.logout.LogoutInteractor;
+import use_case.manage_roster.ManageRosterInteractor;
 import use_case.post_announcement.PostAnnouncementInteractor;
 import use_case.signup.SignupInteractor;
 import use_case.view_announcements.ViewAnnouncementsInteractor;
+import use_case.view_roster.ViewRosterInteractor;
 import view.AnnouncementsView;
 import view.AppShell;
 import view.ChangePasswordView;
 import view.CalendarView;
 import view.CreateEventView;
 import view.LoginView;
+import view.RosterView;
 import view.SignupView;
 import view.ViewManager;
 
@@ -127,9 +144,6 @@ public class AppBuilder {
         appShell.addPage("Events", placeholder("Events - TODO (event list page)"));
         appShell.addPage("My Stats",
                 placeholder("My Stats - TODO (view_stats use case)"), Role.PLAYER);
-        appShell.addPage("Roster",
-                placeholder("Roster - TODO (manage_teams use case)"),
-                Role.ADMIN, Role.COACH);
 
         viewManager.register(ViewManager.APP, appShell);
         return this;
@@ -199,6 +213,39 @@ public class AppBuilder {
 
         appShell.addPage("Announcements", new AnnouncementsView(postController, postViewModel,
                 announcementsController, announcementsViewModel, session));
+        return this;
+    }
+
+    /**
+     * Adds the Roster page with the create team, assign coach, manage roster and
+     * view roster use cases. Admins and coaches see the page. Call it after addAppShell().
+     *
+     * @return this builder, so the calls can be chained
+     */
+    public AppBuilder addRosterUseCases() {
+        final CreateTeamViewModel createTeamViewModel = new CreateTeamViewModel();
+        final AssignCoachViewModel assignCoachViewModel = new AssignCoachViewModel();
+        final ManageRosterViewModel manageRosterViewModel = new ManageRosterViewModel();
+        final ViewRosterViewModel viewRosterViewModel = new ViewRosterViewModel();
+
+        final CreateTeamController createTeamController = new CreateTeamController(
+                new CreateTeamInteractor(dataAccess, new CreateTeamPresenter(createTeamViewModel)),
+                session);
+        final AssignCoachController assignCoachController = new AssignCoachController(
+                new AssignCoachInteractor(dataAccess, new AssignCoachPresenter(assignCoachViewModel)),
+                session);
+        final ManageRosterController manageRosterController = new ManageRosterController(
+                new ManageRosterInteractor(dataAccess, new ManageRosterPresenter(manageRosterViewModel)),
+                session);
+        final ViewRosterController viewRosterController = new ViewRosterController(
+                new ViewRosterInteractor(dataAccess, new ViewRosterPresenter(viewRosterViewModel)),
+                session);
+
+        appShell.addPage("Roster", new RosterView(createTeamController, createTeamViewModel,
+                assignCoachController, assignCoachViewModel,
+                manageRosterController, manageRosterViewModel,
+                viewRosterController, viewRosterViewModel, session),
+                Role.ADMIN, Role.COACH);
         return this;
     }
 

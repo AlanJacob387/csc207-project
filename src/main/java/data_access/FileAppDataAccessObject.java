@@ -133,14 +133,24 @@ public class FileAppDataAccessObject implements
         return users.containsKey(username);
     }
 
+    /**
+     * Saves a user, replacing any stored user with the same username. Like
+     * saveEvent, the user goes into the map before persist() and the previous
+     * state is put back if the write fails, so a failed password change never
+     * leaves the new password active in memory.
+     *
+     * @param user the user to save
+     * @throws UncheckedIOException if the user could not be written
+     */
     @Override
     public synchronized void save(User user) {
-        final User previous = users.put(user.getUsername(), user);
+        final String username = user.getUsername();
+        final User previous = users.put(username, user);
         try {
             persist();
         }
         catch (RuntimeException ex) {
-            restore(users, user.getUsername(), previous);
+            restore(users, username, previous);
             throw ex;
         }
     }
@@ -235,11 +245,6 @@ public class FileAppDataAccessObject implements
             }
         }
         return teamIds;
-    }
-
-    @Override
-    public synchronized boolean canViewEvent(String username, String teamId) {
-        return getTeamIdsForMember(username).contains(teamId);
     }
 
     /** Grants event changes only while the stored account is this team's coach. */

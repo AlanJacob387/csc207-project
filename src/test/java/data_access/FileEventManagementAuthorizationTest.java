@@ -67,7 +67,7 @@ class FileEventManagementAuthorizationTest {
         store.saveParentPlayerLink(new ParentPlayerLink("assigned-coach", "child"));
         // The old session still says COACH; authorization must read the current account.
         assertEquals(Role.COACH, session.getRole());
-        assertTrue(store.canViewEvent("assigned-coach", "team"));
+        assertTrue(store.getTeamIdsForMember("assigned-coach").contains("team"));
         assertFalse(store.canManageEvent("assigned-coach", "team"));
         final String before = Files.readString(file());
         final Outcomes output = new Outcomes();

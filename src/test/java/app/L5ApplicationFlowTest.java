@@ -112,7 +112,7 @@ class L5ApplicationFlowTest {
 
             store.save(new User("player1", "pw", "Former Player", Role.PARENT));
             assertTrue(store.getTeamIdsForMember("player1").isEmpty());
-            assertFalse(store.canViewEvent("player1", "demo-team"));
+            assertFalse(store.getTeamIdsForMember("player1").contains("demo-team"));
         });
     }
 

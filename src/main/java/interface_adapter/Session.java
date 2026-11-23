@@ -4,6 +4,8 @@ import java.beans.PropertyChangeListener;
 import java.beans.PropertyChangeSupport;
 
 import entity.Role;
+import entity.User;
+import use_case.current_user.CurrentUserInterface;
 
 /**
  * Who is currently signed in.
@@ -12,7 +14,7 @@ import entity.Role;
  * it in) and the app shell (which uses the role to decide which pages to show).
  * A null role means nobody is signed in.
  */
-public class Session {
+public class Session implements CurrentUserInterface {
 
     private final PropertyChangeSupport support = new PropertyChangeSupport(this);
 
@@ -41,6 +43,13 @@ public class Session {
         this.role = null;
         support.firePropertyChange("session", null, this);
     }
+
+    @Override
+    public String getCurrentUsername() { return username; }
+    @Override
+    public void setCurrentUser(User user) { logIn(user.getUsername(), user.getDisplayName(), user.getRole()); }
+    @Override
+    public void clearCurrentUser() { logOut(); }
 
     public String getUsername() {
         return username;

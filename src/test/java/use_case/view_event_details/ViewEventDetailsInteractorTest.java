@@ -8,8 +8,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -20,7 +24,7 @@ import use_case.current_user.CurrentUserInterface;
 
 /**
  * Tests the View Event Details use case: showing an event to its coach and to
- * a player, and every way it can fail.
+ * a player on its team, refusing anyone else, and every way it can fail.
  */
 class ViewEventDetailsInteractorTest {
 
@@ -37,6 +41,7 @@ class ViewEventDetailsInteractorTest {
         private final Map<String, Event> events = new HashMap<>();
         private final Map<String, String> teamNames = new HashMap<>();
         private final Map<String, String> coaches = new HashMap<>();
+        private final Map<String, Set<String>> players = new HashMap<>();
         private boolean failReads;
 
         @Override
@@ -45,6 +50,18 @@ class ViewEventDetailsInteractorTest {
                 throw new UncheckedIOException(new IOException("disk unplugged"));
             }
             return events.get(eventId);
+        }
+
+        @Override
+        public List<String> getTeamIdsForMember(String username) {
+            final List<String> teamIds = new ArrayList<>();
+            for (String teamId : teamNames.keySet()) {
+                if (username.equals(coaches.get(teamId))
+                        || players.getOrDefault(teamId, Set.of()).contains(username)) {
+                    teamIds.add(teamId);
+                }
+            }
+            return teamIds;
         }
 
         @Override
@@ -105,6 +122,10 @@ class ViewEventDetailsInteractorTest {
 
         dataAccess.teamNames.put("hawks", "Hawks");
         dataAccess.coaches.put("hawks", "coach1");
+        dataAccess.players.put("hawks", new HashSet<>(Set.of("player1")));
+        dataAccess.teamNames.put("owls", "Owls");
+        dataAccess.coaches.put("owls", "coach2");
+        dataAccess.players.put("owls", new HashSet<>(Set.of("outsider")));
         dataAccess.events.put("game-1", new Event("game-1", "hawks", Event.EventType.GAME,
                 WHEN, "North Field", "Rivals"));
     }
@@ -130,11 +151,44 @@ class ViewEventDetailsInteractorTest {
     @Test
     void playerSeesDetailsButMayNotManage() {
         currentUser.username = "player1";
+        assertTrue(dataAccess.getTeamIdsForMember("player1").contains("hawks"));
 
         interactor.execute(new ViewEventDetailsInputData("game-1"));
 
         assertNull(presenter.error);
+        assertEquals("game-1", presenter.success.getEventId());
+        assertEquals("Hawks", presenter.success.getTeamName());
         assertFalse(presenter.success.isCanManage());
+    }
+
+    @Test
+    void userOnAnotherTeamCannotViewTheEvent() {
+        currentUser.username = "outsider";
+
+        interactor.execute(new ViewEventDetailsInputData("game-1"));
+
+        assertNull(presenter.success);
+        assertEquals("You're not on this event's team.", presenter.error);
+    }
+
+    @Test
+    void coachOfAnotherTeamCannotViewTheEvent() {
+        currentUser.username = "coach2";
+
+        interactor.execute(new ViewEventDetailsInputData("game-1"));
+
+        assertNull(presenter.success);
+        assertEquals("You're not on this event's team.", presenter.error);
+    }
+
+    @Test
+    void userOnNoTeamCannotViewTheEvent() {
+        currentUser.username = "stranger";
+
+        interactor.execute(new ViewEventDetailsInputData("game-1"));
+
+        assertNull(presenter.success);
+        assertEquals("You're not on this event's team.", presenter.error);
     }
 
     @Test
@@ -148,15 +202,16 @@ class ViewEventDetailsInteractorTest {
     }
 
     @Test
-    void missingTeamFallsBackToTeamId() {
+    void eventWhoseTeamIsGoneCannotBeViewed() {
         currentUser.username = "player1";
-        dataAccess.teamNames.clear();
-        dataAccess.coaches.clear();
+        dataAccess.teamNames.remove("hawks");
+        dataAccess.coaches.remove("hawks");
+        dataAccess.players.remove("hawks");
 
         interactor.execute(new ViewEventDetailsInputData("game-1"));
 
-        assertEquals("hawks", presenter.success.getTeamName());
-        assertFalse(presenter.success.isCanManage());
+        assertNull(presenter.success);
+        assertEquals("You're not on this event's team.", presenter.error);
     }
 
     @Test

@@ -1,5 +1,7 @@
 package use_case.view_event_details;
 
+import java.util.List;
+
 import entity.Event;
 
 /**
@@ -17,6 +19,14 @@ public interface ViewEventDetailsDataAccessInterface {
      * @return the event, or null if there is none
      */
     Event getEvent(String eventId);
+
+    /**
+     * Finds the teams a user belongs to, as coach or as player.
+     *
+     * @param username the user to look up
+     * @return the ids of those teams, empty if there are none
+     */
+    List<String> getTeamIdsForMember(String username);
 
     /**
      * Looks up a team's display name.

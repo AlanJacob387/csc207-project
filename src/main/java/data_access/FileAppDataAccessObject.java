@@ -109,10 +109,31 @@ public class FileAppDataAccessObject implements
         return users.containsKey(username);
     }
 
+    /**
+     * Saves a user, replacing any stored user with the same username. Like
+     * saveEvent, the user goes into the map before persist() and the previous
+     * state is put back if the write fails, so a failed password change never
+     * leaves the new password active in memory.
+     *
+     * @param user the user to save
+     * @throws UncheckedIOException if the user could not be written
+     */
     @Override
     public void save(User user) {
-        users.put(user.getUsername(), user);
-        persist();
+        final String username = user.getUsername();
+        final User previous = users.put(username, user);
+        try {
+            persist();
+        }
+        catch (RuntimeException ex) {
+            if (previous == null) {
+                users.remove(username);
+            }
+            else {
+                users.put(username, previous);
+            }
+            throw ex;
+        }
     }
 
     /**

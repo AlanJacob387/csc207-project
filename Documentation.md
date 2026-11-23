@@ -665,15 +665,23 @@ sequenceDiagram
         I->>P: prepareFailView("That event no longer exists.")
         P->>VM: setErrorMessage(message)
     else event found
-        I->>DAI: getTeamName(teamId), getCoachUsername(teamId)
-        DAI->>DAO: getTeamName, getCoachUsername
-        DAO-->>I: team name, coach
-        I->>I: team name is null: use the team id instead
-        I->>E: read fields
-        I->>OD: new ViewEventDetailsOutputData(..., canManage = user is the coach)
-        I->>P: prepareSuccessView(outputData)
-        P->>P: format date and time ("Date not set" and blank time when there is no date), build title
-        P->>VM: setDetails(...)
+        I->>E: getTeamId()
+        I->>DAI: getTeamIdsForMember(username)
+        DAI->>DAO: getTeamIdsForMember(username)
+        DAO-->>I: ids of teams the user coaches or plays on
+        alt event's team is not in that list
+            I->>P: prepareFailView("You're not on this event's team.")
+            P->>VM: setErrorMessage(message)
+        else user is on the event's team
+            I->>DAI: getTeamName(teamId), getCoachUsername(teamId)
+            DAI->>DAO: getTeamName, getCoachUsername
+            DAO-->>I: team name, coach
+            I->>E: read fields
+            I->>OD: new ViewEventDetailsOutputData(..., canManage = user is the coach)
+            I->>P: prepareSuccessView(outputData)
+            P->>P: format date and time ("Date not set" and blank time when there is no date), build title
+            P->>VM: setDetails(...)
+        end
     end
     VM-->>V: property change
     V->>V: show details
@@ -681,7 +689,7 @@ sequenceDiagram
     Note over V,CV: open() is modal. On close, onClose always runs calendarView.refresh(), even when the dialog was opened from the Events page. The Events page also refreshes itself after open() returns.
 ```
 
-Other fail view: a blank event id ("No event was selected."). `canManage` only decides which buttons appear. `edit_event` and `cancel_event` check the coach again themselves.
+Other fail view: a blank event id ("No event was selected."). The membership check runs in the interactor, so a user who is not the coach or a player on the event's team gets the fail view whatever event id reaches the controller, the same team scoping `view_schedule` and `browse_events` use. An event whose team no longer exists has no members, so nobody can open it. `canManage` only decides which buttons appear. `edit_event` and `cancel_event` check the coach again themselves.
 
 #### cancel_event (UC-B6)
 

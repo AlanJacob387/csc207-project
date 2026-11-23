@@ -47,15 +47,19 @@ public class ViewEventDetailsInteractor implements ViewEventDetailsInputBoundary
 
         final Event event;
         final String teamName;
-        final String coach;
+        final boolean canManage;
         try {
             event = dataAccess.getEvent(eventId);
             if (event == null) {
                 presenter.prepareFailView("That event no longer exists.");
                 return;
             }
+            if (!dataAccess.canViewEvent(username, event.getTeamId())) {
+                presenter.prepareFailView("You cannot view events for that team.");
+                return;
+            }
             teamName = dataAccess.getTeamName(event.getTeamId());
-            coach = dataAccess.getCoachUsername(event.getTeamId());
+            canManage = dataAccess.canManageEvent(username, event.getTeamId());
         }
         catch (IllegalStateException | UncheckedIOException ex) {
             presenter.prepareFailView("Could not read the event: " + ex.getMessage());
@@ -71,6 +75,6 @@ public class ViewEventDetailsInteractor implements ViewEventDetailsInputBoundary
                 event.getLocation(),
                 event.getOpponent(),
                 event.isCancelled(),
-                username.equals(coach)));
+                canManage));
     }
 }

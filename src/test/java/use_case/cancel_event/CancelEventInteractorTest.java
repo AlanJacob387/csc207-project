@@ -40,6 +40,7 @@ class CancelEventInteractorTest {
         private final Map<String, Event> events = new HashMap<>();
         private final Map<String, String> coaches = new HashMap<>();
         private boolean failWrites;
+        private boolean failAuthorityRead;
 
         @Override
         public Event getEvent(String eventId) {
@@ -49,6 +50,14 @@ class CancelEventInteractorTest {
         @Override
         public String getCoachUsername(String teamId) {
             return coaches.get(teamId);
+        }
+
+        @Override
+        public boolean canManageEvent(String username, String teamId) {
+            if (failAuthorityRead) {
+                throw new IllegalStateException("Account authority is unavailable");
+            }
+            return username != null && username.equals(coaches.get(teamId));
         }
 
         @Override
@@ -179,6 +188,18 @@ class CancelEventInteractorTest {
 
         assertNull(presenter.success);
         assertTrue(presenter.error.startsWith("Could not save the cancellation:"));
+        assertSame(game, dataAccess.events.get("game-1"));
+        assertFalse(game.isCancelled());
+    }
+
+    @Test
+    void anAuthorityReadFailureIsReportedWithoutCancellingTheEvent() {
+        dataAccess.failAuthorityRead = true;
+
+        interactor.execute(new CancelEventInputData("game-1"));
+
+        assertNull(presenter.success);
+        assertTrue(presenter.error.startsWith("Could not read the event:"));
         assertSame(game, dataAccess.events.get("game-1"));
         assertFalse(game.isCancelled());
     }

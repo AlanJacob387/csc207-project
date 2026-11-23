@@ -31,4 +31,7 @@ public interface CreateEventDataAccessInterface {
      * @return the coach's username, or null if the team does not exist
      */
     String getCoachUsername(String teamId);
+
+    /** Checks the current stored coach role as well as this team's assignment. */
+    boolean canManageEvent(String username, String teamId);
 }

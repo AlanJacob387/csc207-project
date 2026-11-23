@@ -33,4 +33,10 @@ public interface ViewEventDetailsDataAccessInterface {
      * @return the coach's username, or null if the team does not exist
      */
     String getCoachUsername(String teamId);
+
+    /** Checks current membership before exposing any event details. */
+    boolean canViewEvent(String username, String teamId);
+
+    /** Distinguishes a currently assigned coach from a read-only team member. */
+    boolean canManageEvent(String username, String teamId);
 }

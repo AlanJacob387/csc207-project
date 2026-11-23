@@ -13,4 +13,9 @@ public interface ViewAnnouncementsDataAccessInterface {
     List<Team> getAllTeams();
 
     List<Announcement> getAnnouncementsForTeam(String teamId);
+
+    /** Older stores grant no parent access until an explicit link is available. */
+    default List<String> getLinkedPlayerUsernames(String parentUsername) {
+        return List.of();
+    }
 }

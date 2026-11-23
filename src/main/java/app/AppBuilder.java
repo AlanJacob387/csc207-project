@@ -40,9 +40,15 @@ import interface_adapter.login.LoginPresenter;
 import interface_adapter.login.LoginViewModel;
 import interface_adapter.logout.LogoutController;
 import interface_adapter.logout.LogoutPresenter;
+import interface_adapter.post_announcement.PostAnnouncementController;
+import interface_adapter.post_announcement.PostAnnouncementPresenter;
+import interface_adapter.post_announcement.PostAnnouncementViewModel;
 import interface_adapter.signup.SignupController;
 import interface_adapter.signup.SignupPresenter;
 import interface_adapter.signup.SignupViewModel;
+import interface_adapter.view_announcements.ViewAnnouncementsController;
+import interface_adapter.view_announcements.ViewAnnouncementsPresenter;
+import interface_adapter.view_announcements.ViewAnnouncementsViewModel;
 import interface_adapter.view_event_details.ViewEventDetailsController;
 import interface_adapter.view_event_details.ViewEventDetailsPresenter;
 import interface_adapter.view_event_details.ViewEventDetailsViewModel;
@@ -57,9 +63,12 @@ import use_case.edit_event.EditEventInteractor;
 import use_case.export_schedule.ExportScheduleInteractor;
 import use_case.login.LoginInteractor;
 import use_case.logout.LogoutInteractor;
+import use_case.post_announcement.PostAnnouncementInteractor;
 import use_case.signup.SignupInteractor;
+import use_case.view_announcements.ViewAnnouncementsInteractor;
 import use_case.view_event_details.ViewEventDetailsInteractor;
 import use_case.view_schedule.ViewScheduleInteractor;
+import view.AnnouncementsView;
 import view.AppShell;
 import view.ChangePasswordView;
 import view.CalendarView;
@@ -148,8 +157,6 @@ public class AppBuilder {
         appShell.addPage("Calendar", calendarView);
         eventsListView = new EventsListView();
         appShell.addPage("Events", eventsListView);
-        appShell.addPage("Announcements",
-                placeholder("Announcements - TODO (notifications use case)"));
         appShell.addPage("My Stats",
                 placeholder("My Stats - TODO (view_stats use case)"), Role.PLAYER);
         appShell.addPage("Roster",
@@ -209,6 +216,21 @@ public class AppBuilder {
 
         appShell.addPage("New Event",
                 pad(new CreateEventView(controller, createEventViewModel)), Role.COACH);
+        return this;
+    }
+
+    /** Adds the team announcement list and the authorized coach's posting form. */
+    public AppBuilder addAnnouncementUseCases() {
+        final PostAnnouncementViewModel postViewModel = new PostAnnouncementViewModel();
+        final ViewAnnouncementsViewModel announcementsViewModel = new ViewAnnouncementsViewModel();
+        final PostAnnouncementController postController = new PostAnnouncementController(
+                new PostAnnouncementInteractor(dataAccess, new PostAnnouncementPresenter(postViewModel)), session);
+        final ViewAnnouncementsController announcementsController = new ViewAnnouncementsController(
+                new ViewAnnouncementsInteractor(dataAccess,
+                        new ViewAnnouncementsPresenter(announcementsViewModel)), session);
+
+        appShell.addPage("Announcements", new AnnouncementsView(postController, postViewModel,
+                announcementsController, announcementsViewModel, session));
         return this;
     }
 
@@ -319,11 +341,6 @@ public class AppBuilder {
     }
 
     /**
-     * Builds the window, ready to be made visible. The login page is shown first.
-     *
-     * @return the application window
-     */
-    /**
      * Wires the Log Out use case into the shell Log out button.
      *
      * @return this builder, so the calls can be chained
@@ -346,7 +363,7 @@ public class AppBuilder {
      */
     public AppBuilder addChangePasswordView() {
         changePasswordViewModel = new ChangePasswordViewModel();
-        changePasswordView = new ChangePasswordView(changePasswordViewModel);
+        changePasswordView = new ChangePasswordView(changePasswordViewModel, session);
         appShell.addPage("Account", pad(changePasswordView));
         return this;
     }
@@ -366,6 +383,11 @@ public class AppBuilder {
         return this;
     }
 
+    /**
+     * Builds the window, ready to be made visible. The login page is shown first.
+     *
+     * @return the application window
+     */
     public JFrame build() {
         final JFrame frame = new JFrame("Team Sports Management Platform");
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);

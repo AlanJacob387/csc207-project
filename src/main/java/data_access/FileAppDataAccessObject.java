@@ -3,8 +3,11 @@ package data_access;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.time.DateTimeException;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -16,8 +19,10 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import entity.Announcement;
 import entity.AttendanceRecord;
 import entity.Event;
+import entity.Role;
 import entity.Team;
 import entity.User;
 import use_case.browse_events.BrowseEventsDataAccessInterface;
@@ -27,12 +32,14 @@ import use_case.create_event.CreateEventDataAccessInterface;
 import use_case.edit_event.EditEventDataAccessInterface;
 import use_case.export_schedule.ExportScheduleDataAccessInterface;
 import use_case.login.LoginUserDataAccessInterface;
+import use_case.post_announcement.PostAnnouncementDataAccessInterface;
 import use_case.signup.SignupUserDataAccessInterface;
+import use_case.view_announcements.ViewAnnouncementsDataAccessInterface;
 import use_case.view_event_details.ViewEventDetailsDataAccessInterface;
 import use_case.view_schedule.ViewScheduleDataAccessInterface;
 
 /**
- * Local JSON store for application data: users, teams, events and attendance.
+ * Local JSON store for users, teams, events, attendance and announcements.
  *
  * The whole document is read into memory once and rewritten whenever something
  * changes, so reads are cheap and the file always matches what the app shows.
@@ -52,7 +59,9 @@ public class FileAppDataAccessObject implements
         EditEventDataAccessInterface,
         CancelEventDataAccessInterface,
         BrowseEventsDataAccessInterface,
-        ExportScheduleDataAccessInterface {
+        ExportScheduleDataAccessInterface,
+        PostAnnouncementDataAccessInterface,
+        ViewAnnouncementsDataAccessInterface {
 
     /** Default store location, relative to the working directory. */
     public static final Path DEFAULT_PATH = Path.of("data", "app-data.json");
@@ -61,12 +70,15 @@ public class FileAppDataAccessObject implements
     private static final String TEAMS = "teams";
     private static final String EVENTS = "events";
     private static final String ATTENDANCE = "attendance";
+    private static final String ANNOUNCEMENTS = "announcements";
 
     private final Path file;
     private final Map<String, User> users = new LinkedHashMap<>();
     private final Map<String, Team> teams = new LinkedHashMap<>();
     private final Map<String, Event> events = new LinkedHashMap<>();
     private final List<AttendanceRecord> attendance = new ArrayList<>();
+    private final Map<String, Announcement> announcements = new LinkedHashMap<>();
+    private JSONObject storedDocument = new JSONObject();
 
     /** Creates a store at {@link #DEFAULT_PATH}. */
     public FileAppDataAccessObject() {
@@ -100,6 +112,21 @@ public class FileAppDataAccessObject implements
     @Override
     public void save(User user) {
         users.put(user.getUsername(), user);
+        persist();
+    }
+
+    /**
+     * Updates only the profile fields of a user, leaving the stored password
+     * untouched.
+     *
+     * @param username    the user's username
+     * @param displayName the name to display
+     * @param role        the user's role
+     */
+    public void saveProfile(String username, String displayName, Role role) {
+        final User existing = users.get(username);
+        final String password = existing == null ? "" : existing.getPassword();
+        users.put(username, new User(username, password, displayName, role));
         persist();
     }
 
@@ -313,6 +340,35 @@ public class FileAppDataAccessObject implements
     }
 
     // ------------------------------------------------------------------
+    // Announcements
+    // ------------------------------------------------------------------
+
+    /** Saves a new announcement without replacing an existing announcement. */
+    @Override
+    public void saveAnnouncement(Announcement announcement) {
+        final String announcementId = announcement.getAnnouncementId();
+        if (announcements.containsKey(announcementId)) {
+            throw new IllegalStateException("An announcement already exists with id " + announcementId);
+        }
+        final Map<String, Announcement> updated = new LinkedHashMap<>(announcements);
+        updated.put(announcementId, announcement);
+        persist(updated);
+        announcements.put(announcementId, announcement);
+    }
+
+    /** Returns a separate list containing only the requested team's announcements. */
+    @Override
+    public List<Announcement> getAnnouncementsForTeam(String teamId) {
+        final List<Announcement> matches = new ArrayList<>();
+        for (Announcement announcement : announcements.values()) {
+            if (announcement.getTeamId().equals(teamId)) {
+                matches.add(announcement);
+            }
+        }
+        return matches;
+    }
+
+    // ------------------------------------------------------------------
     // File handling
     // ------------------------------------------------------------------
 
@@ -351,58 +407,128 @@ public class FileAppDataAccessObject implements
                 attendance.add(EntityJsonMapper.attendanceFromJson(
                         attendanceJson.getJSONObject(i)));
             }
+
+            final JSONArray announcementsJson = arrayOrEmpty(root, ANNOUNCEMENTS);
+            for (int i = 0; i < announcementsJson.length(); i++) {
+                final Announcement announcement = EntityJsonMapper.announcementFromJson(
+                        announcementsJson.getJSONObject(i));
+                if (announcements.putIfAbsent(announcement.getAnnouncementId(), announcement) != null) {
+                    throw new IllegalStateException("Duplicate announcement id in " + file);
+                }
+            }
+            storedDocument = root;
         }
         catch (IOException ex) {
             throw new UncheckedIOException("Could not read app data from " + file, ex);
         }
-        catch (JSONException ex) {
-            throw new IllegalStateException("App data file is not valid JSON: " + file, ex);
+        catch (JSONException | IllegalArgumentException | DateTimeException ex) {
+            throw new IllegalStateException("App data file has an invalid format: " + file, ex);
         }
     }
 
     /** Writes the whole store back to disk, creating folders if needed. */
     private void persist() {
-        final JSONObject root = new JSONObject();
+        persist(announcements);
+    }
+
+    /** Writes a staged announcement collection alongside the current legacy data. */
+    private void persist(Map<String, Announcement> announcementsToPersist) {
+        final JSONObject root = new JSONObject(storedDocument.toString());
 
         final JSONArray usersJson = new JSONArray();
         for (User user : users.values()) {
-            usersJson.put(EntityJsonMapper.toJson(user));
+            usersJson.put(withStoredFields(USERS, EntityJsonMapper.toJson(user), "username"));
         }
         root.put(USERS, usersJson);
 
         final JSONArray teamsJson = new JSONArray();
         for (Team team : teams.values()) {
-            teamsJson.put(EntityJsonMapper.toJson(team));
+            teamsJson.put(withStoredFields(TEAMS, EntityJsonMapper.toJson(team), "teamId"));
         }
         root.put(TEAMS, teamsJson);
 
         final JSONArray eventsJson = new JSONArray();
         for (Event event : events.values()) {
-            eventsJson.put(EntityJsonMapper.toJson(event));
+            eventsJson.put(withStoredFields(EVENTS, EntityJsonMapper.toJson(event), "eventId"));
         }
         root.put(EVENTS, eventsJson);
 
         final JSONArray attendanceJson = new JSONArray();
         for (AttendanceRecord record : attendance) {
-            attendanceJson.put(EntityJsonMapper.toJson(record));
+            attendanceJson.put(withStoredFields(ATTENDANCE, EntityJsonMapper.toJson(record),
+                    "eventId", "playerUsername"));
         }
         root.put(ATTENDANCE, attendanceJson);
 
+        final JSONArray announcementsJson = new JSONArray();
+        for (Announcement announcement : announcementsToPersist.values()) {
+            announcementsJson.put(withStoredFields(ANNOUNCEMENTS, EntityJsonMapper.toJson(announcement),
+                    "announcementId"));
+        }
+        root.put(ANNOUNCEMENTS, announcementsJson);
+
         try {
-            final Path parent = file.getParent();
-            if (parent != null) {
-                Files.createDirectories(parent);
-            }
-            Files.writeString(file, root.toString(2), StandardCharsets.UTF_8);
+            writeAtomically(root.toString(2));
+            storedDocument = root;
         }
         catch (IOException ex) {
             throw new UncheckedIOException("Could not write app data to " + file, ex);
         }
     }
 
+    /** Keeps unrecognised record fields when a different feature updates the store. */
+    private JSONObject withStoredFields(String section, JSONObject current, String... identityKeys) {
+        final JSONArray storedRecords = arrayOrEmpty(storedDocument, section);
+        for (int i = 0; i < storedRecords.length(); i++) {
+            final JSONObject stored = storedRecords.getJSONObject(i);
+            boolean matches = true;
+            for (String key : identityKeys) {
+                matches = matches && current.get(key).equals(stored.opt(key));
+            }
+            if (matches) {
+                final JSONObject merged = new JSONObject(stored.toString());
+                for (String key : current.keySet()) {
+                    merged.put(key, current.get(key));
+                }
+                return merged;
+            }
+        }
+        return current;
+    }
+
+    /** Writes a complete sibling file before replacing the previous store. */
+    private void writeAtomically(String content) throws IOException {
+        final Path target = file.toAbsolutePath();
+        final Path parent = target.getParent();
+        Files.createDirectories(parent);
+        final Path temporary = Files.createTempFile(parent, "." + target.getFileName() + "-", ".tmp");
+        try {
+            Files.writeString(temporary, content, StandardCharsets.UTF_8);
+            replaceFile(temporary, target);
+        }
+        catch (IOException ex) {
+            try {
+                Files.deleteIfExists(temporary);
+            }
+            catch (IOException cleanupFailure) {
+                ex.addSuppressed(cleanupFailure);
+            }
+            throw ex;
+        }
+    }
+
+    /** Replaces the store after its complete contents have been written. */
+    void replaceFile(Path temporary, Path target) throws IOException {
+        try {
+            Files.move(temporary, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+        }
+        catch (AtomicMoveNotSupportedException ex) {
+            Files.move(temporary, target, StandardCopyOption.REPLACE_EXISTING);
+        }
+    }
+
     /** Reads a top-level array, treating a missing key as empty. */
     private static JSONArray arrayOrEmpty(JSONObject root, String key) {
-        final JSONArray array = root.optJSONArray(key);
-        return array == null ? new JSONArray() : array;
+        return root.has(key) ? root.getJSONArray(key) : new JSONArray();
     }
 }

@@ -31,6 +31,7 @@ public class Main {
                     .addExportScheduleUseCase()
                     .addChangePasswordView()
                     .addChangePasswordUseCase()
+                    .addAnnouncementUseCases()
                     .build();
 
             frame.setVisible(true);

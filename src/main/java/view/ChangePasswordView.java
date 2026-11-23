@@ -19,6 +19,7 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JPasswordField;
 
+import interface_adapter.Session;
 import interface_adapter.change_password.ChangePasswordController;
 import interface_adapter.change_password.ChangePasswordViewModel;
 
@@ -29,6 +30,10 @@ import interface_adapter.change_password.ChangePasswordViewModel;
  * The page only collects input and shows messages: the Change Password use case
  * decides whether the change is allowed, and it takes the username from the
  * current-user port rather than from this view.
+ *
+ * The page is created once and reused across sessions, so it watches the
+ * session and empties itself whenever the signed-in user changes. Otherwise a
+ * password draft typed by one user could be submitted by the next one.
  */
 public class ChangePasswordView extends JPanel implements PropertyChangeListener {
 
@@ -50,10 +55,12 @@ public class ChangePasswordView extends JPanel implements PropertyChangeListener
      * Creates the page.
      *
      * @param viewModel the account page state
+     * @param session   who is signed in, so the form can be cleared on a change
      */
-    public ChangePasswordView(ChangePasswordViewModel viewModel) {
+    public ChangePasswordView(ChangePasswordViewModel viewModel, Session session) {
         this.viewModel = viewModel;
         this.viewModel.addPropertyChangeListener(this);
+        session.addPropertyChangeListener(this::onSessionChanged);
 
         setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
         setBackground(Color.WHITE);
@@ -152,7 +159,34 @@ public class ChangePasswordView extends JPanel implements PropertyChangeListener
         return row + 2;
     }
 
-    private void onChange() {
+    /**
+     * Reacts to the session changing: signs in, signs out, or a different user.
+     *
+     * @param evt the property change from the session
+     */
+    private void onSessionChanged(PropertyChangeEvent evt) {
+        if ("session".equals(evt.getPropertyName())) {
+            reset();
+        }
+    }
+
+    /**
+     * Empties the three fields and any message left over from the previous user.
+     *
+     * The view model alone cannot do this, because the page shows nothing when
+     * both of its messages are empty and the typed text would stay put.
+     */
+    public void reset() {
+        currentPasswordField.setText("");
+        newPasswordField.setText("");
+        repeatNewPasswordField.setText("");
+        messageLabel.setForeground(LABEL_INK);
+        messageLabel.setText(" ");
+        viewModel.clear();
+    }
+
+    /** Presses the button: hands the three fields to the use case. */
+    void onChange() {
         if (controller == null) {
             showMessage("Change password is not wired up in this preview.", ERROR);
             return;
@@ -162,6 +196,36 @@ public class ChangePasswordView extends JPanel implements PropertyChangeListener
                 new String(currentPasswordField.getPassword()),
                 new String(newPasswordField.getPassword()),
                 new String(repeatNewPasswordField.getPassword()));
+    }
+
+    // ------------------------------------------------------------------
+    // Test seams: package-private so tests can drive the page without a mouse.
+    // ------------------------------------------------------------------
+
+    /**
+     * Types into the three fields the way a user would.
+     *
+     * @param current           text for the current password field
+     * @param newPassword       text for the new password field
+     * @param repeatNewPassword text for the repeat field
+     */
+    void typePasswords(String current, String newPassword, String repeatNewPassword) {
+        currentPasswordField.setText(current);
+        newPasswordField.setText(newPassword);
+        repeatNewPasswordField.setText(repeatNewPassword);
+    }
+
+    /**
+     * Reads back what is currently typed in the three fields.
+     *
+     * @return the current, new and repeated password, in that order
+     */
+    String[] typedPasswords() {
+        return new String[] {
+            new String(currentPasswordField.getPassword()),
+            new String(newPasswordField.getPassword()),
+            new String(repeatNewPasswordField.getPassword()),
+        };
     }
 
     private void showMessage(String text, Color colour) {

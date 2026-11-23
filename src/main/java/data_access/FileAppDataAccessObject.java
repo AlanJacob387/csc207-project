@@ -23,12 +23,6 @@ import entity.Event;
 import entity.Role;
 import entity.Team;
 import entity.User;
-import use_case.change_password.ChangePasswordUserDataAccessInterface;
-import use_case.create_event.CreateEventDataAccessInterface;
-import use_case.login.LoginUserDataAccessInterface;
-import use_case.post_announcement.PostAnnouncementDataAccessInterface;
-import use_case.signup.SignupUserDataAccessInterface;
-import use_case.view_announcements.ViewAnnouncementsDataAccessInterface;
 
 /**
  * Local JSON store for users, teams, events, attendance and announcements.
@@ -41,13 +35,7 @@ import use_case.view_announcements.ViewAnnouncementsDataAccessInterface;
  * Default location: {@code data/app-data.json} relative to the working
  * directory (git-ignored).
  */
-public class FileAppDataAccessObject implements
-        LoginUserDataAccessInterface,
-        SignupUserDataAccessInterface,
-        CreateEventDataAccessInterface,
-        ChangePasswordUserDataAccessInterface,
-        PostAnnouncementDataAccessInterface,
-        ViewAnnouncementsDataAccessInterface {
+public class FileAppDataAccessObject implements AppDataStore {
 
     /** Default store location, relative to the working directory. */
     public static final Path DEFAULT_PATH = Path.of("data", "app-data.json");

@@ -9,7 +9,9 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.SwingConstants;
 
+import data_access.AppDataStore;
 import data_access.FileAppDataAccessObject;
+import data_access.SupabaseAppDataAccessObject;
 import entity.Role;
 import entity.Team;
 import entity.UserFactory;
@@ -71,7 +73,7 @@ public class AppBuilder {
     private static final String DEMO_TEAM_ID = "demo-team";
 
     // Shared collaborators, created once and handed to whatever needs them.
-    private final FileAppDataAccessObject dataAccess = new FileAppDataAccessObject();
+    private final AppDataStore dataAccess = createStore();
     private final ViewManagerModel viewManagerModel = new ViewManagerModel();
     private final Session session = new Session();
     private final UserFactory userFactory = new UserFactory();
@@ -295,6 +297,21 @@ public class AppBuilder {
             team.addPlayer("player1");
             dataAccess.saveTeam(team);
         }
+    }
+
+    /**
+     * Chooses the store: the hosted database when TEAMSPORTS_DB_URL and
+     * TEAMSPORTS_DB_KEY are set, the local JSON file otherwise.
+     *
+     * Keeping the file as the default means a clean clone runs with no account,
+     * the unit tests stay offline, and a paused free project falls back to local
+     * data instead of refusing to start.
+     *
+     * @return the store the whole app should use
+     */
+    private static AppDataStore createStore() {
+        final SupabaseAppDataAccessObject hosted = SupabaseAppDataAccessObject.fromEnvironment();
+        return hosted == null ? new FileAppDataAccessObject() : hosted;
     }
 
     /**

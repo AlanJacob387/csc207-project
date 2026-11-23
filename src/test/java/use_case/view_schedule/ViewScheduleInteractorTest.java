@@ -41,6 +41,9 @@ class ViewScheduleInteractorTest {
 
         private final Map<String, List<String>> teamsByMember = new HashMap<>();
         private final List<Event> events = new ArrayList<>();
+        // Returned for every range without any date check, like a store that
+        // does not filter out events with no date.
+        private final List<Event> unfiltered = new ArrayList<>();
         private boolean failReads;
 
         @Override
@@ -62,6 +65,7 @@ class ViewScheduleInteractorTest {
                     matches.add(event);
                 }
             }
+            matches.addAll(unfiltered);
             return matches;
         }
     }
@@ -145,6 +149,19 @@ class ViewScheduleInteractorTest {
         assertEquals("GAME", game.getType());
         assertEquals("Rivals", game.getOpponent());
         assertTrue(game.isCancelled());
+    }
+
+    @Test
+    void eventWithNoDateIsLeftOffTheCalendar() {
+        dataAccess.events.add(event("dated", "hawks", LocalDateTime.of(2026, 11, 3, 18, 0)));
+        dataAccess.unfiltered.add(event("undated", "hawks", null));
+
+        interactor.execute(new ViewScheduleInputData(NOV_1, NOV_30));
+
+        assertNull(presenter.error);
+        final List<ViewScheduleOutputData.EventRow> rows = presenter.success.getEvents();
+        assertEquals(1, rows.size());
+        assertEquals("dated", rows.get(0).getEventId());
     }
 
     @Test

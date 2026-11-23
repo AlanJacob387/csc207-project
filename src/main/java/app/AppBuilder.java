@@ -80,15 +80,20 @@ import view.SignupView;
 import view.ViewManager;
 
 /**
- * Builds the whole application: one add...View() method per page and one
- * add...UseCase() method per use case, so Main just states what the app has.
+ * Builds the whole application through a chain of add... methods, so Main
+ * just states what the app has.
  *
- * Adding a feature means adding a pair of methods here instead of editing a
- * long main method. This mirrors the AppBuilder in the course''s user-login
- * example.
+ * Not every page has its own add...View() method. Only the login, sign-up and
+ * account pages do. addAppShell() also builds the calendar and events list,
+ * and some use case methods build the view they need: addCreateEventUseCase()
+ * builds the New Event page, addViewEventDetailsUseCase() builds the event
+ * details panel, and addAnnouncementUseCases() wires two use cases and the
+ * announcements page together. This mirrors the AppBuilder in the course''s
+ * user-login example.
  *
- * Typical order: views, then the shell, then the use cases that fill them in,
- * then build().
+ * Typical order: the login and sign-up views, then the shell, then the use
+ * cases and remaining views, then build(). Methods that read a field set by
+ * an earlier method must come after it.
  */
 public class AppBuilder {
 

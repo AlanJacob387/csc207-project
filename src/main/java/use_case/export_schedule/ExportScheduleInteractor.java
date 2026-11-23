@@ -1,5 +1,6 @@
 package use_case.export_schedule;
 
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -14,6 +15,11 @@ import use_case.current_user.CurrentUserInterface;
  * iCalendar file. Cancelled events are included and marked cancelled, so a
  * calendar that imported them earlier picks up the change. The file itself is
  * written by the ScheduleFileWriter gateway.
+ *
+ * Events with no date are left out and counted. An iCalendar entry needs a
+ * start time, and making one up would put the event on the wrong day in
+ * someone's calendar, while failing the whole export over one bad record would
+ * leave the user with nothing. The count lets the presenter say what was left out.
  */
 public class ExportScheduleInteractor implements ExportScheduleInputBoundary {
 
@@ -57,7 +63,8 @@ public class ExportScheduleInteractor implements ExportScheduleInputBoundary {
 
         final List<String> teamIds;
         final String calName;
-        final List<Event> events;
+        final List<Event> events = new ArrayList<>();
+        int skipped = 0;
         try {
             teamIds = dataAccess.getTeamIdsForMember(username);
             if (teamIds.isEmpty()) {
@@ -65,15 +72,28 @@ public class ExportScheduleInteractor implements ExportScheduleInputBoundary {
                 return;
             }
             calName = calendarName(teamIds);
-            events = new ArrayList<>(dataAccess.getEventsForTeams(teamIds));
+            for (Event event : dataAccess.getEventsForTeams(teamIds)) {
+                if (event.getDateTime() == null) {
+                    skipped++;
+                }
+                else {
+                    events.add(event);
+                }
+            }
         }
-        catch (IllegalStateException ex) {
+        catch (IllegalStateException | UncheckedIOException ex) {
             presenter.prepareFailView("Could not read the schedule: " + ex.getMessage());
             return;
         }
 
         if (events.isEmpty()) {
-            presenter.prepareNothingToExportView("There are no events to export yet.");
+            if (skipped > 0) {
+                presenter.prepareNothingToExportView(
+                        "None of your events have a date yet, so there is nothing to export.");
+            }
+            else {
+                presenter.prepareNothingToExportView("There are no events to export yet.");
+            }
             return;
         }
         events.sort(Comparator.comparing(Event::getDateTime));
@@ -86,7 +106,8 @@ public class ExportScheduleInteractor implements ExportScheduleInputBoundary {
             presenter.prepareFailView("Export failed. " + ex.getMessage());
             return;
         }
-        presenter.prepareSuccessView(new ExportScheduleOutputData(targetPath, events.size()));
+        presenter.prepareSuccessView(
+                new ExportScheduleOutputData(targetPath, events.size(), skipped));
     }
 
     /** One team's name, or a general title when the user is on several. */

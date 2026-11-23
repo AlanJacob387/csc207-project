@@ -21,10 +21,15 @@ public class ExportSchedulePresenter implements ExportScheduleOutputBoundary {
     @Override
     public void prepareSuccessView(ExportScheduleOutputData outputData) {
         final int count = outputData.getEventCount();
-        viewModel.setResult(ExportScheduleViewModel.Status.SUCCESS,
-                "Exported " + count + (count == 1 ? " event" : " events")
-                        + " to " + outputData.getTargetPath()
-                        + "\nImport this file into Google Calendar, Outlook, or Apple Calendar.");
+        final int skipped = outputData.getSkippedCount();
+        String message = "Exported " + count + (count == 1 ? " event" : " events")
+                + " to " + outputData.getTargetPath();
+        if (skipped > 0) {
+            message += "\nLeft out " + skipped + (skipped == 1 ? " event" : " events")
+                    + " with no date set.";
+        }
+        message += "\nImport this file into Google Calendar, Outlook, or Apple Calendar.";
+        viewModel.setResult(ExportScheduleViewModel.Status.SUCCESS, message);
     }
 
     @Override

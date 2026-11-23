@@ -1,5 +1,6 @@
 package interface_adapter.view_event_details;
 
+import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Locale;
 
@@ -16,6 +17,7 @@ public class ViewEventDetailsPresenter implements ViewEventDetailsOutputBoundary
             DateTimeFormatter.ofPattern("EEEE, MMMM d, yyyy", Locale.getDefault());
     private static final DateTimeFormatter TIME_FORMAT =
             DateTimeFormatter.ofPattern("h:mm a", Locale.getDefault());
+    private static final String NO_DATE_TEXT = "Date not set";
 
     private final ViewEventDetailsViewModel viewModel;
 
@@ -38,13 +40,16 @@ public class ViewEventDetailsPresenter implements ViewEventDetailsOutputBoundary
             title += " vs " + opponent;
         }
 
+        // Same wording as the Events list, which is where a dateless event can
+        // be opened from. The raw value stays null so the edit form starts blank.
+        final LocalDateTime when = outputData.getDateTime();
         viewModel.setDetails(
                 outputData.getEventId(),
                 title,
                 outputData.getTeamName(),
-                outputData.getDateTime().format(DATE_FORMAT),
-                outputData.getDateTime().format(TIME_FORMAT),
-                outputData.getDateTime(),
+                when == null ? NO_DATE_TEXT : when.format(DATE_FORMAT),
+                when == null ? "" : when.format(TIME_FORMAT),
+                when,
                 outputData.getLocation() == null ? "" : outputData.getLocation(),
                 opponent,
                 game,

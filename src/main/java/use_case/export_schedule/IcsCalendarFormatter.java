@@ -25,7 +25,8 @@ final class IcsCalendarFormatter {
      * Builds the calendar.
      *
      * @param calName calendar display name (e.g. the team name)
-     * @param events  events to include, already in the order to write them
+     * @param events  events to include, already in the order to write them; every
+     *                one must have a date (the interactor leaves out the rest)
      * @return the whole .ics file as text
      */
     static String format(String calName, List<Event> events) {

@@ -69,7 +69,15 @@ public class ViewScheduleInteractor implements ViewScheduleInputBoundary {
 
         // The store returns events in insertion order, but the calendar reads
         // best earliest first.
-        final List<Event> sorted = new ArrayList<>(events);
+        // An event with no date has no cell on the calendar, so it is left out
+        // here. The JSON store already drops them for a date range; this keeps
+        // any other implementation from crashing the sort or the presenter.
+        final List<Event> sorted = new ArrayList<>();
+        for (Event event : events) {
+            if (event.getDateTime() != null) {
+                sorted.add(event);
+            }
+        }
         sorted.sort(Comparator.comparing(Event::getDateTime));
 
         final List<ViewScheduleOutputData.EventRow> rows = new ArrayList<>();

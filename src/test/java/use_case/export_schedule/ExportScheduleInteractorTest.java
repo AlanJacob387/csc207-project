@@ -5,6 +5,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -40,11 +42,16 @@ class ExportScheduleInteractorTest {
         private final Map<String, String> teamNames = new HashMap<>();
         private final List<Event> events = new ArrayList<>();
         private boolean failReads;
+        private boolean failReadsWithIo;
 
         @Override
         public List<String> getTeamIdsForMember(String username) {
             if (failReads) {
                 throw new IllegalStateException("App data file is not valid JSON");
+            }
+            if (failReadsWithIo) {
+                throw new UncheckedIOException("Could not read app data",
+                        new IOException("disk unavailable"));
             }
             return new ArrayList<>(teamsByMember.getOrDefault(username, new ArrayList<>()));
         }
@@ -163,6 +170,7 @@ class ExportScheduleInteractorTest {
         assertNull(presenter.error);
         assertEquals(TARGET, presenter.success.getTargetPath());
         assertEquals(3, presenter.success.getEventCount());
+        assertEquals(0, presenter.success.getSkippedCount());
         assertEquals(TARGET, fileWriter.writtenPath);
 
         final String ics = fileWriter.writtenContent;
@@ -231,6 +239,46 @@ class ExportScheduleInteractorTest {
         assertNull(presenter.success);
         assertEquals(0, fileWriter.calls);
         assertTrue(presenter.error.startsWith("Could not read the schedule:"));
+    }
+
+    @Test
+    void ioFailureWhileReadingIsReportedNotThrown() {
+        dataAccess.failReadsWithIo = true;
+
+        interactor.execute(new ExportScheduleInputData(TARGET));
+
+        assertNull(presenter.success);
+        assertEquals(0, fileWriter.calls);
+        assertTrue(presenter.error.startsWith("Could not read the schedule:"));
+    }
+
+    @Test
+    void eventWithNoDateIsLeftOutAndCounted() {
+        dataAccess.events.add(new Event("undated", "hawks", Event.EventType.PRACTICE,
+                null, "Main Gym", null));
+
+        interactor.execute(new ExportScheduleInputData(TARGET));
+
+        assertNull(presenter.error);
+        assertEquals(3, presenter.success.getEventCount());
+        assertEquals(1, presenter.success.getSkippedCount());
+        assertFalse(fileWriter.writtenContent.contains("UID:undated@teamsports"));
+        assertEquals(3, fileWriter.writtenContent.split("BEGIN:VEVENT", -1).length - 1);
+    }
+
+    @Test
+    void onlyUndatedEventsMeansNothingToExport() {
+        dataAccess.events.clear();
+        dataAccess.events.add(new Event("undated", "hawks", Event.EventType.GAME,
+                null, "North Court", "Raptors"));
+
+        interactor.execute(new ExportScheduleInputData(TARGET));
+
+        assertNull(presenter.success);
+        assertNull(presenter.error);
+        assertEquals("None of your events have a date yet, so there is nothing to export.",
+                presenter.nothingToExport);
+        assertEquals(0, fileWriter.calls);
     }
 
     @Test

@@ -1,5 +1,6 @@
 package interface_adapter.browse_events;
 
+import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
@@ -17,6 +18,7 @@ public class BrowseEventsPresenter implements BrowseEventsOutputBoundary {
     private static final String NO_TEAM_MESSAGE = "You're not on any team yet.";
     private static final String NO_MATCH_MESSAGE = "No events match these filters.";
     private static final String NO_EVENTS_MESSAGE = "No events scheduled yet.";
+    private static final String NO_DATE_TEXT = "Date not set";
 
     private static final DateTimeFormatter DATE_FORMAT =
             DateTimeFormatter.ofPattern("EEE, MMM d, yyyy", Locale.getDefault());
@@ -43,10 +45,13 @@ public class BrowseEventsPresenter implements BrowseEventsOutputBoundary {
 
         final List<BrowseEventsViewModel.Entry> entries = new ArrayList<>();
         for (BrowseEventsOutputData.EventRow row : outputData.getEvents()) {
+            // The interactor sorts dateless events to the end. They still get a
+            // row, just without a date or time.
+            final LocalDateTime when = row.getDateTime();
             entries.add(new BrowseEventsViewModel.Entry(
                     row.getEventId(),
-                    row.getDateTime().format(DATE_FORMAT),
-                    row.getDateTime().format(TIME_FORMAT),
+                    when == null ? NO_DATE_TEXT : when.format(DATE_FORMAT),
+                    when == null ? "" : when.format(TIME_FORMAT),
                     titleFor(row),
                     row.getTeamName(),
                     row.getLocation() == null ? "" : row.getLocation(),

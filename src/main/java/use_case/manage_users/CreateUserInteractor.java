@@ -2,9 +2,10 @@ package use_case.manage_users;
 
 import java.io.UncheckedIOException;
 
-import entity.AccountRules;
+import entity.InvalidAccountException;
 import entity.Role;
 import entity.UserFactory;
+import use_case.accounts.AccountRefusalText;
 import use_case.current_user.CurrentUserInterface;
 
 /**
@@ -60,11 +61,6 @@ public class CreateUserInteractor implements CreateUserInputBoundary {
             presenter.prepareFailView("Choose a username and a password.");
             return;
         }
-        final String detailRefusal = AccountRules.refusalFor(username, displayName, password);
-        if (detailRefusal != null) {
-            presenter.prepareFailView(detailRefusal);
-            return;
-        }
         if (!password.equals(repeatPassword)) {
             presenter.prepareFailView("The two passwords do not match.");
             return;
@@ -89,7 +85,10 @@ public class CreateUserInteractor implements CreateUserInputBoundary {
             presenter.prepareSuccessView(ManageUsersOutputData.of(
                     "Account created for " + username + ".", dataAccess.getAllUsers()));
         }
-        catch (IllegalStateException | IllegalArgumentException | UncheckedIOException ex) {
+        catch (InvalidAccountException ex) {
+            presenter.prepareFailView(AccountRefusalText.forRefusal(ex.getRefusal()));
+        }
+        catch (IllegalStateException | UncheckedIOException ex) {
             presenter.prepareFailView("Could not save the account: " + ex.getMessage());
         }
     }

@@ -2,10 +2,11 @@ package use_case.signup;
 
 import java.io.UncheckedIOException;
 
-import entity.AccountRules;
+import entity.InvalidAccountException;
 import entity.Role;
 import entity.User;
 import entity.UserFactory;
+import use_case.accounts.AccountRefusalText;
 
 /**
  * Interactor for the Sign Up use case.
@@ -54,11 +55,6 @@ public class SignupInteractor implements SignupInputBoundary {
         }
 
         final String displayName = typedName.isEmpty() ? username : typedName;
-        final String refusal = AccountRules.refusalFor(username, displayName, password);
-        if (refusal != null) {
-            presenter.prepareFailView(refusal);
-            return;
-        }
 
         final Role role;
         try {
@@ -84,7 +80,13 @@ public class SignupInteractor implements SignupInputBoundary {
             }
             dataAccess.createUser(userFactory.create(username, password, displayName, role));
         }
-        catch (IllegalStateException | IllegalArgumentException | UncheckedIOException ex) {
+        catch (InvalidAccountException ex) {
+            // The factory applies the rule, so this is the only place the refusal
+            // is turned into a sentence.
+            presenter.prepareFailView(AccountRefusalText.forRefusal(ex.getRefusal()));
+            return;
+        }
+        catch (IllegalStateException | UncheckedIOException ex) {
             presenter.prepareFailView("Could not save the account: " + ex.getMessage());
             return;
         }

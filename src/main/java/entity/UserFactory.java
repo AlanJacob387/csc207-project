@@ -22,12 +22,13 @@ public class UserFactory {
      * @param displayName the name to show in the app
      * @param role        the user's role
      * @return the new user, carrying a hashed credential
-     * @throws IllegalArgumentException when {@link AccountRules} refuses the details
+     * @throws InvalidAccountException when {@link AccountRules} refuses the details
      */
     public User create(String username, String password, String displayName, Role role) {
-        final String refusal = AccountRules.refusalFor(username, displayName, password);
+        final AccountRules.Refusal refusal =
+                AccountRules.refusalFor(username, displayName, password);
         if (refusal != null) {
-            throw new IllegalArgumentException(refusal);
+            throw new InvalidAccountException(refusal);
         }
         return new User(username, PasswordHasher.hash(password), displayName, role, true);
     }

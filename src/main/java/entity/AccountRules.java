@@ -4,8 +4,11 @@ package entity;
  * The one rule for what an acceptable account looks like.
  *
  * Sign Up, the administrator's Create User and Change Password all ask this
- * class, so a name or a password accepted on one page is accepted on the others
- * and the sentence explaining a refusal is written once.
+ * class, so a name or a password accepted on one page is accepted on the others.
+ *
+ * It reports a {@link Refusal} rather than a sentence: the entity holds no
+ * wording, and the use-case layer turns a refusal into the message it shows
+ * (see {@code use_case.accounts.AccountRefusalText}).
  *
  * The rule is applied when an account is created and when a password is
  * changed, never at login. An account written before a rule existed therefore
@@ -32,6 +35,28 @@ public final class AccountRules {
     /** Characters a username may contain: letters, digits, dot, underscore, hyphen. */
     private static final String USERNAME_CHARACTERS = "^[A-Za-z0-9._-]+$";
 
+    /** Why a set of account details is not acceptable. */
+    public enum Refusal {
+
+        /** No username was given. */
+        USERNAME_MISSING,
+
+        /** The username is shorter than the minimum or longer than the maximum. */
+        USERNAME_LENGTH,
+
+        /** The username contains a character the rule does not allow. */
+        USERNAME_CHARACTERS,
+
+        /** The display name is longer than the maximum. */
+        DISPLAY_NAME_LENGTH,
+
+        /** No password was given. */
+        PASSWORD_MISSING,
+
+        /** The password is shorter than the minimum or longer than the maximum. */
+        PASSWORD_LENGTH
+    }
+
     /** Utility class: not instantiable. */
     private AccountRules() {
     }
@@ -44,12 +69,12 @@ public final class AccountRules {
      * @param password    the chosen password
      * @return the first refusal, or null when the account is acceptable
      */
-    public static String refusalFor(String username, String displayName, String password) {
-        final String nameRefusal = usernameRefusalFor(username);
+    public static Refusal refusalFor(String username, String displayName, String password) {
+        final Refusal nameRefusal = usernameRefusalFor(username);
         if (nameRefusal != null) {
             return nameRefusal;
         }
-        final String displayRefusal = displayNameRefusalFor(displayName);
+        final Refusal displayRefusal = displayNameRefusalFor(displayName);
         if (displayRefusal != null) {
             return displayRefusal;
         }
@@ -62,16 +87,16 @@ public final class AccountRules {
      * @param username the chosen username
      * @return the refusal, or null when it is acceptable
      */
-    public static String usernameRefusalFor(String username) {
+    public static Refusal usernameRefusalFor(String username) {
         final String name = username == null ? "" : username.trim();
         if (name.isEmpty()) {
-            return "Choose a username.";
+            return Refusal.USERNAME_MISSING;
         }
         if (name.length() < USERNAME_MIN || name.length() > USERNAME_MAX) {
-            return "Usernames are " + USERNAME_MIN + " to " + USERNAME_MAX + " characters.";
+            return Refusal.USERNAME_LENGTH;
         }
         if (!name.matches(USERNAME_CHARACTERS)) {
-            return "Use only letters, digits, dots, underscores and hyphens in a username.";
+            return Refusal.USERNAME_CHARACTERS;
         }
         return null;
     }
@@ -83,10 +108,10 @@ public final class AccountRules {
      * @param displayName the chosen display name
      * @return the refusal, or null when it is acceptable
      */
-    public static String displayNameRefusalFor(String displayName) {
+    public static Refusal displayNameRefusalFor(String displayName) {
         final String name = displayName == null ? "" : displayName.trim();
         if (name.length() > DISPLAY_NAME_MAX) {
-            return "Display names are at most " + DISPLAY_NAME_MAX + " characters.";
+            return Refusal.DISPLAY_NAME_LENGTH;
         }
         return null;
     }
@@ -99,13 +124,13 @@ public final class AccountRules {
      * @param password the chosen password
      * @return the refusal, or null when it is acceptable
      */
-    public static String passwordRefusalFor(String password) {
+    public static Refusal passwordRefusalFor(String password) {
         final String value = password == null ? "" : password;
         if (value.isEmpty()) {
-            return "Choose a password.";
+            return Refusal.PASSWORD_MISSING;
         }
         if (value.length() < PASSWORD_MIN || value.length() > PASSWORD_MAX) {
-            return "Passwords are " + PASSWORD_MIN + " to " + PASSWORD_MAX + " characters.";
+            return Refusal.PASSWORD_LENGTH;
         }
         return null;
     }

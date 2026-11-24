@@ -89,12 +89,12 @@ public class User {
      *
      * @param newPassword the new plaintext password
      * @return a copy carrying the hash, with the same role and status
-     * @throws IllegalArgumentException when {@link AccountRules} refuses the password
+     * @throws InvalidAccountException when {@link AccountRules} refuses the password
      */
     public User withNewPassword(String newPassword) {
-        final String refusal = AccountRules.passwordRefusalFor(newPassword);
+        final AccountRules.Refusal refusal = AccountRules.passwordRefusalFor(newPassword);
         if (refusal != null) {
-            throw new IllegalArgumentException(refusal);
+            throw new InvalidAccountException(refusal);
         }
         return new User(username, PasswordHasher.hash(newPassword), displayName, role, active);
     }

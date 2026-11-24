@@ -3,13 +3,13 @@ package entity;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
 
 /**
  * Tests the one account rule: what a username, a display name and a password may
- * be, and that both ways of writing a credential refuse the same values.
+ * be, that it reports a reason rather than a sentence, and that both ways of
+ * writing a credential refuse the same values.
  */
 class AccountRulesTest {
 
@@ -26,14 +26,17 @@ class AccountRulesTest {
 
     @Test
     void aUsernameHasALengthAndACharacterSet() {
-        assertEquals("Choose a username.", AccountRules.usernameRefusalFor(""));
-        assertEquals("Choose a username.", AccountRules.usernameRefusalFor("   "));
-        assertEquals("Usernames are 3 to 40 characters.", AccountRules.usernameRefusalFor("ab"));
-        assertEquals("Usernames are 3 to 40 characters.",
+        assertEquals(AccountRules.Refusal.USERNAME_MISSING,
+                AccountRules.usernameRefusalFor(""));
+        assertEquals(AccountRules.Refusal.USERNAME_MISSING,
+                AccountRules.usernameRefusalFor("   "));
+        assertEquals(AccountRules.Refusal.USERNAME_LENGTH,
+                AccountRules.usernameRefusalFor("ab"));
+        assertEquals(AccountRules.Refusal.USERNAME_LENGTH,
                 AccountRules.usernameRefusalFor("x".repeat(41)));
-        assertEquals("Use only letters, digits, dots, underscores and hyphens in a username.",
+        assertEquals(AccountRules.Refusal.USERNAME_CHARACTERS,
                 AccountRules.usernameRefusalFor("pat player"));
-        assertEquals("Use only letters, digits, dots, underscores and hyphens in a username.",
+        assertEquals(AccountRules.Refusal.USERNAME_CHARACTERS,
                 AccountRules.usernameRefusalFor("pat@home"));
 
         assertNull(AccountRules.usernameRefusalFor("abc"));
@@ -44,7 +47,7 @@ class AccountRulesTest {
 
     @Test
     void aDisplayNameHasAMaximum() {
-        assertEquals("Display names are at most 60 characters.",
+        assertEquals(AccountRules.Refusal.DISPLAY_NAME_LENGTH,
                 AccountRules.displayNameRefusalFor("n".repeat(61)));
 
         assertNull(AccountRules.displayNameRefusalFor("n".repeat(60)));
@@ -52,9 +55,11 @@ class AccountRulesTest {
 
     @Test
     void aPasswordHasAMinimumAndAMaximum() {
-        assertEquals("Choose a password.", AccountRules.passwordRefusalFor(""));
-        assertEquals("Passwords are 8 to 128 characters.", AccountRules.passwordRefusalFor("pw"));
-        assertEquals("Passwords are 8 to 128 characters.",
+        assertEquals(AccountRules.Refusal.PASSWORD_MISSING,
+                AccountRules.passwordRefusalFor(""));
+        assertEquals(AccountRules.Refusal.PASSWORD_LENGTH,
+                AccountRules.passwordRefusalFor("pw"));
+        assertEquals(AccountRules.Refusal.PASSWORD_LENGTH,
                 AccountRules.passwordRefusalFor("p".repeat(129)));
 
         assertNull(AccountRules.passwordRefusalFor("teampass"));
@@ -64,9 +69,9 @@ class AccountRulesTest {
 
     @Test
     void theFirstRefusalIsReportedSoTheUserFixesOneThingAtATime() {
-        assertEquals("Usernames are 3 to 40 characters.",
+        assertEquals(AccountRules.Refusal.USERNAME_LENGTH,
                 AccountRules.refusalFor("ab", "n".repeat(61), "pw"));
-        assertEquals("Display names are at most 60 characters.",
+        assertEquals(AccountRules.Refusal.DISPLAY_NAME_LENGTH,
                 AccountRules.refusalFor("coach1", "n".repeat(61), "pw"));
     }
 
@@ -74,10 +79,10 @@ class AccountRulesTest {
     void creatingAnAccountRefusesARuleThePageWouldAlsoRefuse() {
         final UserFactory factory = new UserFactory();
 
-        final IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+        final InvalidAccountException thrown = assertThrows(InvalidAccountException.class,
                 () -> factory.create("coach1", "pw", "Coach One", Role.COACH));
 
-        assertTrue(thrown.getMessage().startsWith("Passwords are 8 to 128"), thrown.getMessage());
+        assertEquals(AccountRules.Refusal.PASSWORD_LENGTH, thrown.getRefusal());
     }
 
     @Test
@@ -85,9 +90,9 @@ class AccountRulesTest {
         final User user = new User("coach1", "pbkdf2$1000$c2FsdA==$aGFzaA==", "Coach One",
                 Role.COACH);
 
-        final IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+        final InvalidAccountException thrown = assertThrows(InvalidAccountException.class,
                 () -> user.withNewPassword("short"));
 
-        assertTrue(thrown.getMessage().startsWith("Passwords are 8 to 128"), thrown.getMessage());
+        assertEquals(AccountRules.Refusal.PASSWORD_LENGTH, thrown.getRefusal());
     }
 }

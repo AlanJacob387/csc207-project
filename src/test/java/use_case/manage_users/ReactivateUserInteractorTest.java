@@ -109,6 +109,9 @@ class ReactivateUserInteractorTest {
 
             @Override
             public User get(String username) {
+                if ("admin1".equals(username)) {
+                    return new User("admin1", "pw", "Ada Admin", Role.ADMIN);
+                }
                 return new User("player1", "pw", "Pat", Role.PLAYER, false);
             }
 

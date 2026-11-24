@@ -36,7 +36,7 @@ public class ReactivateUserInteractor implements ReactivateUserInputBoundary {
 
     @Override
     public void execute(ReactivateUserInputData inputData) {
-        final String refusal = AdminPolicy.refusalFor(currentUser);
+        final String refusal = AdminPolicy.refusalFor(currentUser, dataAccess);
         if (refusal != null) {
             presenter.prepareFailView(refusal);
             return;

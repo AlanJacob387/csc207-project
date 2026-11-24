@@ -47,7 +47,7 @@ public class CreateUserInteractor implements CreateUserInputBoundary {
 
     @Override
     public void execute(CreateUserInputData inputData) {
-        final String refusal = AdminPolicy.refusalFor(currentUser);
+        final String refusal = AdminPolicy.refusalFor(currentUser, dataAccess);
         if (refusal != null) {
             presenter.prepareFailView(refusal);
             return;

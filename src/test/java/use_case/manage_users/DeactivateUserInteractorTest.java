@@ -112,29 +112,18 @@ class DeactivateUserInteractorTest {
     }
 
     @Test
-    void theLastActiveAdministratorCannotBeDeactivated() {
-        final InMemoryUserDataAccessObject onlyOneAdmin = new InMemoryUserDataAccessObject();
-        onlyOneAdmin.save(new User("admin2", "pw", "Ada Two", Role.ADMIN));
-        interactor = new DeactivateUserInteractor(onlyOneAdmin, presenter, session);
+    void aDeactivatedAdministratorCannotActWithTheOldSessionRole() {
+        dataAccess.save(new User("admin2", "pw", "Ada Two", Role.ADMIN, false));
+        final Session staleSession = new Session();
+        staleSession.setCurrentUser(new User("admin2", "pw", "Ada Two", Role.ADMIN));
+        final DeactivateUserInteractor stale =
+                new DeactivateUserInteractor(dataAccess, presenter, staleSession);
 
-        interactor.execute(new DeactivateUserInputData("admin2"));
+        stale.execute(new DeactivateUserInputData("player1"));
 
-        assertEquals(AdminPolicy.LAST_ADMIN, presenter.error);
-        assertTrue(onlyOneAdmin.get("admin2").isActive());
-    }
-
-    @Test
-    void anInactiveAdministratorDoesNotCountAsAReplacement() {
-        final InMemoryUserDataAccessObject oneActiveAdmin = new InMemoryUserDataAccessObject();
-        oneActiveAdmin.save(new User("ada2", "pw", "Ada Two", Role.ADMIN));
-        oneActiveAdmin.save(new User("ada3", "pw", "Ada Three", Role.ADMIN, false));
-        interactor = new DeactivateUserInteractor(oneActiveAdmin, presenter, session);
-
-        interactor.execute(new DeactivateUserInputData("ada2"));
-
-        assertEquals(AdminPolicy.LAST_ADMIN, presenter.error,
-                "an inactive administrator cannot sign in, so it is no replacement");
-        assertTrue(oneActiveAdmin.get("ada2").isActive());
+        assertEquals(AdminPolicy.NOT_ADMIN, presenter.error,
+                "an account that was deactivated elsewhere must lose its powers");
+        assertTrue(dataAccess.get("player1").isActive());
     }
 
     @Test
@@ -147,6 +136,9 @@ class DeactivateUserInteractorTest {
 
             @Override
             public User get(String username) {
+                if ("admin1".equals(username)) {
+                    return new User("admin1", "pw", "Ada Admin", Role.ADMIN);
+                }
                 throw new IllegalStateException("the store is unreadable");
             }
 

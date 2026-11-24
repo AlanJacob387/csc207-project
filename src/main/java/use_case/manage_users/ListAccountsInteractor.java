@@ -34,7 +34,7 @@ public class ListAccountsInteractor implements ListAccountsInputBoundary {
 
     @Override
     public void execute() {
-        final String refusal = AdminPolicy.refusalFor(currentUser);
+        final String refusal = AdminPolicy.refusalFor(currentUser, dataAccess);
         if (refusal != null) {
             presenter.prepareFailView(refusal);
             return;

@@ -47,6 +47,7 @@ class CreateUserInteractorTest {
     @BeforeEach
     void setUp() {
         dataAccess = new InMemoryUserDataAccessObject();
+        dataAccess.save(new User("admin1", "pw", "Ada Admin", Role.ADMIN));
         session = new Session();
         session.setCurrentUser(new User("admin1", "pw", "Ada Admin", Role.ADMIN));
         presenter = new RecordingPresenter();
@@ -162,7 +163,8 @@ class CreateUserInteractorTest {
 
             @Override
             public User get(String username) {
-                return null;
+                return "admin1".equals(username)
+                        ? new User("admin1", "pw", "Ada Admin", Role.ADMIN) : null;
             }
 
             @Override

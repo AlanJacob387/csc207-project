@@ -109,22 +109,25 @@ class ChangeUserRoleInteractorTest {
     }
 
     @Test
-    void theLastActiveAdministratorCannotBeDemoted() {
-        final InMemoryUserDataAccessObject onlyOneAdmin = new InMemoryUserDataAccessObject();
-        onlyOneAdmin.save(new User("admin2", "pw", "Ada Two", Role.ADMIN));
-        interactor = new ChangeUserRoleInteractor(onlyOneAdmin, presenter, session);
-
-        interactor.execute(new ChangeUserRoleInputData("admin2", "PLAYER"));
-
-        assertEquals(AdminPolicy.LAST_ADMIN, presenter.error);
-        assertEquals(Role.ADMIN, onlyOneAdmin.get("admin2").getRole());
-    }
-
-    @Test
     void anUnknownRoleIsRefused() {
         interactor.execute(new ChangeUserRoleInputData("player1", "CAPTAIN"));
 
         assertEquals("Choose a role from the list.", presenter.error);
+        assertEquals(Role.PLAYER, dataAccess.get("player1").getRole());
+    }
+
+    @Test
+    void aDemotedAdministratorCannotActWithTheOldSessionRole() {
+        dataAccess.save(new User("admin2", "pw", "Ada Two", Role.PLAYER));
+        final Session staleSession = new Session();
+        staleSession.setCurrentUser(new User("admin2", "pw", "Ada Two", Role.ADMIN));
+        final ChangeUserRoleInteractor stale =
+                new ChangeUserRoleInteractor(dataAccess, presenter, staleSession);
+
+        stale.execute(new ChangeUserRoleInputData("player1", "COACH"));
+
+        assertEquals(AdminPolicy.NOT_ADMIN, presenter.error,
+                "the stored account is the authority, not the role the session remembers");
         assertEquals(Role.PLAYER, dataAccess.get("player1").getRole());
     }
 
@@ -138,6 +141,9 @@ class ChangeUserRoleInteractorTest {
 
             @Override
             public User get(String username) {
+                if ("admin1".equals(username)) {
+                    return new User("admin1", "pw", "Ada Admin", Role.ADMIN);
+                }
                 throw new IllegalStateException("the store is unreadable");
             }
 

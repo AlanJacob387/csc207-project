@@ -188,4 +188,49 @@ class ManageUsersFlowTest {
                 w.manageUsersViewModel.getErrorMessage());
         assertTrue(w.dataAccess.get("admin1").isActive());
     }
+
+    @Test
+    void aDemotedAdministratorLosesTheAdminActionsWithoutSigningOut() {
+        final FileAppDataAccessObject shared = twoAdministrators();
+        final Wiring admin1 = new Wiring(shared);
+        final Wiring admin2 = new Wiring(shared);
+        admin1.signInAs("admin1", "pw");
+        admin2.signInAs("admin2", "pw");
+
+        admin1.manageUsersController.changeUserRole("admin2", "PLAYER");
+
+        assertEquals("Role changed: admin2 is now PLAYER.",
+                admin1.manageUsersViewModel.getSuccessMessage());
+        assertTrue(admin2.session.isLoggedIn(), "the session itself is untouched");
+        admin2.manageUsersController.createUser("sneaky", "", "secret", "secret", "ADMIN");
+        assertEquals("Only an administrator can manage users.",
+                admin2.manageUsersViewModel.getErrorMessage(),
+                "the old session role must not outlive the stored one");
+        assertNull(shared.get("sneaky"));
+    }
+
+    @Test
+    void aDeactivatedAdministratorCannotActFromAnOpenSession() {
+        final FileAppDataAccessObject shared = twoAdministrators();
+        final Wiring admin1 = new Wiring(shared);
+        final Wiring admin2 = new Wiring(shared);
+        admin1.signInAs("admin1", "pw");
+        admin2.signInAs("admin2", "pw");
+
+        admin1.manageUsersController.deactivateUser("admin2");
+
+        assertFalse(shared.get("admin2").isActive());
+        admin2.manageUsersController.listAccounts();
+        assertEquals("Only an administrator can manage users.",
+                admin2.manageUsersViewModel.getErrorMessage());
+    }
+
+    /** A shared store holding two active administrators. */
+    private FileAppDataAccessObject twoAdministrators() {
+        final FileAppDataAccessObject shared =
+                new FileAppDataAccessObject(tempDir.resolve("app-data.json"));
+        shared.save(new User("admin1", "pw", "Ada One", Role.ADMIN));
+        shared.save(new User("admin2", "pw", "Ada Two", Role.ADMIN));
+        return shared;
+    }
 }

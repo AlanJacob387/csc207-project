@@ -37,7 +37,7 @@ public class ChangeUserRoleInteractor implements ChangeUserRoleInputBoundary {
 
     @Override
     public void execute(ChangeUserRoleInputData inputData) {
-        final String refusal = AdminPolicy.refusalFor(currentUser);
+        final String refusal = AdminPolicy.refusalFor(currentUser, dataAccess);
         if (refusal != null) {
             presenter.prepareFailView(refusal);
             return;

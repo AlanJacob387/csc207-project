@@ -108,7 +108,7 @@ class ListAccountsInteractorTest {
 
             @Override
             public User get(String username) {
-                return null;
+                return new User("admin1", "pw", "Ada Admin", Role.ADMIN);
             }
 
             @Override

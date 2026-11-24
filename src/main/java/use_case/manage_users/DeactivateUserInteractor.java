@@ -36,7 +36,7 @@ public class DeactivateUserInteractor implements DeactivateUserInputBoundary {
 
     @Override
     public void execute(DeactivateUserInputData inputData) {
-        final String refusal = AdminPolicy.refusalFor(currentUser);
+        final String refusal = AdminPolicy.refusalFor(currentUser, dataAccess);
         if (refusal != null) {
             presenter.prepareFailView(refusal);
             return;

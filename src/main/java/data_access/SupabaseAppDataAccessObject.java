@@ -1,5 +1,6 @@
 package data_access;
 
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -7,8 +8,11 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import entity.Announcement;
+import entity.AbsenceNotice;
 import entity.AttendanceRecord;
 import entity.Event;
+import entity.EventNotification;
+import entity.ParentPlayerLink;
 import entity.Role;
 import entity.Team;
 import entity.User;
@@ -51,6 +55,9 @@ public class SupabaseAppDataAccessObject implements AppDataStore {
     private static final String EVENTS = "events";
     private static final String ATTENDANCE = "attendance";
     private static final String ANNOUNCEMENTS = "announcements";
+    private static final String PARENT_LINKS = "parent_links";
+    private static final String ABSENCE_NOTICES = "absence_notices";
+    private static final String EVENT_NOTIFICATIONS = "event_notifications";
 
     private final String projectUrl;
     private final PostgrestClient client;
@@ -222,9 +229,30 @@ public class SupabaseAppDataAccessObject implements AppDataStore {
                 && !client.selectWhere(TEAMS, "teamId", teamId, 1).isEmpty();
     }
 
+    /**
+     * Saves an event and, when its schedule changed, records the change for the
+     * notifications feed, the way the local file does in one write.
+     *
+     * Two requests cannot be one transaction through the REST API: the event is
+     * written first, and if recording the notification then fails the event stays
+     * saved and the caller is told the feed missed it.
+     */
     @Override
     public void saveEvent(Event event) {
+        final Event previous = getEvent(event.getEventId());
+        final Team team = getTeam(event.getTeamId());
+        final EventNotification notification = EventChangeNotifications.between(previous, event,
+                team == null ? event.getTeamId() : team.getName());
         client.upsert(EVENTS, "eventId", EntityJsonMapper.toJson(event));
+        if (notification != null) {
+            try {
+                client.insert(EVENT_NOTIFICATIONS, EntityJsonMapper.toJson(notification), "the notification insert");
+            }
+            catch (IllegalStateException | UncheckedIOException ex) {
+                throw new IllegalStateException("The event was saved, but its notification could not be"
+                        + " recorded: " + ex.getMessage(), ex);
+            }
+        }
     }
 
     @Override
@@ -306,6 +334,82 @@ public class SupabaseAppDataAccessObject implements AppDataStore {
                     EntityJsonMapper::announcementFromJson, "an announcement"));
         }
         return announcements;
+    }
+
+    // ------------------------------------------------------------------
+    // Family links, absence notices and event notifications
+    // ------------------------------------------------------------------
+
+    @Override
+    public List<ParentPlayerLink> getParentPlayerLinks() {
+        final List<ParentPlayerLink> links = new ArrayList<>();
+        final JSONArray rows = client.readAll(PARENT_LINKS);
+        for (int i = 0; i < rows.length(); i++) {
+            links.add(PostgrestClient.mapRow(rows, i,
+                    EntityJsonMapper::parentPlayerLinkFromJson, "a family link"));
+        }
+        return links;
+    }
+
+    /** Linking twice is a no-op, as in the local file. */
+    @Override
+    public void saveParentPlayerLink(ParentPlayerLink link) {
+        client.upsert(PARENT_LINKS, "parentUsername,playerUsername", EntityJsonMapper.toJson(link));
+    }
+
+    @Override
+    public void deleteParentPlayerLink(String parentUsername, String playerUsername) {
+        final java.util.Map<String, String> pair = new java.util.LinkedHashMap<>();
+        pair.put("parentUsername", parentUsername);
+        pair.put("playerUsername", playerUsername);
+        client.delete(PARENT_LINKS, pair, "the removal of the family link");
+    }
+
+    @Override
+    public List<AbsenceNotice> getAbsenceNotices() {
+        final List<AbsenceNotice> notices = new ArrayList<>();
+        final JSONArray rows = client.readAll(ABSENCE_NOTICES);
+        for (int i = 0; i < rows.length(); i++) {
+            notices.add(PostgrestClient.mapRow(rows, i,
+                    EntityJsonMapper::absenceNoticeFromJson, "an absence notice"));
+        }
+        return notices;
+    }
+
+    /**
+     * Saves a parent's notice, applying the local file's two rules: an id names one
+     * absence, and a parent, child and event have one notice. The table's unique
+     * constraint backs the second rule when two clients submit at once.
+     */
+    @Override
+    public void saveAbsenceNotice(AbsenceNotice notice) {
+        for (AbsenceNotice stored : getAbsenceNotices()) {
+            final boolean sameAbsence = stored.getParentUsername().equals(notice.getParentUsername())
+                    && stored.getPlayerUsername().equals(notice.getPlayerUsername())
+                    && stored.getEventId().equals(notice.getEventId());
+            if (stored.getNoticeId().equals(notice.getNoticeId()) && !sameAbsence) {
+                throw new IllegalStateException("That notice identifier belongs to a different absence.");
+            }
+            if (!stored.getNoticeId().equals(notice.getNoticeId()) && sameAbsence) {
+                throw new IllegalStateException("A notice already exists for this parent, child and event.");
+            }
+        }
+        client.upsert(ABSENCE_NOTICES, "noticeId", EntityJsonMapper.toJson(notice));
+    }
+
+    @Override
+    public List<EventNotification> getEventNotifications() {
+        final List<EventNotification> notifications = new ArrayList<>();
+        final HttpUrl url = client.tableUrl(EVENT_NOTIFICATIONS)
+                .addQueryParameter("select", PostgrestClient.SELECT_ALL)
+                .addQueryParameter("order", "createdAt.asc")
+                .build();
+        final JSONArray rows = client.get(url, "the read from " + EVENT_NOTIFICATIONS);
+        for (int i = 0; i < rows.length(); i++) {
+            notifications.add(PostgrestClient.mapRow(rows, i,
+                    EntityJsonMapper::eventNotificationFromJson, "an event notification"));
+        }
+        return notifications;
     }
 
     /**

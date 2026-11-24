@@ -12,6 +12,7 @@ bin/
 
 # Local app data written at runtime (see data_access/FileAppDataAccessObject)
 data/app-data.json
+data/demo-data.json
 
 # OS
 .DS_Store

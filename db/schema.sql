@@ -62,6 +62,37 @@ create table if not exists public.announcements (
     "createdAt"      text not null
 );
 
+-- An administrator links an existing parent account to an existing player
+-- account; the link is what lets a parent see that child's team.
+create table if not exists public.parent_links (
+    "parentUsername" text not null references public.users ("username") on delete cascade,
+    "playerUsername" text not null references public.users ("username") on delete cascade,
+    primary key ("parentUsername", "playerUsername")
+);
+
+-- A parent's advance notice that a linked child will miss an event. One notice
+-- per parent, child and event: a second submission updates the first.
+create table if not exists public.absence_notices (
+    "noticeId"       text primary key,
+    "parentUsername" text not null references public.users ("username") on delete cascade,
+    "playerUsername" text not null references public.users ("username") on delete cascade,
+    "eventId"        text not null references public.events ("eventId") on delete cascade,
+    "reason"         text not null,
+    "submittedAt"    text not null,
+    unique ("parentUsername", "playerUsername", "eventId")
+);
+
+-- What changed about an event (created, changed, cancelled), written when the
+-- event is saved. Readers filter it to the teams they may see.
+create table if not exists public.event_notifications (
+    "notificationId" text primary key,
+    "eventId"        text not null references public.events ("eventId") on delete cascade,
+    "teamId"         text not null references public.teams ("teamId") on delete cascade,
+    "changeType"     text not null,
+    "message"        text not null,
+    "createdAt"      text not null
+);
+
 -- Helpful indexes for the reads the app actually performs.
 create index if not exists events_team_idx
     on public.events ("teamId", "dateTime");
@@ -69,6 +100,10 @@ create index if not exists announcements_team_idx
     on public.announcements ("teamId", "createdAt");
 create index if not exists attendance_player_idx
     on public.attendance ("playerUsername");
+create index if not exists absence_notices_event_idx
+    on public.absence_notices ("eventId");
+create index if not exists event_notifications_team_idx
+    on public.event_notifications ("teamId", "createdAt");
 
 -- ---------------------------------------------------------------------------
 -- Access control
@@ -76,7 +111,8 @@ create index if not exists attendance_player_idx
 -- The desktop client ships the publishable key, so every request runs as the
 -- "anon" role. Row Level Security is enabled on every table and the policies
 -- below grant exactly what the app does. There is deliberately no delete
--- policy: the app deactivates accounts instead of deleting rows.
+-- policy except on parent_links: the app deactivates accounts instead of
+-- deleting rows, and only an administrator ending a family link removes one.
 --
 -- Course scope: anyone who extracts the key inherits the app's permissions.
 -- That is why passwords are stored hashed instead of in plaintext.
@@ -87,9 +123,14 @@ alter table public.teams         enable row level security;
 alter table public.events        enable row level security;
 alter table public.attendance    enable row level security;
 alter table public.announcements enable row level security;
+alter table public.parent_links  enable row level security;
+alter table public.absence_notices     enable row level security;
+alter table public.event_notifications enable row level security;
 
 grant select, insert, update on public.users, public.teams, public.events,
-      public.attendance, public.announcements to anon, authenticated;
+      public.attendance, public.announcements, public.parent_links,
+      public.absence_notices, public.event_notifications to anon, authenticated;
+grant delete on public.parent_links to anon, authenticated;
 
 drop policy if exists users_select on public.users;
 create policy users_select on public.users
@@ -139,6 +180,39 @@ create policy announcements_insert on public.announcements
     for insert to anon, authenticated with check (true);
 drop policy if exists announcements_update on public.announcements;
 create policy announcements_update on public.announcements
+    for update to anon, authenticated using (true) with check (true);
+
+drop policy if exists parent_links_select on public.parent_links;
+create policy parent_links_select on public.parent_links
+    for select to anon, authenticated using (true);
+drop policy if exists parent_links_insert on public.parent_links;
+create policy parent_links_insert on public.parent_links
+    for insert to anon, authenticated with check (true);
+drop policy if exists parent_links_update on public.parent_links;
+create policy parent_links_update on public.parent_links
+    for update to anon, authenticated using (true) with check (true);
+drop policy if exists parent_links_delete on public.parent_links;
+create policy parent_links_delete on public.parent_links
+    for delete to anon, authenticated using (true);
+
+drop policy if exists absence_notices_select on public.absence_notices;
+create policy absence_notices_select on public.absence_notices
+    for select to anon, authenticated using (true);
+drop policy if exists absence_notices_insert on public.absence_notices;
+create policy absence_notices_insert on public.absence_notices
+    for insert to anon, authenticated with check (true);
+drop policy if exists absence_notices_update on public.absence_notices;
+create policy absence_notices_update on public.absence_notices
+    for update to anon, authenticated using (true) with check (true);
+
+drop policy if exists event_notifications_select on public.event_notifications;
+create policy event_notifications_select on public.event_notifications
+    for select to anon, authenticated using (true);
+drop policy if exists event_notifications_insert on public.event_notifications;
+create policy event_notifications_insert on public.event_notifications
+    for insert to anon, authenticated with check (true);
+drop policy if exists event_notifications_update on public.event_notifications;
+create policy event_notifications_update on public.event_notifications
     for update to anon, authenticated using (true) with check (true);
 
 -- Check the result from the SQL Editor; both should return empty result sets.

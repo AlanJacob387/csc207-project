@@ -152,6 +152,21 @@ final class PostgrestClient {
     }
 
     /**
+     * Deletes the rows where every named column has its value.
+     *
+     * @param table  the table to delete from
+     * @param equals the columns to match and the value each must have
+     * @param what   what the write is, for a message
+     */
+    void delete(String table, java.util.Map<String, String> equals, String what) {
+        HttpUrl.Builder url = tableUrl(table);
+        for (java.util.Map.Entry<String, String> match : equals.entrySet()) {
+            url = where(url, match.getKey(), match.getValue());
+        }
+        execute(request(url.build()).delete().header("Prefer", "return=minimal").build(), what);
+    }
+
+    /**
      * Inserts a row, letting the duplicate-key answer through.
      *
      * A plain POST uses PostgREST's strict resolution, so a row that already

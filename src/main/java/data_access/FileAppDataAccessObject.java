@@ -8,20 +8,27 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.time.DateTimeException;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.UUID;
 
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
 import entity.Announcement;
+import entity.AbsenceNotice;
 import entity.AttendanceRecord;
 import entity.Event;
+import entity.EventNotification;
+import entity.ParentPlayerLink;
 import entity.Role;
 import entity.Team;
 import entity.User;
@@ -56,6 +63,9 @@ public class FileAppDataAccessObject implements AppDataStore {
     private static final String EVENTS = "events";
     private static final String ATTENDANCE = "attendance";
     private static final String ANNOUNCEMENTS = "announcements";
+    private static final String PARENT_LINKS = "parentLinks";
+    private static final String ABSENCE_NOTICES = "absenceNotices";
+    private static final String EVENT_NOTIFICATIONS = "eventNotifications";
 
     /** Suffix added to a store file that had to be set aside, then the timestamp. */
     private static final String CORRUPT_SUFFIX = ".corrupt-";
@@ -68,6 +78,9 @@ public class FileAppDataAccessObject implements AppDataStore {
     private final Map<String, Event> events = new LinkedHashMap<>();
     private final List<AttendanceRecord> attendance = new ArrayList<>();
     private final Map<String, Announcement> announcements = new LinkedHashMap<>();
+    private final Map<List<String>, ParentPlayerLink> parentLinks = new LinkedHashMap<>();
+    private final Map<String, AbsenceNotice> absenceNotices = new LinkedHashMap<>();
+    private final Map<String, EventNotification> eventNotifications = new LinkedHashMap<>();
     private JSONObject storedDocument = new JSONObject();
 
     /** Creates a store at {@link #DEFAULT_PATH}. */
@@ -104,12 +117,12 @@ public class FileAppDataAccessObject implements AppDataStore {
     // ------------------------------------------------------------------
 
     @Override
-    public User get(String username) {
+    public synchronized User get(String username) {
         return users.get(username);
     }
 
     @Override
-    public boolean existsByName(String username) {
+    public synchronized boolean existsByName(String username) {
         return users.containsKey(username);
     }
 
@@ -118,33 +131,31 @@ public class FileAppDataAccessObject implements AppDataStore {
      *
      * @param user the account to create
      * @throws DuplicateUsernameException when that username is already stored
+     * @throws UncheckedIOException       if the account could not be written
      */
     @Override
-    public void createUser(User user) {
-        if (users.containsKey(user.getUsername())) {
-            throw new DuplicateUsernameException(user.getUsername());
+    public synchronized void createUser(User user) {
+        final String username = user.getUsername();
+        if (users.containsKey(username)) {
+            throw new DuplicateUsernameException(username);
         }
-        final Map<String, User> updated = new LinkedHashMap<>(users);
-        updated.put(user.getUsername(), user);
-        writeDocument(updated, teams, events, attendance, announcements);
-        users.put(user.getUsername(), user);
+        users.put(username, user);
+        try {
+            persist();
+        }
+        catch (RuntimeException ex) {
+            users.remove(username);
+            throw ex;
+        }
     }
 
     @Override
-    public void save(User user) {
-        final Map<String, User> updated = new LinkedHashMap<>(users);
-        updated.put(user.getUsername(), user);
-        writeDocument(updated, teams, events, attendance, announcements);
-        users.put(user.getUsername(), user);
-    }
-
-    @Override
-    public void updateRole(String username, Role role) {
+    public synchronized void updateRole(String username, Role role) {
         save(existing(username).withRole(role));
     }
 
     @Override
-    public void updateActive(String username, boolean active) {
+    public synchronized void updateActive(String username, boolean active) {
         save(existing(username).withActive(active));
     }
 
@@ -157,39 +168,69 @@ public class FileAppDataAccessObject implements AppDataStore {
     }
 
     /**
-     * Returns every stored account.
+     * Saves a user, replacing any stored user with the same username. Like
+     * saveEvent, the user goes into the map before persist() and the previous
+     * state is put back if the write fails, so a failed password change never
+     * leaves the new password active in memory.
      *
-     * @return a copy of the account list, safe to sort or iterate
+     * @param user the user to save
+     * @throws UncheckedIOException if the user could not be written
      */
-    public List<User> getAllUsers() {
-        return new ArrayList<>(users.values());
+    @Override
+    public synchronized void save(User user) {
+        final String username = user.getUsername();
+        final User previous = users.put(username, user);
+        try {
+            persist();
+        }
+        catch (RuntimeException ex) {
+            restore(users, username, previous);
+            throw ex;
+        }
     }
 
     // ------------------------------------------------------------------
     // Events (Create Event use case)
     // ------------------------------------------------------------------
 
+    /**
+     * Saves an event, replacing any stored event with the same id. persist()
+     * writes whatever is in the map, so the event goes in first; if the write
+     * fails, the previous state is put back so memory still matches the file.
+     *
+     * @param event the event to save
+     * @throws UncheckedIOException if the event could not be written
+     */
     @Override
-    public void saveEvent(Event event) {
-        final Map<String, Event> updated = new LinkedHashMap<>(events);
-        updated.put(event.getEventId(), event);
-        writeDocument(users, teams, updated, attendance, announcements);
-        events.put(event.getEventId(), event);
+    public synchronized void saveEvent(Event event) {
+        final String eventId = event.getEventId();
+        final Event previous = events.get(eventId);
+        final EventNotification notification = notificationFor(previous, event);
+        events.put(eventId, copyEvent(event));
+        if (notification != null) {
+            eventNotifications.put(notification.getNotificationId(), notification);
+        }
+        try {
+            persist();
+        }
+        catch (RuntimeException ex) {
+            restore(events, eventId, previous);
+            if (notification != null) {
+                eventNotifications.remove(notification.getNotificationId());
+            }
+            throw ex;
+        }
     }
 
     @Override
-    public boolean teamExists(String teamId) {
+    public synchronized boolean teamExists(String teamId) {
         return teams.containsKey(teamId);
     }
 
-    /**
-     * Looks up an event.
-     *
-     * @param eventId the event id
-     * @return the event, or null if there is none
-     */
-    public Event getEvent(String eventId) {
-        return events.get(eventId);
+    @Override
+    public synchronized Event getEvent(String eventId) {
+        final Event event = events.get(eventId);
+        return event == null ? null : copyEvent(event);
     }
 
     /**
@@ -197,8 +238,106 @@ public class FileAppDataAccessObject implements AppDataStore {
      *
      * @return a copy of the event list
      */
-    public List<Event> getAllEvents() {
-        return new ArrayList<>(events.values());
+    public synchronized List<Event> getAllEvents() {
+        return new ArrayList<>(events.values().stream().map(FileAppDataAccessObject::copyEvent).toList());
+    }
+
+    // ------------------------------------------------------------------
+    // Schedule (View Schedule use case)
+    // ------------------------------------------------------------------
+
+    @Override
+    public synchronized List<String> getTeamIdsForMember(String username) {
+        final List<String> teamIds = new ArrayList<>();
+        final User user = users.get(username);
+        if (user == null) {
+            return teamIds;
+        }
+        final List<String> children = user != null && user.getRole() == Role.PARENT
+                ? getLinkedPlayerUsernames(username) : List.of();
+        for (Team team : teams.values()) {
+            if (user.getRole() == Role.ADMIN
+                    || user.getRole() == Role.COACH && username.equals(team.getCoachUsername())
+                    || user.getRole() == Role.PLAYER && team.getPlayerUsernames().contains(username)
+                    || user.getRole() == Role.PARENT
+                        && children.stream().anyMatch(team.getPlayerUsernames()::contains)) {
+                teamIds.add(team.getTeamId());
+            }
+        }
+        return teamIds;
+    }
+
+    /** Grants event changes only while the stored account is this team's coach. */
+    @Override
+    public synchronized boolean canManageEvent(String username, String teamId) {
+        final User user = users.get(username);
+        final Team team = teams.get(teamId);
+        return user != null && user.getRole() == Role.COACH && team != null
+                && user.getUsername().equals(team.getCoachUsername());
+    }
+
+    @Override
+    public synchronized List<Event> getEventsForTeams(Collection<String> teamIds,
+                                         LocalDate from, LocalDate to) {
+        final List<Event> matches = new ArrayList<>();
+        for (Event event : events.values()) {
+            if (event.getDateTime() == null || !teamIds.contains(event.getTeamId())) {
+                continue;
+            }
+            final LocalDate date = event.getDateTime().toLocalDate();
+            if (!date.isBefore(from) && !date.isAfter(to)) {
+                matches.add(copyEvent(event));
+            }
+        }
+        return matches;
+    }
+
+    // ------------------------------------------------------------------
+    // Events list (Browse Events and Export Schedule use cases)
+    // ------------------------------------------------------------------
+
+    @Override
+    public synchronized List<Event> getEventsForTeams(Collection<String> teamIds) {
+        final List<Event> matches = new ArrayList<>();
+        for (Event event : events.values()) {
+            if (teamIds.contains(event.getTeamId())) {
+                matches.add(copyEvent(event));
+            }
+        }
+        return matches;
+    }
+
+    // ------------------------------------------------------------------
+    // Event details (View Event Details use case)
+    // ------------------------------------------------------------------
+
+    @Override
+    public synchronized String getTeamName(String teamId) {
+        final Team team = teams.get(teamId);
+        return team == null ? null : team.getName();
+    }
+
+    @Override
+    public synchronized String getCoachUsername(String teamId) {
+        final Team team = teams.get(teamId);
+        return team == null ? null : team.getCoachUsername();
+    }
+
+    // ------------------------------------------------------------------
+    // Event changes (Edit Event and Cancel Event use cases)
+    // ------------------------------------------------------------------
+
+    /**
+     * Replaces the stored event with the same id. persist() writes whatever is
+     * in the map, so the new event goes in first; if the write fails, the
+     * previous event is put back so memory still matches the file.
+     *
+     * @param updated the changed event
+     * @throws UncheckedIOException if the change could not be written
+     */
+    @Override
+    public synchronized void updateEvent(Event updated) {
+        saveEvent(updated);
     }
 
     // ------------------------------------------------------------------
@@ -210,11 +349,15 @@ public class FileAppDataAccessObject implements AppDataStore {
      *
      * @param team the team to save
      */
-    public void saveTeam(Team team) {
-        final Map<String, Team> updated = new LinkedHashMap<>(teams);
-        updated.put(team.getTeamId(), team);
-        writeDocument(users, updated, events, attendance, announcements);
-        teams.put(team.getTeamId(), team);
+    public synchronized void saveTeam(Team team) {
+        final Team previous = teams.put(team.getTeamId(), copyTeam(team));
+        try {
+            persist();
+        }
+        catch (RuntimeException ex) {
+            restore(teams, team.getTeamId(), previous);
+            throw ex;
+        }
     }
 
     /**
@@ -223,8 +366,9 @@ public class FileAppDataAccessObject implements AppDataStore {
      * @param teamId the team id
      * @return the team, or null if there is none
      */
-    public Team getTeam(String teamId) {
-        return teams.get(teamId);
+    public synchronized Team getTeam(String teamId) {
+        final Team team = teams.get(teamId);
+        return team == null ? null : copyTeam(team);
     }
 
     /**
@@ -232,8 +376,8 @@ public class FileAppDataAccessObject implements AppDataStore {
      *
      * @return a copy of the team list
      */
-    public List<Team> getAllTeams() {
-        return new ArrayList<>(teams.values());
+    public synchronized List<Team> getAllTeams() {
+        return new ArrayList<>(teams.values().stream().map(FileAppDataAccessObject::copyTeam).toList());
     }
 
     // ------------------------------------------------------------------
@@ -246,15 +390,20 @@ public class FileAppDataAccessObject implements AppDataStore {
      *
      * @param record the record to save
      */
-    public void saveAttendance(AttendanceRecord record) {
-        final List<AttendanceRecord> updated = new ArrayList<>(attendance);
-        updated.removeIf(existing ->
+    public synchronized void saveAttendance(AttendanceRecord record) {
+        final List<AttendanceRecord> previous = new ArrayList<>(attendance);
+        attendance.removeIf(existing ->
                 existing.getEventId().equals(record.getEventId())
                         && existing.getPlayerUsername().equals(record.getPlayerUsername()));
-        updated.add(record);
-        writeDocument(users, teams, events, updated, announcements);
-        attendance.clear();
-        attendance.addAll(updated);
+        attendance.add(record);
+        try {
+            persist();
+        }
+        catch (RuntimeException ex) {
+            attendance.clear();
+            attendance.addAll(previous);
+            throw ex;
+        }
     }
 
     /**
@@ -263,7 +412,7 @@ public class FileAppDataAccessObject implements AppDataStore {
      * @param eventId the event id
      * @return the matching records
      */
-    public List<AttendanceRecord> getAttendanceFor(String eventId) {
+    public synchronized List<AttendanceRecord> getAttendanceFor(String eventId) {
         final List<AttendanceRecord> matches = new ArrayList<>();
         for (AttendanceRecord record : attendance) {
             if (record.getEventId().equals(eventId)) {
@@ -279,20 +428,24 @@ public class FileAppDataAccessObject implements AppDataStore {
 
     /** Saves a new announcement without replacing an existing announcement. */
     @Override
-    public void saveAnnouncement(Announcement announcement) {
+    public synchronized void saveAnnouncement(Announcement announcement) {
         final String announcementId = announcement.getAnnouncementId();
         if (announcements.containsKey(announcementId)) {
             throw new IllegalStateException("An announcement already exists with id " + announcementId);
         }
-        final Map<String, Announcement> updated = new LinkedHashMap<>(announcements);
-        updated.put(announcementId, announcement);
-        writeDocument(users, teams, events, attendance, updated);
         announcements.put(announcementId, announcement);
+        try {
+            persist();
+        }
+        catch (RuntimeException ex) {
+            announcements.remove(announcementId);
+            throw ex;
+        }
     }
 
     /** Returns a separate list containing only the requested team's announcements. */
     @Override
-    public List<Announcement> getAnnouncementsForTeam(String teamId) {
+    public synchronized List<Announcement> getAnnouncementsForTeam(String teamId) {
         final List<Announcement> matches = new ArrayList<>();
         for (Announcement announcement : announcements.values()) {
             if (announcement.getTeamId().equals(teamId)) {
@@ -300,6 +453,171 @@ public class FileAppDataAccessObject implements AppDataStore {
             }
         }
         return matches;
+    }
+
+    // ------------------------------------------------------------------
+    // Parent access and communication
+    // ------------------------------------------------------------------
+
+    /** Returns account choices for the authorized parent-link use case. */
+    public synchronized List<User> getAllUsers() {
+        return new ArrayList<>(users.values());
+    }
+
+    /** Returns a snapshot of the administrator-maintained family links. */
+    public synchronized List<ParentPlayerLink> getParentPlayerLinks() {
+        return new ArrayList<>(parentLinks.values());
+    }
+
+    /** Returns only the players explicitly linked to this parent. */
+    public synchronized List<String> getLinkedPlayerUsernames(String parentUsername) {
+        return parentLinks.values().stream()
+                .filter(link -> link.getParentUsername().equals(parentUsername))
+                .map(ParentPlayerLink::getPlayerUsername).toList();
+    }
+
+    /** Adds a family link only after its complete store has been written. */
+    public synchronized void saveParentPlayerLink(ParentPlayerLink link) {
+        final List<String> key = List.of(link.getParentUsername(), link.getPlayerUsername());
+        if (parentLinks.containsKey(key)) {
+            return;
+        }
+        parentLinks.put(key, link);
+        try {
+            persist();
+        }
+        catch (RuntimeException ex) {
+            parentLinks.remove(key);
+            throw ex;
+        }
+    }
+
+    /** Revokes one explicit link while preserving other family members. */
+    public synchronized void deleteParentPlayerLink(String parentUsername, String playerUsername) {
+        final List<String> key = List.of(parentUsername, playerUsername);
+        final ParentPlayerLink previous = parentLinks.remove(key);
+        if (previous == null) {
+            return;
+        }
+        try {
+            persist();
+        }
+        catch (RuntimeException ex) {
+            parentLinks.put(key, previous);
+            throw ex;
+        }
+    }
+
+    /** Returns notices for the use case to scope to the current parent or coach. */
+    public synchronized List<AbsenceNotice> getAbsenceNotices() {
+        return new ArrayList<>(absenceNotices.values());
+    }
+
+    /** Updates a parent's own notice for the same child and event. */
+    public synchronized void saveAbsenceNotice(AbsenceNotice notice) {
+        final AbsenceNotice previous = absenceNotices.get(notice.getNoticeId());
+        if (previous != null && !sameNotice(previous, notice)) {
+            throw new IllegalStateException("That notice identifier belongs to a different absence.");
+        }
+        for (AbsenceNotice stored : absenceNotices.values()) {
+            if (!stored.getNoticeId().equals(notice.getNoticeId()) && sameNotice(stored, notice)) {
+                throw new IllegalStateException("A notice already exists for this parent, child and event.");
+            }
+        }
+        absenceNotices.put(notice.getNoticeId(), notice);
+        try {
+            persist();
+        }
+        catch (RuntimeException ex) {
+            restore(absenceNotices, notice.getNoticeId(), previous);
+            throw ex;
+        }
+    }
+
+    /** Returns the durable event-change history for authorized feed readers. */
+    public synchronized List<EventNotification> getEventNotifications() {
+        return new ArrayList<>(eventNotifications.values());
+    }
+
+    private static boolean sameNotice(AbsenceNotice first, AbsenceNotice second) {
+        return first.getParentUsername().equals(second.getParentUsername())
+                && first.getPlayerUsername().equals(second.getPlayerUsername())
+                && first.getEventId().equals(second.getEventId());
+    }
+
+    private static Event copyEvent(Event event) {
+        final Event copy = new Event(event.getEventId(), event.getTeamId(), event.getType(),
+                event.getDateTime(), event.getLocation(), event.getOpponent());
+        if (event.isCancelled()) {
+            copy.cancel();
+        }
+        return copy;
+    }
+
+    private static Team copyTeam(Team team) {
+        final Team copy = new Team(team.getTeamId(), team.getName(), team.getSport(), team.getCoachUsername());
+        for (String player : team.getPlayerUsernames()) {
+            copy.addPlayer(player);
+        }
+        return copy;
+    }
+
+    /** Distinguishes a new store from any existing accounts, records or extension data. */
+    public synchronized boolean isEmpty() {
+        return storedDocument.isEmpty() && users.isEmpty() && teams.isEmpty() && events.isEmpty()
+                && attendance.isEmpty() && announcements.isEmpty() && parentLinks.isEmpty()
+                && absenceNotices.isEmpty() && eventNotifications.isEmpty();
+    }
+
+    /** Creates the complete demo in one durable write, and leaves existing stores intact. */
+    public synchronized boolean initializeDemoData(List<User> demoUsers, List<Team> demoTeams,
+                                                   List<Event> demoEvents, List<ParentPlayerLink> demoLinks,
+                                                   List<Announcement> demoAnnouncements,
+                                                   List<AbsenceNotice> demoNotices) {
+        if (!isEmpty()) {
+            return false;
+        }
+        try {
+            demoUsers.forEach(user -> users.put(user.getUsername(), user));
+            demoTeams.forEach(team -> teams.put(team.getTeamId(), copyTeam(team)));
+            demoLinks.forEach(link -> parentLinks.put(
+                    List.of(link.getParentUsername(), link.getPlayerUsername()), link));
+            demoAnnouncements.forEach(announcement -> announcements.put(announcement.getAnnouncementId(), announcement));
+            demoNotices.forEach(notice -> absenceNotices.put(notice.getNoticeId(), notice));
+            for (Event event : demoEvents) {
+                final EventNotification notification = notificationFor(null, event);
+                events.put(event.getEventId(), copyEvent(event));
+                eventNotifications.put(notification.getNotificationId(), notification);
+            }
+            persist();
+            return true;
+        }
+        catch (RuntimeException ex) {
+            users.clear();
+            teams.clear();
+            events.clear();
+            parentLinks.clear();
+            announcements.clear();
+            absenceNotices.clear();
+            eventNotifications.clear();
+            throw ex;
+        }
+    }
+
+    private EventNotification notificationFor(Event previous, Event current) {
+        final Team team = teams.get(current.getTeamId());
+        return EventChangeNotifications.between(previous, current,
+                team == null ? current.getTeamId() : team.getName());
+    }
+
+    /** Restores the original entry when a durable write fails. */
+    private static <K, V> void restore(Map<K, V> map, K key, V previous) {
+        if (previous == null) {
+            map.remove(key);
+        }
+        else {
+            map.put(key, previous);
+        }
     }
 
     // ------------------------------------------------------------------
@@ -350,6 +668,32 @@ public class FileAppDataAccessObject implements AppDataStore {
                     throw new InvalidStoreException("Duplicate announcement id in " + file);
                 }
             }
+            final JSONArray linksJson = arrayOrEmpty(root, PARENT_LINKS);
+            for (int i = 0; i < linksJson.length(); i++) {
+                final ParentPlayerLink link = EntityJsonMapper.parentPlayerLinkFromJson(linksJson.getJSONObject(i));
+                final List<String> key = List.of(link.getParentUsername(), link.getPlayerUsername());
+                if (parentLinks.putIfAbsent(key, link) != null) {
+                    throw new InvalidStoreException("Duplicate parent-player link in " + file);
+                }
+            }
+            final JSONArray noticesJson = arrayOrEmpty(root, ABSENCE_NOTICES);
+            for (int i = 0; i < noticesJson.length(); i++) {
+                final AbsenceNotice notice = EntityJsonMapper.absenceNoticeFromJson(noticesJson.getJSONObject(i));
+                if (absenceNotices.values().stream().anyMatch(existing -> sameNotice(existing, notice))) {
+                    throw new InvalidStoreException("Duplicate absence for the same parent, child and event in " + file);
+                }
+                if (absenceNotices.putIfAbsent(notice.getNoticeId(), notice) != null) {
+                    throw new InvalidStoreException("Duplicate absence notice in " + file);
+                }
+            }
+            final JSONArray notificationsJson = arrayOrEmpty(root, EVENT_NOTIFICATIONS);
+            for (int i = 0; i < notificationsJson.length(); i++) {
+                final EventNotification notification = EntityJsonMapper.eventNotificationFromJson(
+                        notificationsJson.getJSONObject(i));
+                if (eventNotifications.putIfAbsent(notification.getNotificationId(), notification) != null) {
+                    throw new InvalidStoreException("Duplicate notification in " + file);
+                }
+            }
             storedDocument = root;
         }
         catch (IOException ex) {
@@ -386,6 +730,9 @@ public class FileAppDataAccessObject implements AppDataStore {
         events.clear();
         attendance.clear();
         announcements.clear();
+        parentLinks.clear();
+        absenceNotices.clear();
+        eventNotifications.clear();
         storedDocument = new JSONObject();
 
         final Path target = file.toAbsolutePath();
@@ -413,55 +760,65 @@ public class FileAppDataAccessObject implements AppDataStore {
      * Writes the whole store back to disk, creating folders if needed, and only
      * then records it as what the next write starts from.
      *
-     * Every saver passes the section it is changing and commits that change to
-     * memory after this returns, so a write that fails leaves the store exactly
-     * as it was: nothing is readable that could not be saved, and the next save
-     * cannot write a change the user was told had failed.
-     *
-     * @param usersToWrite         the accounts to write
-     * @param teamsToWrite         the teams to write
-     * @param eventsToWrite        the events to write
-     * @param attendanceToWrite    the attendance records to write
-     * @param announcementsToWrite the announcements to write
+     * Every saver puts its change into memory first and puts the previous state
+     * back if this throws, so a write that fails leaves the store exactly as it
+     * was: nothing is readable that could not be saved, and the next save cannot
+     * write a change the user was told had failed. Callers are synchronized.
      */
-    private void writeDocument(Map<String, User> usersToWrite,
-                               Map<String, Team> teamsToWrite,
-                               Map<String, Event> eventsToWrite,
-                               List<AttendanceRecord> attendanceToWrite,
-                               Map<String, Announcement> announcementsToWrite) {
+    private void persist() {
         final JSONObject root = new JSONObject(storedDocument.toString());
 
         final JSONArray usersJson = new JSONArray();
-        for (User user : usersToWrite.values()) {
+        for (User user : users.values()) {
             usersJson.put(withStoredFields(USERS, EntityJsonMapper.toJson(user), "username"));
         }
         root.put(USERS, usersJson);
 
         final JSONArray teamsJson = new JSONArray();
-        for (Team team : teamsToWrite.values()) {
+        for (Team team : teams.values()) {
             teamsJson.put(withStoredFields(TEAMS, EntityJsonMapper.toJson(team), "teamId"));
         }
         root.put(TEAMS, teamsJson);
 
         final JSONArray eventsJson = new JSONArray();
-        for (Event event : eventsToWrite.values()) {
+        for (Event event : events.values()) {
             eventsJson.put(withStoredFields(EVENTS, EntityJsonMapper.toJson(event), "eventId"));
         }
         root.put(EVENTS, eventsJson);
 
         final JSONArray attendanceJson = new JSONArray();
-        for (AttendanceRecord record : attendanceToWrite) {
+        for (AttendanceRecord record : attendance) {
             attendanceJson.put(withStoredFields(ATTENDANCE, EntityJsonMapper.toJson(record),
                     "eventId", "playerUsername"));
         }
         root.put(ATTENDANCE, attendanceJson);
 
         final JSONArray announcementsJson = new JSONArray();
-        for (Announcement announcement : announcementsToWrite.values()) {
+        for (Announcement announcement : announcements.values()) {
             announcementsJson.put(withStoredFields(ANNOUNCEMENTS, EntityJsonMapper.toJson(announcement),
                     "announcementId"));
         }
         root.put(ANNOUNCEMENTS, announcementsJson);
+
+        final JSONArray linksJson = new JSONArray();
+        for (ParentPlayerLink link : parentLinks.values()) {
+            linksJson.put(withStoredFields(PARENT_LINKS, EntityJsonMapper.toJson(link),
+                    "parentUsername", "playerUsername"));
+        }
+        root.put(PARENT_LINKS, linksJson);
+
+        final JSONArray noticesJson = new JSONArray();
+        for (AbsenceNotice notice : absenceNotices.values()) {
+            noticesJson.put(withStoredFields(ABSENCE_NOTICES, EntityJsonMapper.toJson(notice), "noticeId"));
+        }
+        root.put(ABSENCE_NOTICES, noticesJson);
+
+        final JSONArray notificationsJson = new JSONArray();
+        for (EventNotification notification : eventNotifications.values()) {
+            notificationsJson.put(withStoredFields(EVENT_NOTIFICATIONS, EntityJsonMapper.toJson(notification),
+                    "notificationId"));
+        }
+        root.put(EVENT_NOTIFICATIONS, notificationsJson);
 
         try {
             writeAtomically(root.toString(2));

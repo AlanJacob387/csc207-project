@@ -39,11 +39,12 @@ public class ViewAnnouncementsInteractor implements ViewAnnouncementsInputBounda
                 return;
             }
 
-            // Parent access remains closed until an authorized parent/player link is available.
-            final List<Team> teams = user.getRole() == Role.PARENT ? List.of()
+            final List<String> children = user.getRole() == Role.PARENT
+                    ? dataAccess.getLinkedPlayerUsernames(user.getUsername()) : List.of();
+            final List<Team> teams = user.getRole() == Role.PARENT && children.isEmpty() ? List.of()
                     : dataAccess.getAllTeams().stream()
                             .filter(Objects::nonNull)
-                            .filter(team -> canRead(user, team))
+                            .filter(team -> canRead(user, team, children))
                             .sorted(Comparator.comparing(Team::getName).thenComparing(Team::getTeamId))
                             .toList();
             final List<ViewAnnouncementsOutputData.TeamData> teamData = teams.stream()
@@ -91,12 +92,15 @@ public class ViewAnnouncementsInteractor implements ViewAnnouncementsInputBounda
     }
 
     /** Applies role and current roster membership before any post query is made. */
-    private static boolean canRead(User user, Team team) {
+    private static boolean canRead(User user, Team team, List<String> children) {
         if (user.getRole() == Role.ADMIN) {
             return true;
         }
         if (user.getRole() == Role.COACH) {
             return user.getUsername().equals(team.getCoachUsername());
+        }
+        if (user.getRole() == Role.PARENT) {
+            return children.stream().anyMatch(team.getPlayerUsernames()::contains);
         }
         return user.getRole() == Role.PLAYER && team.getPlayerUsernames().contains(user.getUsername());
     }

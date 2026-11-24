@@ -12,6 +12,8 @@ import java.awt.GridBagLayout;
 import java.awt.Insets;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
+import java.util.ArrayList;
+import java.util.List;
 
 import javax.swing.BorderFactory;
 import javax.swing.Box;
@@ -33,8 +35,9 @@ import interface_adapter.signup.SignupViewModel;
  *
  * Shares the login page background photo (see {@link BackgroundImage}) and the
  * same white card styling, so the two pages feel like one app. The role dropdown
- * lets the team demo every role without admin tooling; a real deployment would
- * not let new accounts grant themselves ADMIN.
+ * offers the three team roles and never ADMIN: an administrative account comes
+ * from the demo seed or from another administrator's Manage Users page, so the
+ * page cannot be used to grant oneself administration.
  *
  * The view only collects input and shows messages: every decision is made by
  * the Sign Up use case.
@@ -56,7 +59,7 @@ public class SignupView extends JPanel implements PropertyChangeListener {
     private final JTextField displayNameField = new JTextField(18);
     private final JPasswordField passwordField = new JPasswordField(18);
     private final JPasswordField repeatPasswordField = new JPasswordField(18);
-    private final JComboBox<String> roleBox = new JComboBox<>(roleNames());
+    private final JComboBox<String> roleBox = new JComboBox<>(roleChoices());
     private final JLabel messageLabel = new JLabel(" ");
 
     /**
@@ -72,14 +75,36 @@ public class SignupView extends JPanel implements PropertyChangeListener {
         add(buildCard());
     }
 
-    /** Builds the role choices from the Role enum, so the two cannot drift apart. */
-    private static String[] roleNames() {
-        final Role[] roles = Role.values();
-        final String[] names = new String[roles.length];
-        for (int i = 0; i < roles.length; i++) {
-            names[i] = roles[i].name();
+    /**
+     * Builds the role choices from the Role enum, leaving ADMIN out.
+     *
+     * Every other role is still read from the enum, so a role added later cannot
+     * leave this picker behind. ADMIN is withheld on purpose: an account that can
+     * create and re-role others comes from the demo seed or from an administrator,
+     * never from a form anyone can reach. Package-private so a test can read it.
+     *
+     * @return the role names offered at sign-up, in enum order
+     */
+    static String[] roleChoices() {
+        final List<String> names = new ArrayList<>();
+        for (Role role : Role.values()) {
+            if (role != Role.ADMIN) {
+                names.add(role.name());
+            }
         }
-        return names;
+        return names.toArray(new String[0]);
+    }
+
+    /**
+     * The role the picker currently shows.
+     *
+     * A seam for the test that checks the default, so the test does not have to
+     * reach into the component tree.
+     *
+     * @return the selected role name
+     */
+    String selectedRoleName() {
+        return String.valueOf(roleBox.getSelectedItem());
     }
 
     /**

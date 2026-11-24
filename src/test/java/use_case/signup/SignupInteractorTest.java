@@ -124,6 +124,16 @@ class SignupInteractorTest {
     }
 
     @Test
+    void signingUpCannotCreateAnAdministrator() {
+        interactor.execute(new SignupInputData("sneaky", "password1", "password1",
+                "Sneaky", "ADMIN"));
+
+        assertEquals("Administrator accounts are created by an administrator.",
+                presenter.error);
+        assertNull(dataAccess.get("sneaky"));
+    }
+
+    @Test
     void aBrokenStoreIsReportedInsteadOfThrown() {
         final SignupUserDataAccessInterface broken = new SignupUserDataAccessInterface() {
             @Override

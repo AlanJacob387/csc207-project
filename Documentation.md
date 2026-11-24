@@ -81,6 +81,14 @@ names the kept file - the old records stay in that file and are not merged back.
 `AppBuilderTest`, `FileAppDataAccessObjectTest` and
 `FileAnnouncementPersistenceTest` cover both paths against temporary files.
 
+**A failed write changes nothing.** The local store writes the whole document to a
+temporary file and replaces the original only when that succeeds, and it records
+the change in memory only after the write returns. A disk error therefore leaves
+the store exactly as it was, so an action reported as failed cannot reappear on
+the next save of something unrelated. `FileAppDataAccessObjectTest` drives a write
+into a path that cannot be created and asserts that all five sections are still
+empty.
+
 The signed-in user is deliberately not stored: it lives in `Session`, behind the
 `use_case/current_user/CurrentUserInterface` port, so the interactors own the
 session transitions rather than the views.
@@ -88,11 +96,17 @@ session transitions rather than the views.
 **Security note.** Passwords are stored as PBKDF2-HMAC-SHA256 hashes
 (`entity/PasswordHasher`: 120 000 iterations, per-user salt, `pbkdf2$…` format).
 A credential written before hashing existed is still accepted, so an older store
-keeps working, and that fallback is the only place a plaintext value is compared.
+keeps working; that fallback is the only place a plaintext value is compared, and
+the next successful sign-in rewrites the credential as a hash
+(`LoginInteractor.upgradeLegacyCredential`), so a plaintext password cannot stay in
+a readable table simply because its owner never reopened the account.
 The publishable key is meant to ship inside a client and reaches only what row
-level security allows; a **secret** key bypasses row level security, so the app
-refuses one. Anyone who extracts the publishable key inherits the app's own
-permissions, which is why passwords are hashed rather than stored plainly.
+level security allows. A **secret** key bypasses row level security, so the app
+refuses one in either format the dashboard offers - the new `sb_secret_…` prefix
+and the legacy `service_role` JWT - and it refuses a URL that would send the key
+over plain HTTP to anything but this machine. Anyone who extracts the publishable
+key still inherits the app's own permissions (what those are is spelled out in
+§6), which is why passwords are hashed rather than stored plainly.
 `PasswordHasherTest` pins the iteration count, the salt length and the derived key
 length, so a weaker hash cannot pass unnoticed.
 
@@ -155,12 +169,27 @@ sign-in page, paste the project URL and publishable key, test and save
   client connects as the same `anon` role, so the database cannot tell an
   administrator from a player. `AdminPolicy` refuses a non-administrator inside
   each use case and the sidebar only hides the page, so the guard holds in
-  business logic, but a client holding the key could still read the accounts
-  table through REST directly.
+  business logic. Row level security, however, grants `select, insert, update`
+  with `using (true)` on every table, so a client holding the key can also
+  *write*: rewrite any account's credential, give any account `ADMIN`, or change a
+  role without ever signing in. Hashing protects the passwords the app stores; it
+  cannot protect a row someone else replaces. Closing this needs policies that
+  check something the client cannot forge (`auth.uid()` with real Supabase
+  accounts), which is the migration described above.
+- **The demo accounts ship on the shared database.** The first start against a
+  project inserts `coach1`, `player1`, `parent1` and `admin1`, all with password
+  `pw`, because the seed runs for a fresh store and the README needs a way to sign
+  in. That is a default administrative credential on a store anyone with the
+  publishable key can read and write: deactivate or change `admin1` before showing
+  the app outside the course, and remove the demo rows in the SQL editor when the
+  project stops being a demo.
 - **Remote calls run on the Swing event thread**, like every other page. With a
   slow project or a paused one the window waits for the request (5 s to connect,
-  10 s to read) instead of showing a progress state; a background worker for the
-  store is the fix we would make next.
+  10 s to read) instead of showing a progress state. Manage Users is the worst
+  case: one action is up to four calls in sequence (read the caller, check the
+  last administrator, write, then re-read the list), so a paused project can hold
+  the window for about a minute. A background worker for the store is the fix we
+  would make next.
 - **Creating an account validates the username and then upserts.** Two
   administrators submitting the same username in the same moment would have the
   second write replace the first account's credential, because `save` is an
@@ -169,10 +198,13 @@ sign-in page, paste the project URL and publishable key, test and save
 - **Password rules and sign-up are still loose.** Any non-empty password is
   accepted and sign-up admits `ADMIN`, so the administrator page is not the only
   route to an administrative account. Nothing caps a username or a display name
-  outside the administrator page (40 and 60 characters there), so a very long name
-  can be created through sign-up and is then clipped in the account list. One shared
-  password policy, one length rule and a restricted sign-up belong to the 4.3
-  validation pass.
+  outside the administrator page (40 and 60 characters there), and nothing
+  restricts which characters a username may contain. That second gap is not only
+  cosmetic: a comma, parenthesis, colon or asterisk is PostgREST filter syntax, so
+  a username containing one would change what a stored lookup means
+  (`SupabaseAppDataAccessObject.selectWhere` builds `column=eq.<value>` from it).
+  One shared password policy, one character rule and a restricted sign-up belong
+  to the 4.3 validation pass, which closes all three.
 - One role per user (decision D5).
 
 ## 7. API notes

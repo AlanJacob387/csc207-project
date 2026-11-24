@@ -10,10 +10,13 @@ package entity;
  * wording, and the use-case layer turns a refusal into the message it shows
  * (see {@code use_case.accounts.AccountRefusalText}).
  *
- * The rule is applied when an account is created and when a password is
- * changed, never at login. An account written before a rule existed therefore
- * still signs in, which is what keeps an older store usable after a rule gets
- * stricter: only new credentials have to satisfy it.
+ * The rule decides what may be *written*: an account is created and a password is
+ * changed through it, while login only checks a typed password against what is
+ * stored. That is what keeps an account written before a rule existed usable
+ * after the rule gets stricter: an old short password still signs in and is not
+ * rewritten, because the login use case asks this rule before upgrading a
+ * credential and leaves alone anything it would refuse. Only new credentials have
+ * to satisfy the rule.
  */
 public final class AccountRules {
 

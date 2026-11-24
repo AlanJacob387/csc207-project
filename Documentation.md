@@ -33,7 +33,7 @@ Built so far:
 
 | Use case | Slice | View | Tests |
 |---|---|---|---|
-| `login` (UC-A1) | `use_case/login` + `interface_adapter/login` | `LoginView` | `LoginInteractorTest` (11), `LoginViewTest` (2) |
+| `login` (UC-A1) | `use_case/login` + `interface_adapter/login` | `LoginView` | `LoginInteractorTest` (15), `LoginViewTest` (2) |
 | `signup` (UC-A2) | `use_case/signup` + `interface_adapter/signup` | `SignupView` | `SignupInteractorTest` (12), `SignupViewTest` (3) |
 | `logout` (UC-A3) | `use_case/logout` + `interface_adapter/logout` | Log out button in `AppShell` | `LogoutInteractorTest` (2) |
 | `change_password` (UC-A4) | `use_case/change_password` + `interface_adapter/change_password` | `ChangePasswordView` (Account page) | `ChangePasswordInteractorTest` (9), `ChangePasswordViewTest` (3) |
@@ -140,10 +140,14 @@ factory is the only enforcement point, the interactors do not repeat the check.
 Sign up offers `COACH`, `PLAYER` and `PARENT`; `Role.isSelfAssignable()` is the
 rule, the sign-up view model carries the choices, and the use case refuses `ADMIN`
 even if something calls it directly, so an administrative account comes only from
-the demo seed or from another administrator. The rule is applied when a credential
-is written, never at login, which is what keeps an account whose password predates
-it usable. `AccountRulesTest` and `AccountRefusalTextTest` pin the reasons, the
-sentences and every boundary.
+the demo seed or from another administrator. The rule decides what may be
+*written*: login checks a typed password against the stored one and never refuses
+an account for a rule it predates, and the first sign-in re-hashes a plaintext
+credential only when the rule would accept it, so an old short password is left
+alone and keeps working. `AccountRefusalText` words every refusal through a switch
+expression with no `default`, so a reason added to the enum stops the build until
+it has a sentence. `AccountRulesTest` and `AccountRefusalTextTest` pin the
+reasons, the sentences and every boundary.
 
 **Account ports.** Each account use case asks for the capability it uses:
 `use_case.accounts.CreateAccountDataAccessInterface` (insert only),

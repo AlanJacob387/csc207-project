@@ -3,6 +3,7 @@ package app;
 import java.awt.BorderLayout;
 import java.awt.Dimension;
 import java.io.UncheckedIOException;
+import java.util.Set;
 
 import javax.swing.BorderFactory;
 import javax.swing.JFrame;
@@ -17,6 +18,7 @@ import data_access.FileAppDataAccessObject;
 import data_access.SupabaseAppDataAccessObject;
 import entity.Role;
 import entity.Team;
+import entity.User;
 import entity.UserFactory;
 import interface_adapter.Session;
 import interface_adapter.ViewManagerModel;
@@ -50,6 +52,7 @@ import interface_adapter.signup.SignupViewModel;
 import interface_adapter.view_announcements.ViewAnnouncementsController;
 import interface_adapter.view_announcements.ViewAnnouncementsPresenter;
 import interface_adapter.view_announcements.ViewAnnouncementsViewModel;
+import use_case.accounts.DuplicateUsernameException;
 import use_case.change_password.ChangePasswordInteractor;
 import use_case.create_event.CreateEventInteractor;
 import use_case.database_settings.DatabaseSettingsInteractor;
@@ -92,6 +95,10 @@ public class AppBuilder {
 
     /** Id of the demo team seeded on first run. */
     private static final String DEMO_TEAM_ID = "demo-team";
+
+    /** The usernames the demo seed owns; any other account means the store is in real use. */
+    private static final Set<String> DEMO_USERNAMES =
+            Set.of("coach1", "player1", "parent1", "admin1");
 
     // Shared collaborators, created once and handed to whatever needs them.
     private final DatabaseConfig databaseConfig = resolveDatabaseConfig();
@@ -354,18 +361,25 @@ public class AppBuilder {
 
     /**
      * Creates one demo account per role (password "teampass") and a demo team, but
-     * only where they are missing, so the app can be tried straight away.
+     * only while the store holds no account of its own.
+     *
+     * "Of its own" means any account whose username is not one of the four demo
+     * names. Once a real account exists the seed does nothing, so a demo account
+     * an administrator deleted (above all {@code admin1}, which has a published
+     * password) stays deleted instead of coming back on the next start of any
+     * client. A store that holds only demo accounts - a first run, or one that
+     * stopped halfway - is completed, and an account that is already there is
+     * kept as it is.
      *
      * Reports a failure instead of throwing: a store that cannot be reached while
      * the app is starting must still leave the user on the sign-in page, where the
      * reason is shown and the database settings can be corrected. Nothing is
      * swapped for a local file - the caller keeps the store it chose.
      *
-     * Every account is checked separately: a store that already holds a
-     * customised player1 keeps it, instead of being overwritten because only
-     * coach1 had been deleted. The factory hashes each demo password, so a fresh
-     * store never holds plaintext credentials. Replace this with the team's real
-     * seed data (task 4.4).
+     * Each account is inserted, never upserted, so a name another client created
+     * a moment earlier is not overwritten. The factory hashes each demo password,
+     * so a fresh store never holds plaintext credentials. Replace this with the
+     * team's real seed data (task 4.4).
      *
      * @param dataAccess  the store the whole app will use
      * @param userFactory builds and hashes the demo accounts
@@ -373,6 +387,9 @@ public class AppBuilder {
      */
     static String seedDemoDataIfEmpty(AppDataStore dataAccess, UserFactory userFactory) {
         try {
+            if (holdsAnAccountOfItsOwn(dataAccess)) {
+                return "";
+            }
             seedUser(dataAccess, userFactory, "coach1", "Coach One", Role.COACH);
             seedUser(dataAccess, userFactory, "player1", "Pat Player", Role.PLAYER);
             seedUser(dataAccess, userFactory, "parent1", "Sam Parent", Role.PARENT);
@@ -389,6 +406,21 @@ public class AppBuilder {
                     + " Sign-in will fail until it is back.";
         }
         return "";
+    }
+
+    /**
+     * Says whether any stored account is not one of the demo accounts.
+     *
+     * @param dataAccess the store to read
+     * @return true when the store is already in real use
+     */
+    private static boolean holdsAnAccountOfItsOwn(AppDataStore dataAccess) {
+        for (User user : dataAccess.getAllUsers()) {
+            if (!DEMO_USERNAMES.contains(user.getUsername())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -432,9 +464,9 @@ public class AppBuilder {
     }
 
     /**
-     * Inserts one demo account only when that username is still free.
+     * Inserts one demo account, leaving one that is already stored untouched.
      *
-     * @param dataAccess  the store to check and write
+     * @param dataAccess  the store to write
      * @param userFactory builds and hashes the account
      * @param username    the demo username
      * @param displayName the name to show in the app
@@ -442,8 +474,12 @@ public class AppBuilder {
      */
     private static void seedUser(AppDataStore dataAccess, UserFactory userFactory,
                                  String username, String displayName, Role role) {
-        if (!dataAccess.existsByName(username)) {
-            dataAccess.save(userFactory.create(username, DEMO_PASSWORD, displayName, role));
+        try {
+            dataAccess.createUser(userFactory.create(username, DEMO_PASSWORD, displayName, role));
+        }
+        catch (DuplicateUsernameException ex) {
+            // Already there, from an earlier start or another client: keep it as it is.
+            return;
         }
     }
 

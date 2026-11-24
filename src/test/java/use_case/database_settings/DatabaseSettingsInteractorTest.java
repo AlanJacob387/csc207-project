@@ -1,6 +1,7 @@
 package use_case.database_settings;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
@@ -52,6 +53,7 @@ class DatabaseSettingsInteractorTest {
         private int accounts = 4;
         private RuntimeException failure;
         private RuntimeException saveFailure;
+        private RuntimeException currentUrlFailure;
 
         FakeStore(List<String> calls) {
             this.calls = calls;
@@ -86,6 +88,9 @@ class DatabaseSettingsInteractorTest {
 
         @Override
         public String currentUrl() {
+            if (currentUrlFailure != null) {
+                throw currentUrlFailure;
+            }
             return URL;
         }
 
@@ -115,6 +120,31 @@ class DatabaseSettingsInteractorTest {
         assertEquals(URL, presenter.currentUrl);
         assertTrue(presenter.settingsFile.endsWith("database.properties"));
         assertTrue(calls.isEmpty(), "preparing the view must not touch the database");
+    }
+
+    @Test
+    void thePageStillOpensWhenTheSavedSettingsAreRefused() {
+        store.currentUrlFailure = new IllegalStateException("That is a secret key.");
+
+        interactor.prepareView();
+
+        assertEquals("", presenter.currentUrl, "nothing from the refused settings is shown");
+        assertTrue(presenter.settingsFile.endsWith("database.properties"));
+        assertFalse(presenter.result.isOk());
+        assertTrue(presenter.result.getMessage().contains("That is a secret key."),
+                presenter.result.getMessage());
+        assertTrue(presenter.result.getMessage().contains("Enter new ones"),
+                presenter.result.getMessage());
+    }
+
+    @Test
+    void thePageStillOpensWhenTheSettingsFileCannotBeRead() {
+        store.currentUrlFailure = new UncheckedIOException("unreadable", new IOException("x"));
+
+        interactor.prepareView();
+
+        assertEquals("", presenter.currentUrl);
+        assertFalse(presenter.result.isOk());
     }
 
     @Test

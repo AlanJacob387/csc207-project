@@ -30,7 +30,21 @@ public class DatabaseSettingsInteractor implements DatabaseSettingsInputBoundary
 
     @Override
     public void prepareView() {
-        presenter.prepareView(dataAccess.currentUrl(), dataAccess.settingsFile());
+        final String settingsFile = dataAccess.settingsFile();
+        final String currentUrl;
+        try {
+            currentUrl = dataAccess.currentUrl();
+        }
+        catch (IllegalStateException | UncheckedIOException ex) {
+            // This page is where a bad saved setting gets corrected, so it has to open
+            // anyway: show it empty and say why the saved values are not in use.
+            presenter.prepareView("", settingsFile);
+            presenter.prepareResult(new DatabaseSettingsOutputData(false,
+                    "The saved connection settings cannot be used: " + ex.getMessage()
+                            + " Enter new ones and save."));
+            return;
+        }
+        presenter.prepareView(currentUrl, settingsFile);
     }
 
     @Override

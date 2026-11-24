@@ -2,8 +2,6 @@ package data_access;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
@@ -41,9 +39,6 @@ final class PostgrestClient {
 
     /** How much of an answer a message shows. */
     private static final int BODY_PREVIEW = 240;
-
-    /** Characters PostgREST reads as filter syntax, so a value containing one is quoted. */
-    private static final String RESERVED_FILTER_CHARACTERS = ",.:*()";
 
     private static final MediaType JSON = MediaType.get("application/json; charset=utf-8");
 
@@ -89,37 +84,20 @@ final class PostgrestClient {
      * Adds an equality filter to a route, so every filtered read goes through one
      * place and no caller has to remember how a value has to be written.
      *
+     * The value is percent-encoded as one query parameter and otherwise sent as it
+     * is, the way the Supabase client libraries send an {@code eq} filter. It is
+     * not wrapped in quotes: PostgREST's reserved characters (comma, dot, colon,
+     * asterisk, parentheses) only matter inside the list forms ({@code in},
+     * {@code or}, {@code and}), which this client never builds, so a name such as
+     * {@code pat.smith} is compared as {@code pat.smith}.
+     *
      * @param url    the route being built
      * @param column the column to compare
      * @param value  the value to compare against
      * @return the same builder, with the filter added
      */
     HttpUrl.Builder where(HttpUrl.Builder url, String column, String value) {
-        return url.addEncodedQueryParameter(column, "eq." + encodedFilterValue(value));
-    }
-
-    /**
-     * Renders a value for the query string: percent-encoded, and wrapped in the
-     * double quotes PostgREST's URL grammar requires when the value contains a
-     * character it would otherwise read as syntax.
-     *
-     * A dot is the case that matters here, because {@code AccountRules} allows it
-     * in a username: {@code pat.smith} has to travel as {@code %22pat.smith%22} so
-     * the database compares it literally instead of treating the dot as part of
-     * the operator. A value with no reserved character is sent as it is, which
-     * keeps every existing query readable.
-     *
-     * @param value the value to compare against
-     * @return the percent-encoded value, quoted when it contains a reserved character
-     */
-    static String encodedFilterValue(String value) {
-        final String encoded = URLEncoder.encode(value, StandardCharsets.UTF_8);
-        for (int i = 0; i < value.length(); i++) {
-            if (RESERVED_FILTER_CHARACTERS.indexOf(value.charAt(i)) >= 0) {
-                return "%22" + encoded + "%22";
-            }
-        }
-        return encoded;
+        return url.addQueryParameter(column, "eq." + value);
     }
 
     /**
@@ -146,6 +124,31 @@ final class PostgrestClient {
                 .post(RequestBody.create(row.toString(), JSON))
                 .header("Prefer", "resolution=merge-duplicates,return=minimal")
                 .build(), "the write to " + table);
+    }
+
+    /**
+     * Changes some columns of the rows where one column has a value, and says how
+     * many rows that was.
+     *
+     * Only the named columns are sent, so everything else in the row is left as
+     * the database holds it. The answer asks for the key column back so a PATCH
+     * that matched nothing - which PostgREST reports as a success - can be told
+     * apart from one that changed a row.
+     *
+     * @param table   the table to change
+     * @param column  the column to match
+     * @param value   the value to match
+     * @param columns the new values
+     * @param what    what the write is, for a message
+     * @return the number of rows that matched
+     */
+    int update(String table, String column, String value, JSONObject columns, String what) {
+        final HttpUrl url = where(tableUrl(table).addQueryParameter("select", column),
+                column, value).build();
+        return parseArray(execute(request(url)
+                .patch(RequestBody.create(columns.toString(), JSON))
+                .header("Prefer", "return=representation")
+                .build(), what)).length();
     }
 
     /**

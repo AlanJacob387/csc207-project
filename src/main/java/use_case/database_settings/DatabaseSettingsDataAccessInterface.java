@@ -33,6 +33,9 @@ public interface DatabaseSettingsDataAccessInterface {
      * The URL that is already configured.
      *
      * @return the URL, or an empty string when nothing is configured
+     * @throws IllegalStateException when settings are configured but cannot be used:
+     *                               the file cannot be read, or it holds a key or URL
+     *                               the rules refuse
      */
     String currentUrl();
 

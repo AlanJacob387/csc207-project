@@ -22,6 +22,7 @@ import org.json.JSONObject;
 import entity.Announcement;
 import entity.AttendanceRecord;
 import entity.Event;
+import entity.Role;
 import entity.Team;
 import entity.User;
 import use_case.accounts.DuplicateUsernameException;
@@ -135,6 +136,24 @@ public class FileAppDataAccessObject implements AppDataStore {
         updated.put(user.getUsername(), user);
         writeDocument(updated, teams, events, attendance, announcements);
         users.put(user.getUsername(), user);
+    }
+
+    @Override
+    public void updateRole(String username, Role role) {
+        save(existing(username).withRole(role));
+    }
+
+    @Override
+    public void updateActive(String username, boolean active) {
+        save(existing(username).withActive(active));
+    }
+
+    private User existing(String username) {
+        final User user = users.get(username);
+        if (user == null) {
+            throw new IllegalStateException("No account found for " + username + ".");
+        }
+        return user;
     }
 
     /**

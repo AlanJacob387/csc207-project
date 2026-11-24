@@ -138,12 +138,21 @@ class SupabaseAppDataAccessObjectTest {
     }
 
     @Test
-    void aUsernameWithAFilterCharacterIsQuotedOnTheWire() {
+    void aDottedUsernameIsSentAsItIsNotQuoted() {
         assertNull(store.get("pat.smith"));
 
-        assertEquals("select=*&username=eq.%22pat.smith%22&limit=1", only().rawQuery,
-                "a dot is PostgREST syntax, so the value has to arrive quoted as %22...%22 "
-                        + "to be compared literally");
+        assertEquals("select=*&username=eq.pat.smith&limit=1", only().rawQuery,
+                "an eq filter takes everything after the operator, so a dot needs no quotes; "
+                        + "quotes would be compared as part of the value");
+    }
+
+    @Test
+    void aValueThatIsQueryStringSyntaxStaysOneParameter() {
+        assertNull(store.get("a b&c=d,e\"f"));
+
+        assertEquals("select=*&username=eq.a%20b%26c%3Dd%2Ce%22f&limit=1", only().rawQuery,
+                "an ampersand or equals sign in a value must not start another parameter");
+        assertEquals("select=*&username=eq.a b&c=d,e\"f&limit=1", only().query);
     }
 
     @Test
@@ -160,6 +169,44 @@ class SupabaseAppDataAccessObjectTest {
         assertEquals("p1", sent.getString("username"));
         assertEquals("hash", sent.getString("password"));
         assertFalse(sent.getBoolean("active"));
+    }
+
+    @Test
+    void changingARolePatchesOnlyThatColumnOfThatRow() {
+        respond(200, "[{\"username\":\"p1\"}]");
+
+        store.updateRole("p1", Role.COACH);
+
+        final Recorded call = only();
+        assertEquals("PATCH", call.method);
+        assertEquals("/rest/v1/users", call.path);
+        assertEquals("select=username&username=eq.p1", call.query);
+        assertEquals("return=representation", call.prefer);
+        final JSONObject sent = new JSONObject(call.body);
+        assertEquals(1, sent.length(), "no credential or name may travel with a role change");
+        assertEquals("COACH", sent.getString("role"));
+    }
+
+    @Test
+    void changingTheStatusPatchesOnlyTheActiveColumn() {
+        respond(200, "[{\"username\":\"p1\"}]");
+
+        store.updateActive("p1", false);
+
+        final JSONObject sent = new JSONObject(only().body);
+        assertEquals(1, sent.length());
+        assertFalse(sent.getBoolean("active"));
+    }
+
+    @Test
+    void aPatchThatMatchedNoRowIsReportedBecausePostgrestCallsItASuccess() {
+        respond(200, "[]");
+
+        final IllegalStateException thrown = assertThrows(IllegalStateException.class,
+                () -> store.updateRole("ghost", Role.COACH));
+
+        assertTrue(thrown.getMessage().contains("No account found for ghost"),
+                thrown.getMessage());
     }
 
     @Test
@@ -272,12 +319,12 @@ class SupabaseAppDataAccessObjectTest {
     }
 
     @Test
-    void theAnnouncementFilterQuotesATeamIdThatNeedsItToo() {
+    void theAnnouncementFilterSendsATeamIdTheSameWayAsAnAccountLookup() {
         store.getAnnouncementsForTeam("demo.team");
 
-        assertEquals("select=*&teamId=eq.%22demo.team%22&order=createdAt.asc", only().rawQuery,
-                "every filtered read has to quote through the same helper, not just the "
-                        + "account lookups");
+        assertEquals("select=*&teamId=eq.demo.team&order=createdAt.asc", only().rawQuery,
+                "every filtered read goes through PostgrestClient.where, so a dotted id is "
+                        + "sent unquoted exactly like a dotted username");
     }
 
     // ------------------------------------------------------------------

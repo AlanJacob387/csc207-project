@@ -71,6 +71,19 @@ class HostedStoreContractTest extends AppDataStoreContractTest {
                 respond(exchange, 200, select(query).toString());
                 return;
             }
+            if ("PATCH".equals(exchange.getRequestMethod())) {
+                final JSONObject patch = new JSONObject(new String(
+                        exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+                final JSONArray changed = new JSONArray();
+                for (JSONObject match : matching(query)) {
+                    for (String key : patch.keySet()) {
+                        match.put(key, patch.get(key));
+                    }
+                    changed.put(new JSONObject().put("username", match.getString("username")));
+                }
+                respond(exchange, 200, changed.toString());
+                return;
+            }
             final JSONObject row = new JSONObject(new String(
                     exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
             final String username = row.getString("username");
@@ -85,6 +98,16 @@ class HostedStoreContractTest extends AppDataStoreContractTest {
                 rows.put(username, row);
                 respond(exchange, 201, "");
             }
+        }
+
+        /** The stored rows the username filter selects, or every row without one. */
+        private java.util.List<JSONObject> matching(String query) {
+            final java.util.List<JSONObject> matches = new java.util.ArrayList<>();
+            final JSONArray selected = select(query);
+            for (int i = 0; i < selected.length(); i++) {
+                matches.add(selected.getJSONObject(i));
+            }
+            return matches;
         }
 
         /** Applies the username filter the store asked for, if any. */

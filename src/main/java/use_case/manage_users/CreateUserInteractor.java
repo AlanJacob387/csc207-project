@@ -83,17 +83,23 @@ public class CreateUserInteractor implements CreateUserInputBoundary {
             }
             dataAccess.createUser(userFactory.create(username, password,
                     displayName.isEmpty() ? username : displayName, role));
-            presenter.prepareSuccessView(ManageUsersOutputData.of(
-                    "Account created for " + username + ".", dataAccess.getAllUsers()));
         }
         catch (DuplicateUsernameException ex) {
             presenter.prepareFailView("That username is already taken.");
+            return;
         }
         catch (InvalidAccountException ex) {
             presenter.prepareFailView(AccountRefusalText.forRefusal(ex.getRefusal()));
+            return;
         }
         catch (IllegalStateException | UncheckedIOException ex) {
             presenter.prepareFailView("Could not save the account: " + ex.getMessage());
+            return;
         }
+
+        // Outside the try above: the account is stored by now, so a failure to read the
+        // list back must not be reported as a failure to save it.
+        AccountListReport.show(presenter, "Account created for " + username + ".",
+                dataAccess::getAllUsers);
     }
 }

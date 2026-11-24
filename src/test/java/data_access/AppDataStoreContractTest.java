@@ -95,4 +95,53 @@ abstract class AppDataStoreContractTest {
         assertFalse(store.existsByName(""));
         assertEquals(2, store.getAllUsers().size());
     }
+
+    @Test
+    void updatingTheRoleChangesOnlyTheRole() {
+        final AppDataStore store = newStore();
+        store.createUser(account("p1", "Pat Player", Role.PLAYER));
+
+        store.updateRole("p1", Role.COACH);
+
+        final User stored = store.get("p1");
+        assertEquals(Role.COACH, stored.getRole());
+        assertEquals("Pat Player", stored.getDisplayName());
+        assertEquals("pbkdf2$1000$c2FsdA==$aGFzaA==", stored.getPassword(),
+                "a role change must not touch the credential");
+        assertTrue(stored.isActive());
+    }
+
+    @Test
+    void updatingTheStatusChangesOnlyTheStatusAndItIsReversible() {
+        final AppDataStore store = newStore();
+        store.createUser(account("p1", "Pat Player", Role.PLAYER));
+
+        store.updateActive("p1", false);
+        assertFalse(store.get("p1").isActive());
+        assertEquals(Role.PLAYER, store.get("p1").getRole());
+        assertEquals("pbkdf2$1000$c2FsdA==$aGFzaA==", store.get("p1").getPassword());
+
+        store.updateActive("p1", true);
+        assertTrue(store.get("p1").isActive());
+    }
+
+    @Test
+    void updatingAnAccountThatIsNotStoredIsRefused() {
+        final AppDataStore store = newStore();
+
+        assertThrows(IllegalStateException.class, () -> store.updateRole("ghost", Role.COACH));
+        assertThrows(IllegalStateException.class, () -> store.updateActive("ghost", false));
+        assertFalse(store.existsByName("ghost"), "a refused update must not create the account");
+    }
+
+    @Test
+    void aUsernameWithADotIsFoundAgainByItsExactName() {
+        final AppDataStore store = newStore();
+        store.createUser(account("pat.smith", "Pat Smith", Role.PLAYER));
+        store.createUser(account("pat", "Pat Only", Role.PLAYER));
+
+        assertEquals("Pat Smith", store.get("pat.smith").getDisplayName());
+        assertEquals("Pat Only", store.get("pat").getDisplayName());
+        assertTrue(store.existsByName("pat.smith"));
+    }
 }

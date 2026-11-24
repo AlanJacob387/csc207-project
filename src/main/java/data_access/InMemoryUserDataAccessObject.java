@@ -5,6 +5,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import entity.Role;
 import entity.User;
 import use_case.accounts.DuplicateUsernameException;
 import use_case.change_password.ChangePasswordUserDataAccessInterface;
@@ -58,5 +59,23 @@ public class InMemoryUserDataAccessObject
     @Override
     public List<User> getAllUsers() {
         return new ArrayList<>(users.values());
+    }
+
+    @Override
+    public void updateRole(String username, Role role) {
+        users.put(username, existing(username).withRole(role));
+    }
+
+    @Override
+    public void updateActive(String username, boolean active) {
+        users.put(username, existing(username).withActive(active));
+    }
+
+    private User existing(String username) {
+        final User user = users.get(username);
+        if (user == null) {
+            throw new IllegalStateException("No account found for " + username + ".");
+        }
+        return user;
     }
 }

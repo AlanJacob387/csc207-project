@@ -85,4 +85,23 @@ final class AdminPolicy {
         }
         return activeAdmins <= 1;
     }
+
+    /**
+     * Says whether at least one account is an active administrator.
+     *
+     * Run after a write that removed an administrator, to catch what the check
+     * before the write cannot: two administrators removing each other in the same
+     * moment each saw the other still active.
+     *
+     * @param accounts every stored account
+     * @return true when someone can still administer
+     */
+    static boolean hasActiveAdmin(List<User> accounts) {
+        for (User account : accounts) {
+            if (account.isActive() && account.getRole() == Role.ADMIN) {
+                return true;
+            }
+        }
+        return false;
+    }
 }

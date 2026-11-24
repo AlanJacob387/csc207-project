@@ -2,6 +2,7 @@ package app;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
@@ -59,11 +60,59 @@ class AppBuilderTest {
     }
 
     @Test
+    void aDeletedDemoAccountStaysDeletedOnceTheStoreHoldsARealAccount() {
+        final FileAppDataAccessObject store = store();
+        store.createUser(new UserFactory().create("real.coach", "a-real-password", "Real Coach",
+                Role.COACH));
+
+        assertEquals("", AppBuilder.seedDemoDataIfEmpty(store, new UserFactory()));
+
+        assertEquals(1, store.getAllUsers().size(),
+                "admin1 has a published password, so it must not be re-created beside real data");
+        assertNull(store.get("admin1"));
+        assertNull(store.getTeam("demo-team"));
+    }
+
+    @Test
+    void aStoreThatHoldsOnlyDemoAccountsIsCompletedAndKeepsWhatIsThere() {
+        final FileAppDataAccessObject store = store();
+        store.createUser(new UserFactory().create("coach1", "kept-password", "Coach Kept",
+                Role.COACH));
+
+        assertEquals("", AppBuilder.seedDemoDataIfEmpty(store, new UserFactory()));
+
+        assertEquals(4, store.getAllUsers().size());
+        assertEquals("Coach Kept", store.get("coach1").getDisplayName());
+        assertTrue(store.get("coach1").matches("kept-password"), "an existing account is not reset");
+        assertNotNull(store.get("admin1"));
+        assertNotNull(store.getTeam("demo-team"));
+    }
+
+    @Test
+    void anAccountAnotherClientCreatedFirstIsKeptNotOverwritten() {
+        final FileAppDataAccessObject store = new FileAppDataAccessObject(
+                tempDir.resolve("race.json")) {
+            @Override
+            public void createUser(User user) {
+                if ("player1".equals(user.getUsername())) {
+                    throw new use_case.accounts.DuplicateUsernameException("player1");
+                }
+                super.createUser(user);
+            }
+        };
+
+        assertEquals("", AppBuilder.seedDemoDataIfEmpty(store, new UserFactory()));
+
+        assertNotNull(store.get("admin1"), "the seed carries on past a name that was taken");
+        assertNull(store.get("player1"));
+    }
+
+    @Test
     void anUnreachableStoreIsReportedInsteadOfThrown() {
         final FileAppDataAccessObject unreachable =
                 new FileAppDataAccessObject(tempDir.resolve("unreachable.json")) {
                     @Override
-                    public boolean existsByName(String username) {
+                    public java.util.List<User> getAllUsers() {
                         throw new UncheckedIOException("connection refused",
                                 new IOException("refused"));
                     }

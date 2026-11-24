@@ -2,13 +2,14 @@ package use_case.manage_users;
 
 import java.util.List;
 
+import entity.Role;
 import entity.User;
 import use_case.accounts.GetAccountDataAccessInterface;
 
 /**
  * Data access required by the Manage Users use cases that read and change
- * existing accounts: the account list, one account, the username check and a
- * save that replaces a stored account.
+ * existing accounts: the account list, one account, the username check and two
+ * updates that each change one field of a stored account.
  *
  * Creating an account is a separate capability
  * ({@link CreateUserDataAccessInterface}, and behind it
@@ -33,12 +34,24 @@ public interface ManageUsersDataAccessInterface extends GetAccountDataAccessInte
     boolean existsByName(String username);
 
     /**
-     * Saves an account, replacing the stored one with the same username.
+     * Changes the role of a stored account and nothing else.
      *
-     * Used for changes to an account that already exists - a new role, a new
-     * status - never for creation.
+     * Only the role is written, so a password the account's owner changed after
+     * the caller last read it is not put back; a whole-row save would restore the
+     * old credential.
      *
-     * @param user the account to save
+     * @param username the account to change
+     * @param role     the new role
+     * @throws IllegalStateException when no such account is stored any more
      */
-    void save(User user);
+    void updateRole(String username, Role role);
+
+    /**
+     * Activates or deactivates a stored account and changes nothing else.
+     *
+     * @param username the account to change
+     * @param active   the new status
+     * @throws IllegalStateException when no such account is stored any more
+     */
+    void updateActive(String username, boolean active);
 }

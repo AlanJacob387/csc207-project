@@ -38,10 +38,10 @@ Built so far:
 | `logout` (UC-A3) | `use_case/logout` + `interface_adapter/logout` | Log out button in `AppShell` | `LogoutInteractorTest` (2) |
 | `change_password` (UC-A4) | `use_case/change_password` + `interface_adapter/change_password` | `ChangePasswordView` (Account page) | `ChangePasswordInteractorTest` (9), `ChangePasswordViewTest` (3) |
 | `create_event` (UC-B1) | `use_case/create_event` + `interface_adapter/create_event` | `CreateEventView` | owed by L2 (task 1.8) |
-| `manage_users` (UC-A5, UC-A6, UC-A7) | `use_case/manage_users` + `interface_adapter/manage_users` | `ManageUsersView` (Manage Users page, administrators only) | `CreateUserInteractorTest` (13), `ChangeUserRoleInteractorTest` (9), `DeactivateUserInteractorTest` (8), `ReactivateUserInteractorTest` (6), `ListAccountsInteractorTest` (5), `AdminPolicyTest` (11), `ManageUsersViewTest` (14), `ManageUsersFlowTest` (10) |
+| `manage_users` (UC-A5, UC-A6, UC-A7) | `use_case/manage_users` + `interface_adapter/manage_users` | `ManageUsersView` (Manage Users page, administrators only) | `CreateUserInteractorTest` (14), `ChangeUserRoleInteractorTest` (12), `DeactivateUserInteractorTest` (12), `ReactivateUserInteractorTest` (7), `ListAccountsInteractorTest` (5), `AdminPolicyTest` (11), `ManageUsersViewTest` (14), `ManageUsersFlowTest` (10) |
 | `post_announcement` (UC-E1) | `use_case/post_announcement` + `interface_adapter/post_announcement` | Announcements page | `PostAnnouncementInteractorTest` (17) |
 | `view_announcements` (UC-E2) | `use_case/view_announcements` + `interface_adapter/view_announcements` | Announcements page | `ViewAnnouncementsInteractorTest` (17) |
-| `database_settings` | `use_case/database_settings` + `interface_adapter/database_settings` | `DatabaseSettingsView` (the connection page) | `DatabaseSettingsInteractorTest` (9), `DatabaseSettingsViewTest` (8) |
+| `database_settings` | `use_case/database_settings` + `interface_adapter/database_settings` | `DatabaseSettingsView` (the connection page) | `DatabaseSettingsInteractorTest` (13), `DatabaseSettingsViewTest` (8) |
 
 - **Sequence diagrams** - owed by each lane for its own use cases (task 3.8, coordinated by L5)
 
@@ -55,6 +55,11 @@ a read filters on the key (`?username=eq.coach1`), and a save posts to
 `?on_conflict=<key>` with `Prefer: resolution=merge-duplicates`, so one save
 touches one row. Creating an account is the exception: it inserts strictly, so a
 username that already exists answers 409 and the stored account is left alone.
+Changing an account's role or status is a targeted write too: a `PATCH` of that one
+column on that one row (`updateRole`, `updateActive`), so a password its owner
+changed after the administrator's page was read is not put back by the old copy.
+A `PATCH` that matches no row is a success to PostgREST, so the store asks for the
+key back and reports an account that has vanished.
 Because the tables are shared, two clients can no longer
 overwrite each other's unrelated records - something the single-document file
 store could not avoid.
@@ -74,7 +79,11 @@ settings** page writes. That page is a use case like any other
 present, an `https://` URL, and never the secret key, which would bypass row
 level security - and owns the wording of every result, while
 `DatabaseSettingsGateway` only reports facts (how many accounts the settings can
-see, whether the save worked, where the file is). With nothing configured the app
+see, whether the save worked, where the file is). If the saved settings are ones
+today's rules refuse - a legacy `service_role` key written by an older version, or
+a plain-HTTP URL - the page still opens, empty, and says why they are not in use, so
+it can be used to replace them; the app itself starts on the local file and prints the
+reason. With nothing configured the app
 uses the local JSON file
 `data/app-data.json` (git-ignored), so a clean clone runs with no account and the
 tests stay offline. `AppDataStore` is the interface the wiring holds, so the two
@@ -204,10 +213,16 @@ sign-in page, paste the project URL and publishable key, test and save
   session changes, and a *promoted* account needs a fresh sign-in before its new
   role does anything. Outside Manage Users nothing re-checks the account, so a
   deactivated user keeps working until they log out.
-- **The last active administrator is a backstop, not a lock.** An administrator
-  cannot act on their own account, so the "one active administrator left" check is
-  only reachable when two administrators act at the same moment; the read and the
-  write are separate requests, so two simultaneous demotions can still leave none.
+- **The last active administrator is a backstop, and it is checked twice.** An
+  administrator cannot act on their own account, so the "one active administrator
+  left" check before a write is only reachable when two administrators act at the
+  same moment; the read and the write are separate requests. Because that check can
+  be raced, the interactors also look at the list they read back after the write: if
+  it holds no active administrator, they undo their own write and report the
+  refusal. Two administrators removing each other in the same moment therefore end
+  with both active again, not with nobody. What remains is a crash between the write
+  and the undo; closing that needs a constraint in Postgres, which a client of the
+  `anon` role cannot add.
 - **No delete policy** on any table: accounts are deactivated rather than deleted,
   and demo data is reset from the Supabase SQL editor.
 - The calendar still shows hard-coded demo events until `view_schedule` lands
@@ -225,17 +240,19 @@ sign-in page, paste the project URL and publishable key, test and save
   accounts), which is the migration described above.
 - **The demo accounts ship on the shared database.** The first start against a
   project inserts `coach1`, `player1`, `parent1` and `admin1`, all with password
-  `pw`, because the seed runs for a fresh store and the README needs a way to sign
-  in. That is a default administrative credential on a store anyone with the
-  publishable key can read and write: deactivate or change `admin1` before showing
-  the app outside the course, and remove the demo rows in the SQL editor when the
-  project stops being a demo.
+  `teampass`, because the README needs a way to sign in. That is a default
+  administrative credential on a store anyone with the publishable key can read and
+  write. The seed only runs while the store holds no account of its own (nothing
+  outside those four names), so once a real account exists a demo account that was
+  deleted stays deleted; before that, every start of any client re-creates what is
+  missing. Deactivate or change `admin1` before showing the app outside the course,
+  and delete the demo rows in the SQL editor after the first real account exists.
 - **Remote calls run on the Swing event thread**, like every other page. With a
   slow project or a paused one the window waits for the request (5 s to connect,
   10 s to read) instead of showing a progress state. Manage Users is the worst
-  case: one action is up to four calls in sequence (read the caller, check the
-  last administrator, write, then re-read the list), so a paused project can hold
-  the window for about a minute. A background worker for the store is the fix we
+  case: one action is up to five calls in sequence (read the caller, read the
+  account, read the list to check the last administrator, write, then re-read the
+  list), so a paused project can hold the window for well over a minute. A background worker for the store is the fix we
   would make next.
 - **Creating an account is an insert, but the check and the write are still two
   requests.** `createUser` refuses a username that is already stored - a `409`
@@ -252,15 +269,18 @@ sign-in page, paste the project URL and publishable key, test and save
   `COACH`, `PLAYER` and `PARENT` only; an administrative account comes from the
   demo seed or from another administrator.
 - **A username is restricted to letters, digits, dot, underscore and hyphen, and
-  the hosted store quotes it anyway.** `AccountRules` keeps commas, parentheses,
-  colons and asterisks out, because PostgREST reads them as filter syntax;
-  `PostgrestClient.encodedFilterValue` percent-encodes every value and wraps the
-  ones containing a reserved character in `%22…%22`, the documented form, so the
-  dot the alphabet allows is compared literally instead of being read as syntax.
+  the hosted store sends it unquoted.** `AccountRules` keeps commas, parentheses,
+  colons and asterisks out, and `PostgrestClient.where` percent-encodes every filter
+  value as one query parameter and otherwise sends it as it is, the way the
+  Supabase client libraries send an `eq` filter. PostgREST's reserved characters
+  matter inside the list forms (`in`, `or`, `and`), which this client never builds,
+  so `pat.smith` is compared as `pat.smith`. The unit tests pin what is sent; they
+  cannot show what a live project does with a dotted name, so the first live run
+  should create one and sign in with it.
 - One role per user (decision D5).
 - **The demo seed is the one business rule outside a use case.**
-  `AppBuilder.seedDemoDataIfEmpty` decides that an empty store gets four accounts
-  and a team. It stays there because it must run before any page exists and only
+  `AppBuilder.seedDemoDataIfEmpty` decides that a store with no account of its own
+  gets the four demo accounts and a team. It stays there because it must run before any page exists and only
   for a demo; a `seed_demo_data` use case is the tidy version.
 - **The administrator view model carries the use case's row type.**
   `ManageUsersViewModel` stores `ManageUsersOutputData.AccountData` and the page
@@ -271,10 +291,10 @@ sign-in page, paste the project URL and publishable key, test and save
   `IllegalStateException` and `UncheckedIOException` are what an interactor
   catches; `DuplicateUsernameException` shows the shape a typed store failure
   should have everywhere. Converting the rest touches every slice.
-- **Reading accounts still receives a port that can save.**
-  `ManageUsersDataAccessInterface` includes `save`, which `ListAccountsInteractor`
-  never calls. Splitting it would duplicate the administrator interface for one
-  method, so it is recorded here instead.
+- **Reading accounts still receives a port that can write.**
+  `ManageUsersDataAccessInterface` includes `updateRole` and `updateActive`, which
+  `ListAccountsInteractor` never calls. Splitting it would duplicate the
+  administrator interface for one method, so it is recorded here instead.
 
 ## 7. API notes
 

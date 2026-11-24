@@ -153,6 +153,30 @@ public class SupabaseAppDataAccessObject implements AppDataStore {
         client.upsert(USERS, "username", row);
     }
 
+    /**
+     * Changes one column of one account with a PATCH, so a credential the owner
+     * changed meanwhile is not written back from a stale read.
+     *
+     * @throws IllegalStateException when no row has that username
+     */
+    @Override
+    public void updateRole(String username, Role role) {
+        patchAccount(username, new JSONObject().put("role", role.name()));
+    }
+
+    @Override
+    public void updateActive(String username, boolean active) {
+        patchAccount(username, new JSONObject().put("active", active));
+    }
+
+    private void patchAccount(String username, JSONObject columns) {
+        final int changed = client.update(USERS, "username", username, columns,
+                "the account update");
+        if (changed == 0) {
+            throw new IllegalStateException("No account found for " + username + ".");
+        }
+    }
+
     @Override
     public List<User> getAllUsers() {
         final List<User> users = new ArrayList<>();

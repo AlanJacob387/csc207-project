@@ -117,7 +117,12 @@ class ListAccountsInteractorTest {
             }
 
             @Override
-            public void save(User user) {
+            public void updateRole(String username, Role role) {
+                throw new AssertionError("nothing should be saved");
+            }
+
+            @Override
+            public void updateActive(String username, boolean active) {
                 throw new AssertionError("nothing should be saved");
             }
         };

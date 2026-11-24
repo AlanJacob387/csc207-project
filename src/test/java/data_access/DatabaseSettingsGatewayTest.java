@@ -3,6 +3,7 @@ package data_access;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -44,6 +45,35 @@ class DatabaseSettingsGatewayTest {
     @Test
     void incompleteSettingsAreRefused() {
         assertThrows(IllegalStateException.class, () -> gateway.countAccounts(URL, "  "));
+    }
+
+    @Test
+    void aConfiguredUrlThatIsRefusedIsReportedAsAFailureWhenTheCurrentUrlIsRead() {
+        Assumptions.assumeTrue(System.getenv(DatabaseConfig.URL_VARIABLE) == null,
+                "the environment would be read first");
+        final String url = System.getProperty(DatabaseConfig.URL_PROPERTY);
+        final String key = System.getProperty(DatabaseConfig.KEY_PROPERTY);
+        System.setProperty(DatabaseConfig.URL_PROPERTY, "http://example.supabase.co");
+        System.setProperty(DatabaseConfig.KEY_PROPERTY, "sb_publishable_key");
+        try {
+            final IllegalStateException thrown = assertThrows(IllegalStateException.class,
+                    gateway::currentUrl);
+
+            assertTrue(thrown.getMessage().contains("https://"), thrown.getMessage());
+        }
+        finally {
+            restore(DatabaseConfig.URL_PROPERTY, url);
+            restore(DatabaseConfig.KEY_PROPERTY, key);
+        }
+    }
+
+    private static void restore(String name, String value) {
+        if (value == null) {
+            System.clearProperty(name);
+        }
+        else {
+            System.setProperty(name, value);
+        }
     }
 
     @Test

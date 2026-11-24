@@ -47,8 +47,16 @@ public class DatabaseSettingsGateway implements DatabaseSettingsDataAccessInterf
 
     @Override
     public String currentUrl() {
-        final DatabaseConfig config = DatabaseConfig.resolve();
-        return config == null ? "" : config.getUrl();
+        try {
+            final DatabaseConfig config = DatabaseConfig.resolve();
+            return config == null ? "" : config.getUrl();
+        }
+        catch (IllegalArgumentException ex) {
+            // A saved or configured value that today's rules refuse (a legacy secret
+            // key written by an older version, a plain-HTTP URL) is reported as the
+            // failure this port promises, not as the argument error the rule raises.
+            throw new IllegalStateException(ex.getMessage(), ex);
+        }
     }
 
     @Override

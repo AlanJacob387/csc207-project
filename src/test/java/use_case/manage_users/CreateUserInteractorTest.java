@@ -1,5 +1,7 @@
 package use_case.manage_users;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -224,5 +226,22 @@ class CreateUserInteractorTest {
 
         assertEquals("Could not save the account: the store is unwritable", presenter.error);
         assertNull(presenter.success);
+    }
+
+
+    @Test
+    void aListThatCannotBeReadBackDoesNotMakeASavedAccountLookUnsaved() {
+        final RacingStore store = new RacingStore();
+        store.save(new User("admin1", "pw", "Ada Admin", Role.ADMIN));
+        store.failTheListAfterAWrite();
+
+        new CreateUserInteractor(store, presenter, session, new UserFactory())
+                .execute(input("player9", "Pat Nine", "secretpass", "secretpass", Role.PLAYER));
+
+        assertNotNull(store.get("player9"), "the account was stored");
+        assertNull(presenter.success);
+        assertTrue(presenter.error.startsWith("Account created for player9."), presenter.error);
+        assertTrue(presenter.error.contains("It was saved"), presenter.error);
+        assertFalse(presenter.error.startsWith("Could not save"), presenter.error);
     }
 }

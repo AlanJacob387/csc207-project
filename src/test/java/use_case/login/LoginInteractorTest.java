@@ -169,25 +169,37 @@ class LoginInteractorTest {
 
     @Test
     void aLegacyPlaintextCredentialIsRehashedWhenItsOwnerSignsIn() {
-        interactor.execute(new LoginInputData("coach1", "pw"));
+        dataAccess.save(new User("coach2", "teampass", "Coach Two", Role.COACH));
+
+        interactor.execute(new LoginInputData("coach2", "teampass"));
 
         assertNull(presenter.error);
-        final User stored = dataAccess.get("coach1");
+        final User stored = dataAccess.get("coach2");
         assertTrue(PasswordHasher.isHashed(stored.getPassword()),
                 "a plaintext password must not stay in the store after a successful sign-in");
-        assertTrue(stored.matches("pw"), "the account keeps working with the same password");
+        assertTrue(stored.matches("teampass"), "the account keeps working with the same password");
         assertEquals(Role.COACH, stored.getRole());
-        assertEquals("Coach One", stored.getDisplayName());
+        assertEquals("Coach Two", stored.getDisplayName());
+    }
+
+    @Test
+    void aCredentialThatPredatesThePasswordRuleIsLeftAlone() {
+        interactor.execute(new LoginInputData("coach1", "pw"));
+
+        assertNull(presenter.error, "an old account still signs in");
+        assertEquals("pw", dataAccess.get("coach1").getPassword(),
+                "rewriting it would impose today's rule on a password that already works");
     }
 
     @Test
     void anAlreadyHashedCredentialIsNotRewritten() {
-        final User hashed = new UserFactory().create("coach1", "pw", "Coach One", Role.COACH);
+        final User hashed =
+                new UserFactory().create("coach1", "teampass", "Coach One", Role.COACH);
 
         new LoginInteractor(
                 new UnwritableStore(hashed, new UnsupportedOperationException("must not rewrite")),
                 presenter, session)
-                .execute(new LoginInputData("coach1", "pw"));
+                .execute(new LoginInputData("coach1", "teampass"));
 
         assertNull(presenter.error, "a hash is left alone, so no write is attempted");
         assertEquals("coach1", session.getCurrentUsername());
@@ -196,15 +208,15 @@ class LoginInteractorTest {
     @Test
     void aStoreThatCannotRewriteTheCredentialStillSignsTheUserIn() {
         final UnwritableStore store = new UnwritableStore(
-                new User("coach1", "pw", "Coach One", Role.COACH),
+                new User("coach1", "teampass", "Coach One", Role.COACH),
                 new UncheckedIOException(new IOException("read-only store")));
 
         new LoginInteractor(store, presenter, session)
-                .execute(new LoginInputData("coach1", "pw"));
+                .execute(new LoginInputData("coach1", "teampass"));
 
         assertNull(presenter.error, "a failed upgrade must not cost the user their sign-in");
         assertEquals("coach1", session.getCurrentUsername());
-        assertEquals("pw", store.storedCredential(),
+        assertEquals("teampass", store.storedCredential(),
                 "the old credential survives and still verifies next time");
     }
 

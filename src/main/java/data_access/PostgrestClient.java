@@ -2,6 +2,8 @@ package data_access;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
@@ -40,6 +42,9 @@ final class PostgrestClient {
     /** How much of an answer a message shows. */
     private static final int BODY_PREVIEW = 240;
 
+    /** Characters PostgREST reads as filter syntax, so a value containing one is quoted. */
+    private static final String RESERVED_FILTER_CHARACTERS = ",.:*()";
+
     private static final MediaType JSON = MediaType.get("application/json; charset=utf-8");
 
     private final String projectUrl;
@@ -74,11 +79,35 @@ final class PostgrestClient {
     JSONArray selectWhere(String table, String column, String value, int limit) {
         HttpUrl.Builder url = tableUrl(table)
                 .addQueryParameter("select", SELECT_ALL)
-                .addQueryParameter(column, "eq." + value);
+                .addEncodedQueryParameter(column, "eq." + encodedFilterValue(value));
         if (limit > 0) {
             url = url.addQueryParameter("limit", Integer.toString(limit));
         }
         return parseArray(execute(request(url.build()).get().build(), "the read from " + table));
+    }
+
+    /**
+     * Renders a value for the query string: percent-encoded, and wrapped in the
+     * double quotes PostgREST's URL grammar requires when the value contains a
+     * character it would otherwise read as syntax.
+     *
+     * A dot is the case that matters here, because {@code AccountRules} allows it
+     * in a username: {@code pat.smith} has to travel as {@code %22pat.smith%22} so
+     * the database compares it literally instead of treating the dot as part of
+     * the operator. A value with no reserved character is sent as it is, which
+     * keeps every existing query readable.
+     *
+     * @param value the value to compare against
+     * @return the percent-encoded value, quoted when it contains a reserved character
+     */
+    static String encodedFilterValue(String value) {
+        final String encoded = URLEncoder.encode(value, StandardCharsets.UTF_8);
+        for (int i = 0; i < value.length(); i++) {
+            if (RESERVED_FILTER_CHARACTERS.indexOf(value.charAt(i)) >= 0) {
+                return "%22" + encoded + "%22";
+            }
+        }
+        return encoded;
     }
 
     /**

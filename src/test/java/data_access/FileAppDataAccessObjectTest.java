@@ -216,7 +216,7 @@ class FileAppDataAccessObjectTest {
         assertThrows(UncheckedIOException.class,
                 () -> dao.save(new User("p1", "pw", "Pat", Role.PLAYER)));
         assertThrows(UncheckedIOException.class,
-                () -> dao.saveProfile("p1", "Pat", Role.COACH));
+                () -> dao.createUser(new User("p2", "pw", "Pat Two", Role.PLAYER)));
         assertThrows(UncheckedIOException.class,
                 () -> dao.saveTeam(new Team("t1", "Raptors", "Basketball", "p1")));
         assertThrows(UncheckedIOException.class,
@@ -227,7 +227,7 @@ class FileAppDataAccessObjectTest {
                         AttendanceRecord.Status.PRESENT)));
 
         assertNull(dao.get("p1"), "an account that could not be written must not be readable");
-        assertFalse(dao.existsByName("p1"));
+        assertFalse(dao.existsByName("p2"), "neither may an account that could not be added");
         assertTrue(dao.getAllUsers().isEmpty());
         assertNull(dao.getTeam("t1"));
         assertTrue(dao.getAllTeams().isEmpty());

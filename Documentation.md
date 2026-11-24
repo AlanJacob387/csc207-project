@@ -113,8 +113,10 @@ anyone out: a credential written at 120 000 still verifies, and a test proves it
 A credential written before hashing existed is still accepted, so an older store
 keeps working; that fallback is the only place a plaintext value is compared, and
 the next successful sign-in rewrites the credential as a hash
-(`LoginInteractor.upgradeLegacyCredential`), so a plaintext password cannot stay in
-a readable table simply because its owner never reopened the account.
+(`LoginInteractor.upgradeLegacyCredential`) as long as the password satisfies the
+current rule - one it would now refuse is left alone and keeps working - so a
+plaintext password cannot stay in a readable table simply because its owner never
+reopened the account.
 The publishable key is meant to ship inside a client and reaches only what row
 level security allows. A **secret** key bypasses row level security, so the app
 refuses one in either format the dashboard offers - the new `sb_secret_…` prefix
@@ -246,11 +248,11 @@ sign-in page, paste the project URL and publishable key, test and save
   `COACH`, `PLAYER` and `PARENT` only; an administrative account comes from the
   demo seed or from another administrator.
 - **A username is restricted to letters, digits, dot, underscore and hyphen, and
-  that rule is load-bearing.** The hosted store builds a filter by putting the
-  username after `eq.`, so a comma, parenthesis, colon or asterisk in a name would
-  be read as filter syntax and change which row an action targets. The alphabet
-  keeps a stored name inert; the value is still interpolated rather than quoted, so
-  a later rule that allows those characters has to quote it instead.
+  the hosted store quotes it anyway.** `AccountRules` keeps commas, parentheses,
+  colons and asterisks out, because PostgREST reads them as filter syntax;
+  `PostgrestClient.encodedFilterValue` percent-encodes every value and wraps the
+  ones containing a reserved character in `%22…%22`, the documented form, so the
+  dot the alphabet allows is compared literally instead of being read as syntax.
 - One role per user (decision D5).
 - **The demo seed is the one business rule outside a use case.**
   `AppBuilder.seedDemoDataIfEmpty` decides that an empty store gets four accounts

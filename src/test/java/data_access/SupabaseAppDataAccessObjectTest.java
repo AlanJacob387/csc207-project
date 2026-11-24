@@ -43,6 +43,7 @@ class SupabaseAppDataAccessObjectTest {
         private String method;
         private String path;
         private String query;
+        private String rawQuery;
         private String apikey;
         private String prefer;
         private String body;
@@ -79,6 +80,7 @@ class SupabaseAppDataAccessObjectTest {
         call.method = exchange.getRequestMethod();
         call.path = exchange.getRequestURI().getPath();
         call.query = exchange.getRequestURI().getQuery();
+        call.rawQuery = exchange.getRequestURI().getRawQuery();
         call.apikey = exchange.getRequestHeaders().getFirst("apikey");
         call.prefer = exchange.getRequestHeaders().getFirst("Prefer");
         call.body = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
@@ -133,6 +135,15 @@ class SupabaseAppDataAccessObjectTest {
         assertNull(store.get(""));
         assertEquals(1, recorded.size(), "a blank username should not reach the database");
         assertFalse(store.existsByName(""));
+    }
+
+    @Test
+    void aUsernameWithAFilterCharacterIsQuotedOnTheWire() {
+        assertNull(store.get("pat.smith"));
+
+        assertEquals("select=*&username=eq.%22pat.smith%22&limit=1", only().rawQuery,
+                "a dot is PostgREST syntax, so the value has to arrive quoted as %22...%22 "
+                        + "to be compared literally");
     }
 
     @Test

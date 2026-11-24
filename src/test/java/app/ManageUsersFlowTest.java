@@ -80,11 +80,12 @@ class ManageUsersFlowTest {
         final Wiring w = wiring();
         w.signInAs("admin1", "pw");
 
-        w.manageUsersController.createUser("player9", "Pat Nine", "secret", "secret", "PLAYER");
+        w.manageUsersController.createUser("player9", "Pat Nine", "secretpass", "secretpass",
+                "PLAYER");
 
         assertEquals("Account created for player9.", w.manageUsersViewModel.getSuccessMessage());
         w.session.clearCurrentUser();
-        w.signInAs("player9", "secret");
+        w.signInAs("player9", "secretpass");
         assertEquals(Role.PLAYER, w.session.getCurrentRole());
         assertEquals("Pat Nine", w.session.getDisplayName());
     }

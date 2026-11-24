@@ -57,9 +57,9 @@ class PasswordHasherTest {
     void changingAPasswordRehashesItAndKeepsTheOtherFields() {
         final User user = new User("p1", "legacy", "Pat", Role.PLAYER).withActive(false);
 
-        final User updated = user.withNewPassword("secret");
+        final User updated = user.withNewPassword("secretpass");
 
-        assertTrue(updated.matches("secret"));
+        assertTrue(updated.matches("secretpass"));
         assertFalse(updated.matches("legacy"));
         assertTrue(PasswordHasher.isHashed(updated.getPassword()));
         assertEquals("p1", updated.getUsername());

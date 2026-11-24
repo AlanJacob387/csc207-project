@@ -129,9 +129,9 @@ class LoginInteractorTest {
 
     @Test
     void anAccountCreatedThroughTheFactoryLogsInWithItsTypedPassword() {
-        dataAccess.save(new UserFactory().create("newbie", "secret", "New Bie", Role.PLAYER));
+        dataAccess.save(new UserFactory().create("newbie", "secretpass", "New Bie", Role.PLAYER));
 
-        interactor.execute(new LoginInputData("newbie", "secret"));
+        interactor.execute(new LoginInputData("newbie", "secretpass"));
 
         assertNull(presenter.error);
         assertEquals("newbie", presenter.success.getUsername());

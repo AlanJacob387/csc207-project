@@ -79,7 +79,7 @@ import view.ViewManager;
 public class AppBuilder {
 
     /** Password given to the demo accounts seeded on first run. */
-    private static final String DEMO_PASSWORD = "pw";
+    private static final String DEMO_PASSWORD = "teampass";
 
     /** Id of the demo team seeded on first run. */
     private static final String DEMO_TEAM_ID = "demo-team";
@@ -339,7 +339,7 @@ public class AppBuilder {
     }
 
     /**
-     * Creates one demo account per role (password "pw") and a demo team, but
+     * Creates one demo account per role (password "teampass") and a demo team, but
      * only where they are missing, so the app can be tried straight away.
      *
      * Reports a failure instead of throwing: a store that cannot be reached while

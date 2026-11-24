@@ -99,14 +99,14 @@ class LoginFlowWiringTest {
         final Wiring w = wiring();
         w.viewManagerModel.setState(ViewManagerModel.LOGIN);
 
-        w.signupController.execute("newcoach", "pw", "pw", "New Coach", "COACH");
+        w.signupController.execute("newcoach", "pw123456", "pw123456", "New Coach", "COACH");
 
         assertEquals(ViewManagerModel.LOGIN, w.viewManagerModel.getState());
         assertEquals("Account created for newcoach. Please log in.",
                 w.loginViewModel.getSuccessMessage());
         assertFalse(w.session.isLoggedIn());
 
-        w.loginController.execute("newcoach", "pw");
+        w.loginController.execute("newcoach", "pw123456");
 
         assertTrue(w.session.isLoggedIn());
         assertEquals(Role.COACH, w.session.getCurrentRole());
@@ -149,10 +149,10 @@ class LoginFlowWiringTest {
         w.dataAccess.save(new User("player1", "pw", "Pat Player", Role.PLAYER));
         w.loginController.execute("player1", "pw");
 
-        w.changePasswordController.execute("pw", "secret", "secret");
+        w.changePasswordController.execute("pw", "secretpass", "secretpass");
 
         assertEquals("Password changed.", w.changePasswordViewModel.getSuccessMessage());
-        assertTrue(w.dataAccess.get("player1").matches("secret"));
+        assertTrue(w.dataAccess.get("player1").matches("secretpass"));
         assertEquals(Role.PLAYER, w.dataAccess.get("player1").getRole());
     }
 

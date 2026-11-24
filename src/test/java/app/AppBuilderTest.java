@@ -38,7 +38,7 @@ class AppBuilderTest {
         assertEquals("", AppBuilder.seedDemoDataIfEmpty(store, new UserFactory()));
 
         assertEquals(4, store.getAllUsers().size());
-        assertTrue(store.get("coach1").matches("pw"), "the demo password is hashed and still works");
+        assertTrue(store.get("coach1").matches("teampass"), "the demo password is hashed and still works");
         assertEquals(Role.ADMIN, store.get("admin1").getRole());
         assertNotNull(store.getTeam("demo-team"));
         assertEquals(1, store.getTeam("demo-team").getPlayerUsernames().size());

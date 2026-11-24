@@ -2,6 +2,7 @@ package use_case.manage_users;
 
 import java.io.UncheckedIOException;
 
+import entity.AccountRules;
 import entity.Role;
 import entity.UserFactory;
 import use_case.current_user.CurrentUserInterface;
@@ -15,12 +16,6 @@ import use_case.current_user.CurrentUserInterface;
  * sidebar only hides the page.
  */
 public class CreateUserInteractor implements CreateUserInputBoundary {
-
-    /** Longest accepted username, to keep a row readable and a URL sane. */
-    private static final int USERNAME_LIMIT = 40;
-
-    /** Longest accepted display name. */
-    private static final int DISPLAY_NAME_LIMIT = 60;
 
     private final ManageUsersDataAccessInterface dataAccess;
     private final ManageUsersOutputBoundary presenter;
@@ -65,13 +60,9 @@ public class CreateUserInteractor implements CreateUserInputBoundary {
             presenter.prepareFailView("Choose a username and a password.");
             return;
         }
-        if (username.length() > USERNAME_LIMIT) {
-            presenter.prepareFailView("Usernames are at most " + USERNAME_LIMIT + " characters.");
-            return;
-        }
-        if (displayName.length() > DISPLAY_NAME_LIMIT) {
-            presenter.prepareFailView("Display names are at most " + DISPLAY_NAME_LIMIT
-                    + " characters.");
+        final String detailRefusal = AccountRules.refusalFor(username, displayName, password);
+        if (detailRefusal != null) {
+            presenter.prepareFailView(detailRefusal);
             return;
         }
         if (!password.equals(repeatPassword)) {
@@ -98,7 +89,7 @@ public class CreateUserInteractor implements CreateUserInputBoundary {
             presenter.prepareSuccessView(ManageUsersOutputData.of(
                     "Account created for " + username + ".", dataAccess.getAllUsers()));
         }
-        catch (IllegalStateException | UncheckedIOException ex) {
+        catch (IllegalStateException | IllegalArgumentException | UncheckedIOException ex) {
             presenter.prepareFailView("Could not save the account: " + ex.getMessage());
         }
     }

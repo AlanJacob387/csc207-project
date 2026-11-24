@@ -2,6 +2,7 @@ package use_case.change_password;
 
 import java.io.UncheckedIOException;
 
+import entity.AccountRules;
 import entity.User;
 import use_case.current_user.CurrentUserInterface;
 
@@ -60,6 +61,11 @@ public class ChangePasswordInteractor implements ChangePasswordInputBoundary {
             presenter.prepareFailView("The new password must be different from the current one.");
             return;
         }
+        final String refusal = AccountRules.passwordRefusalFor(newPassword);
+        if (refusal != null) {
+            presenter.prepareFailView(refusal);
+            return;
+        }
 
         final User user;
         try {
@@ -83,7 +89,7 @@ public class ChangePasswordInteractor implements ChangePasswordInputBoundary {
             // never the plaintext the user typed.
             dataAccess.save(user.withNewPassword(newPassword));
         }
-        catch (IllegalStateException | UncheckedIOException ex) {
+        catch (IllegalStateException | IllegalArgumentException | UncheckedIOException ex) {
             presenter.prepareFailView("Could not save the new password: " + ex.getMessage());
             return;
         }

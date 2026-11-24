@@ -43,10 +43,10 @@ class ChangePasswordInteractorTest {
     @BeforeEach
     void setUp() {
         dataAccess = new InMemoryUserDataAccessObject();
-        dataAccess.save(new User("coach1", "old", "Coach One", Role.COACH));
+        dataAccess.save(new User("coach1", "oldpass1", "Coach One", Role.COACH));
 
         session = new Session();
-        session.setCurrentUser(new User("coach1", "old", "Coach One", Role.COACH));
+        session.setCurrentUser(new User("coach1", "oldpass1", "Coach One", Role.COACH));
 
         presenter = new RecordingPresenter();
         interactor = new ChangePasswordInteractor(
@@ -55,39 +55,48 @@ class ChangePasswordInteractorTest {
 
     @Test
     void changesThePasswordAndKeepsTheRestOfTheProfile() {
-        interactor.execute(new ChangePasswordInputData("old", "new", "new"));
+        interactor.execute(new ChangePasswordInputData("oldpass1", "newpass1", "newpass1"));
 
         assertNull(presenter.error);
         assertEquals("Password changed.", presenter.success.getMessage());
         assertEquals("coach1", presenter.success.getUsername());
-        assertTrue(dataAccess.get("coach1").matches("new"));
+        assertTrue(dataAccess.get("coach1").matches("newpass1"));
         assertEquals("Coach One", dataAccess.get("coach1").getDisplayName());
         assertEquals(Role.COACH, dataAccess.get("coach1").getRole());
     }
 
     @Test
     void anIncorrectCurrentPasswordFails() {
-        interactor.execute(new ChangePasswordInputData("wrong", "new", "new"));
+        interactor.execute(new ChangePasswordInputData("wrong", "newpass1", "newpass1"));
 
         assertEquals("The current password is incorrect.", presenter.error);
         assertNull(presenter.success);
-        assertEquals("old", dataAccess.get("coach1").getPassword());
+        assertEquals("oldpass1", dataAccess.get("coach1").getPassword());
     }
 
     @Test
     void mismatchedNewPasswordsFail() {
-        interactor.execute(new ChangePasswordInputData("old", "new", "different"));
+        interactor.execute(new ChangePasswordInputData("oldpass1", "newpass1", "different1"));
 
         assertEquals("The two new passwords do not match.", presenter.error);
-        assertEquals("old", dataAccess.get("coach1").getPassword());
+        assertEquals("oldpass1", dataAccess.get("coach1").getPassword());
+    }
+
+    @Test
+    void aNewPasswordShorterThanTheRuleIsRefused() {
+        interactor.execute(new ChangePasswordInputData("oldpass1", "pw", "pw"));
+
+        assertEquals("Passwords are 8 to 128 characters.", presenter.error);
+        assertEquals("oldpass1", dataAccess.get("coach1").getPassword(),
+                "a refused password must leave the stored credential alone");
     }
 
     @Test
     void reusingTheSamePasswordFails() {
-        interactor.execute(new ChangePasswordInputData("old", "old", "old"));
+        interactor.execute(new ChangePasswordInputData("oldpass1", "oldpass1", "oldpass1"));
 
         assertEquals("The new password must be different from the current one.", presenter.error);
-        assertEquals("old", dataAccess.get("coach1").getPassword());
+        assertEquals("oldpass1", dataAccess.get("coach1").getPassword());
     }
 
     @Test
@@ -101,17 +110,17 @@ class ChangePasswordInteractorTest {
     void aSignedOutUserCannotChangeAPassword() {
         session.clearCurrentUser();
 
-        interactor.execute(new ChangePasswordInputData("old", "new", "new"));
+        interactor.execute(new ChangePasswordInputData("oldpass1", "newpass1", "newpass1"));
 
         assertEquals("You must be signed in to change your password.", presenter.error);
-        assertEquals("old", dataAccess.get("coach1").getPassword());
+        assertEquals("oldpass1", dataAccess.get("coach1").getPassword());
     }
 
     @Test
     void aMissingAccountFails() {
-        session.setCurrentUser(new User("ghost", "old", "Ghost", Role.PLAYER));
+        session.setCurrentUser(new User("ghost", "oldpass1", "Ghost", Role.PLAYER));
 
-        interactor.execute(new ChangePasswordInputData("old", "new", "new"));
+        interactor.execute(new ChangePasswordInputData("oldpass1", "newpass1", "newpass1"));
 
         assertEquals("No account found for ghost.", presenter.error);
     }
@@ -132,7 +141,7 @@ class ChangePasswordInteractorTest {
                 };
 
         new ChangePasswordInteractor(broken, presenter, session)
-                .execute(new ChangePasswordInputData("old", "new", "new"));
+                .execute(new ChangePasswordInputData("oldpass1", "newpass1", "newpass1"));
 
         assertTrue(presenter.error.startsWith("Could not read the account store:"));
         assertNull(presenter.success);

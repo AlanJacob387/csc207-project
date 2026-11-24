@@ -62,7 +62,7 @@ class CreateUserInteractorTest {
 
     @Test
     void anAdministratorCreatesAnAccountWithTheChosenRole() {
-        interactor.execute(input("player9", "Pat Nine", "secret", "secret", Role.PLAYER));
+        interactor.execute(input("player9", "Pat Nine", "secretpass", "secretpass", Role.PLAYER));
 
         assertNull(presenter.error);
         assertEquals(Role.PLAYER, dataAccess.get("player9").getRole());
@@ -75,15 +75,15 @@ class CreateUserInteractorTest {
 
     @Test
     void theChosenPasswordIsStoredHashed() {
-        interactor.execute(input("player9", "", "secret", "secret", Role.PLAYER));
+        interactor.execute(input("player9", "", "secretpass", "secretpass", Role.PLAYER));
 
-        assertTrue(dataAccess.get("player9").matches("secret"));
-        assertNotEquals("secret", dataAccess.get("player9").getPassword());
+        assertTrue(dataAccess.get("player9").matches("secretpass"));
+        assertNotEquals("secretpass", dataAccess.get("player9").getPassword());
     }
 
     @Test
     void aBlankDisplayNameFallsBackToTheUsername() {
-        interactor.execute(input("player9", "   ", "secret", "secret", Role.PLAYER));
+        interactor.execute(input("player9", "   ", "secretpass", "secretpass", Role.PLAYER));
 
         assertEquals("player9", dataAccess.get("player9").getDisplayName());
     }
@@ -92,7 +92,7 @@ class CreateUserInteractorTest {
     void onlyAnAdministratorMayCreateAccounts() {
         session.setCurrentUser(new User("coach1", "pw", "Coach One", Role.COACH));
 
-        interactor.execute(input("player9", "", "secret", "secret", Role.PLAYER));
+        interactor.execute(input("player9", "", "secretpass", "secretpass", Role.PLAYER));
 
         assertEquals(AdminPolicy.NOT_ADMIN, presenter.error);
         assertNull(presenter.success);
@@ -103,7 +103,7 @@ class CreateUserInteractorTest {
     void aSignedOutCallerIsRefused() {
         session.clearCurrentUser();
 
-        interactor.execute(input("player9", "", "secret", "secret", Role.PLAYER));
+        interactor.execute(input("player9", "", "secretpass", "secretpass", Role.PLAYER));
 
         assertEquals(AdminPolicy.NOT_ADMIN, presenter.error);
     }
@@ -112,7 +112,7 @@ class CreateUserInteractorTest {
     void aTakenUsernameIsRefused() {
         dataAccess.save(new User("player9", "pw", "Existing Player", Role.PLAYER));
 
-        interactor.execute(input("player9", "Someone Else", "secret", "secret", Role.PLAYER));
+        interactor.execute(input("player9", "Someone Else", "secretpass", "secretpass", Role.PLAYER));
 
         assertEquals("That username is already taken.", presenter.error);
         assertEquals("Existing Player", dataAccess.get("player9").getDisplayName(),
@@ -121,7 +121,7 @@ class CreateUserInteractorTest {
 
     @Test
     void aBlankUsernameOrPasswordIsRefused() {
-        interactor.execute(input("", "", "secret", "secret", Role.PLAYER));
+        interactor.execute(input("", "", "secretpass", "secretpass", Role.PLAYER));
         assertEquals("Choose a username and a password.", presenter.error);
 
         interactor.execute(input("player9", "", "", "", Role.PLAYER));
@@ -131,7 +131,7 @@ class CreateUserInteractorTest {
 
     @Test
     void mismatchedPasswordsAreRefused() {
-        interactor.execute(input("player9", "", "secret", "secret2", Role.PLAYER));
+        interactor.execute(input("player9", "", "secretpass", "secret2", Role.PLAYER));
 
         assertEquals("The two passwords do not match.", presenter.error);
         assertNull(dataAccess.get("player9"));
@@ -139,7 +139,7 @@ class CreateUserInteractorTest {
 
     @Test
     void anUnknownRoleIsRefused() {
-        interactor.execute(new CreateUserInputData("player9", "", "secret", "secret", "CAPTAIN"));
+        interactor.execute(new CreateUserInputData("player9", "", "secretpass", "secretpass", "CAPTAIN"));
 
         assertEquals("Choose a role from the list.", presenter.error);
         assertNull(dataAccess.get("player9"));
@@ -147,10 +147,18 @@ class CreateUserInteractorTest {
 
     @Test
     void anOverlongUsernameIsRefused() {
-        interactor.execute(input("x".repeat(41), "", "secret", "secret", Role.PLAYER));
+        interactor.execute(input("x".repeat(41), "", "secretpass", "secretpass", Role.PLAYER));
 
-        assertTrue(presenter.error.contains("at most 40"));
+        assertTrue(presenter.error.contains("3 to 40"));
         assertNull(dataAccess.get("x".repeat(41)));
+    }
+
+    @Test
+    void aPasswordShorterThanTheRuleIsRefused() {
+        interactor.execute(input("player9", "Pat Nine", "pw", "pw", Role.PLAYER));
+
+        assertEquals("Passwords are 8 to 128 characters.", presenter.error);
+        assertNull(dataAccess.get("player9"));
     }
 
     @Test
@@ -179,7 +187,7 @@ class CreateUserInteractorTest {
         };
 
         new CreateUserInteractor(broken, presenter, session, new UserFactory())
-                .execute(input("player9", "", "secret", "secret", Role.PLAYER));
+                .execute(input("player9", "", "secretpass", "secretpass", Role.PLAYER));
 
         assertEquals("Could not save the account: the store is unwritable", presenter.error);
         assertNull(presenter.success);

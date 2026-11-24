@@ -2,6 +2,7 @@ package use_case.signup;
 
 import java.io.UncheckedIOException;
 
+import entity.AccountRules;
 import entity.Role;
 import entity.User;
 import entity.UserFactory;
@@ -52,6 +53,13 @@ public class SignupInteractor implements SignupInputBoundary {
             return;
         }
 
+        final String displayName = typedName.isEmpty() ? username : typedName;
+        final String refusal = AccountRules.refusalFor(username, displayName, password);
+        if (refusal != null) {
+            presenter.prepareFailView(refusal);
+            return;
+        }
+
         final Role role;
         try {
             role = Role.valueOf(inputData.getRoleName());
@@ -66,10 +74,9 @@ public class SignupInteractor implements SignupInputBoundary {
                 presenter.prepareFailView("That username is already taken.");
                 return;
             }
-            final String displayName = typedName.isEmpty() ? username : typedName;
             dataAccess.save(userFactory.create(username, password, displayName, role));
         }
-        catch (IllegalStateException | UncheckedIOException ex) {
+        catch (IllegalStateException | IllegalArgumentException | UncheckedIOException ex) {
             presenter.prepareFailView("Could not save the account: " + ex.getMessage());
             return;
         }

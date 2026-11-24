@@ -26,7 +26,7 @@ import use_case.change_password.ChangePasswordInteractor;
  */
 public class ChangePasswordViewTest {
 
-    private static final String PASSWORD = "pw";
+    private static final String PASSWORD = "password1";
     private static final String DRAFT = "alice-draft";
 
     private final UserFactory userFactory = new UserFactory();

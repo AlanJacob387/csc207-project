@@ -140,24 +140,6 @@ class FileAppDataAccessObjectTest {
     }
 
     @Test
-    void savingAProfileKeepsTheCredentialAndTheStatus() {
-        final Path file = tempDir.resolve("app-data.json");
-        final FileAppDataAccessObject dao = new FileAppDataAccessObject(file);
-        dao.save(new User("p1", "pbkdf2$1000$c2FsdA==$aGFzaA==", "Pat", Role.PLAYER, false));
-
-        dao.saveProfile("p1", "Patricia", Role.COACH);
-
-        assertEquals("Patricia", dao.get("p1").getDisplayName());
-        assertEquals(Role.COACH, dao.get("p1").getRole());
-        assertEquals("pbkdf2$1000$c2FsdA==$aGFzaA==", dao.get("p1").getPassword());
-        assertFalse(dao.get("p1").isActive());
-
-        final FileAppDataAccessObject reloaded = new FileAppDataAccessObject(file);
-        assertEquals("Patricia", reloaded.get("p1").getDisplayName());
-        assertFalse(reloaded.get("p1").isActive());
-    }
-
-    @Test
     void aCorruptFileIsKeptAsideAndTheStoreStartsEmpty() throws IOException {
         final Path file = tempDir.resolve("app-data.json");
         Files.writeString(file, "{\"users\":[{\"username\":\"p1\"");

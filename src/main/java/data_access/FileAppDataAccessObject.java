@@ -123,26 +123,6 @@ public class FileAppDataAccessObject implements AppDataStore {
         return new ArrayList<>(users.values());
     }
 
-    /**
-     * Updates only the profile fields of a user, leaving the stored credential
-     * and the active flag untouched.
-     *
-     * The credential is copied as stored - it is already hashed - and an account
-     * that was deactivated stays deactivated. A username that is not stored yet
-     * becomes an active account.
-     *
-     * @param username    the user's username
-     * @param displayName the name to display
-     * @param role        the user's role
-     */
-    public void saveProfile(String username, String displayName, Role role) {
-        final User existing = users.get(username);
-        final String password = existing == null ? "" : existing.getPassword();
-        final boolean active = existing == null || existing.isActive();
-        users.put(username, new User(username, password, displayName, role, active));
-        persist();
-    }
-
     // ------------------------------------------------------------------
     // Events (Create Event use case)
     // ------------------------------------------------------------------

@@ -60,13 +60,13 @@ class FileAnnouncementPersistenceTest {
 
         dao.saveAnnouncement(announcement("post-2", "team-7", "Second message"));
         dao.save(new User("new-player", "new-password", "New Player", Role.PLAYER));
-        dao.saveProfile("player-7", "Updated Player", Role.PLAYER);
+        dao.save(dao.get("player-7").withRole(Role.COACH));
 
         final JSONObject stored = readDocument(file);
         assertTrue(original.getJSONArray("parentLinks").similar(stored.getJSONArray("parentLinks")));
         assertTrue(original.getJSONObject("settings").similar(stored.getJSONObject("settings")));
         assertEquals("original-jersey", stored.getJSONArray("users").getJSONObject(0).getString("jersey"));
-        assertEquals("Updated Player", stored.getJSONArray("users").getJSONObject(0).getString("displayName"));
+        assertEquals("COACH", stored.getJSONArray("users").getJSONObject(0).getString("role"));
         assertEquals("in-app", stored.getJSONArray("announcements").getJSONObject(0).getString("delivery"));
         assertEquals(List.of("post-1", "post-2"), new FileAppDataAccessObject(file)
                 .getAnnouncementsForTeam("team-7").stream().map(Announcement::getAnnouncementId).toList());

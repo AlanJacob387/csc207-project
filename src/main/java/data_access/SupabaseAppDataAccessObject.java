@@ -162,22 +162,6 @@ public class SupabaseAppDataAccessObject implements AppDataStore {
         return users;
     }
 
-    @Override
-    public void saveProfile(String username, String displayName, Role role) {
-        if (username == null || username.isEmpty()) {
-            throw new IllegalArgumentException("A username is required.");
-        }
-        final JSONObject patch = new JSONObject();
-        patch.put("displayName", displayName);
-        patch.put("role", role == null ? JSONObject.NULL : role.name());
-
-        final HttpUrl url = tableUrl(USERS).addQueryParameter("username", "eq." + username).build();
-        execute(request(url)
-                .patch(RequestBody.create(patch.toString(), JSON))
-                .header("Prefer", "return=minimal")
-                .build(), "the profile update for " + username);
-    }
-
     // ------------------------------------------------------------------
     // Teams, events and attendance
     // ------------------------------------------------------------------

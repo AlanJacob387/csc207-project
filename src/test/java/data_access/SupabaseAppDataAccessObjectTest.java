@@ -167,23 +167,6 @@ class SupabaseAppDataAccessObjectTest {
         assertEquals(1, recorded.size(), "getAllUsers reads the table in one request");
     }
 
-    @Test
-    void savingAProfileOnlyPatchesTheProfileColumns() {
-        store.saveProfile("p1", "Patricia", Role.COACH);
-
-        final Recorded call = only();
-        assertEquals("PATCH", call.method);
-        assertEquals("/rest/v1/users", call.path);
-        assertEquals("username=eq.p1", call.query);
-        assertEquals("return=minimal", call.prefer);
-
-        final JSONObject sent = new JSONObject(call.body);
-        assertEquals("Patricia", sent.getString("displayName"));
-        assertEquals("COACH", sent.getString("role"));
-        assertFalse(sent.has("password"), "a profile change must not touch the credential");
-        assertFalse(sent.has("active"), "a profile change must not reactivate the account");
-    }
-
     // ------------------------------------------------------------------
     // Teams, events and attendance
     // ------------------------------------------------------------------

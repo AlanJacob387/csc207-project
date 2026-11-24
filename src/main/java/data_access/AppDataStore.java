@@ -4,7 +4,6 @@ import java.util.List;
 
 import entity.AttendanceRecord;
 import entity.Event;
-import entity.Role;
 import entity.Team;
 import use_case.change_password.ChangePasswordUserDataAccessInterface;
 import use_case.create_event.CreateEventDataAccessInterface;
@@ -34,16 +33,6 @@ public interface AppDataStore extends
         PostAnnouncementDataAccessInterface,
         ViewAnnouncementsDataAccessInterface,
         ManageUsersDataAccessInterface {
-
-    /**
-     * Updates a user's display name and role, leaving the credential and the
-     * active flag as they are.
-     *
-     * @param username    the user's username
-     * @param displayName the name to display
-     * @param role        the user's role
-     */
-    void saveProfile(String username, String displayName, Role role);
 
     /**
      * Saves a team, replacing the stored one with the same id.

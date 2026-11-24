@@ -147,8 +147,47 @@ class ManageUsersViewTest {
         assertTrue(view.status().contains("Account created for player9"));
         view.clickCreate();
 
-        assertEquals(List.of("create:|||COACH"), calls,
-                "after a success the form should be empty again");
+        assertEquals(List.of("create:|||PLAYER"), calls,
+                "after a success the form should be empty again, on the safe role");
+    }
+
+    @Test
+    void theChangeRolePickerStartsOnTheSelectedAccountsRole() {
+        showAccounts(new User("admin1", "pw", "Ada Admin", Role.ADMIN),
+                new User("player1", "pw", "Pat Player", Role.PLAYER));
+        view.selectAccount("player1");
+
+        view.clickChangeRole();
+
+        assertEquals(List.of("role:player1|PLAYER"), calls,
+                "pressing Change role must not assign a different role by itself");
+    }
+
+    @Test
+    void aDeliberateRoleChoiceSurvivesAnUnrelatedMessage() {
+        showAccounts(new User("player1", "pw", "Pat Player", Role.PLAYER));
+        view.selectAccount("player1");
+        view.selectRole("COACH");
+
+        viewModel.showError("Something else went wrong.");
+        view.clickChangeRole();
+
+        assertEquals(List.of("role:player1|COACH"), calls,
+                "the administrator's own choice must not be reset by a refresh");
+    }
+
+    @Test
+    void choosingAnotherAccountMovesThePickerToThatAccountsRole() {
+        showAccounts(new User("admin1", "pw", "Ada Admin", Role.ADMIN),
+                new User("player1", "pw", "Pat Player", Role.PLAYER));
+        view.selectAccount("player1");
+        view.selectRole("PARENT");
+
+        view.selectAccount("admin1");
+        view.clickChangeRole();
+
+        assertEquals(List.of("role:admin1|ADMIN"), calls,
+                "switching accounts shows that account's own role, with no extra refresh");
     }
 
     @Test

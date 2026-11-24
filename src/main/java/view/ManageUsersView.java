@@ -57,6 +57,10 @@ public class ManageUsersView extends JPanel implements PropertyChangeListener {
     private final JComboBox<String> accountBox = new JComboBox<>();
     private final JComboBox<String> roleBox = new JComboBox<>(roleNames());
     private final JLabel messageLabel = new JLabel(" ");
+    /** The account whose stored role the role picker currently shows. */
+    private String lastSyncedAccount = "";
+    /** True while the account picker is being rebuilt, so its events are ignored. */
+    private boolean refreshing;
 
     /**
      * Creates the page.
@@ -73,6 +77,9 @@ public class ManageUsersView extends JPanel implements PropertyChangeListener {
         this.session = session;
         this.viewModel.addPropertyChangeListener(this);
         this.session.addPropertyChangeListener(this::onSessionChanged);
+
+        // A new account starts as the least-privileged role, as on the sign-up page.
+        newRoleBox.setSelectedItem(Role.PLAYER.name());
 
         setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
         setBackground(Color.WHITE);
@@ -159,6 +166,13 @@ public class ManageUsersView extends JPanel implements PropertyChangeListener {
         final JPanel roleRow = row();
         accountBox.setMaximumSize(new Dimension(170, 28));
         roleBox.setMaximumSize(new Dimension(130, 28));
+        // Choosing another account shows that account's own role, so Change role
+        // always starts from what is stored.
+        accountBox.addActionListener(e -> {
+            if (!refreshing) {
+                syncRolePicker(viewModel.getAccounts());
+            }
+        });
 
         final JButton changeRoleButton = new JButton("Change role");
         changeRoleButton.addActionListener(e -> onChangeRole());
@@ -325,18 +339,7 @@ public class ManageUsersView extends JPanel implements PropertyChangeListener {
     private void refresh() {
         final List<AccountData> accounts = viewModel.getAccounts();
         accountList.setText(describeAccounts(accounts));
-
-        final String previous = selectedAccount();
-        accountBox.removeAllItems();
-        for (AccountData account : accounts) {
-            accountBox.addItem(account.getUsername());
-        }
-        if (!previous.isEmpty()) {
-            accountBox.setSelectedItem(previous);
-        }
-        if (accountBox.getSelectedItem() == null && accountBox.getItemCount() > 0) {
-            accountBox.setSelectedIndex(0);
-        }
+        refreshAccountBox(accounts);
 
         final String error = viewModel.getErrorMessage();
         if (!error.isEmpty()) {
@@ -350,6 +353,55 @@ public class ManageUsersView extends JPanel implements PropertyChangeListener {
             return;
         }
         messageLabel.setText(" ");
+    }
+
+    /**
+     * Rebuilds the account picker, keeping the account that was selected so the
+     * list does not jump after every action.
+     *
+     * @param accounts the accounts to list
+     */
+    private void refreshAccountBox(List<AccountData> accounts) {
+        refreshing = true;
+        try {
+            final String previous = selectedAccount();
+            accountBox.removeAllItems();
+            for (AccountData account : accounts) {
+                accountBox.addItem(account.getUsername());
+            }
+            if (!previous.isEmpty()) {
+                accountBox.setSelectedItem(previous);
+            }
+            if (accountBox.getSelectedItem() == null && accountBox.getItemCount() > 0) {
+                accountBox.setSelectedIndex(0);
+            }
+            syncRolePicker(accounts);
+        }
+        finally {
+            refreshing = false;
+        }
+    }
+
+    /**
+     * Starts the role picker on the selected account's own role, so pressing
+     * Change role cannot re-role somebody by accident. A choice the administrator
+     * has made is kept while the same account stays selected, so an unrelated
+     * message does not undo it.
+     *
+     * @param accounts the accounts currently listed
+     */
+    private void syncRolePicker(List<AccountData> accounts) {
+        final String selected = selectedAccount();
+        if (selected.equals(lastSyncedAccount)) {
+            return;
+        }
+        lastSyncedAccount = selected;
+        for (AccountData account : accounts) {
+            if (account.getUsername().equals(selected)) {
+                roleBox.setSelectedItem(account.getRole().name());
+                return;
+            }
+        }
     }
 
     private static String describeAccounts(List<AccountData> accounts) {

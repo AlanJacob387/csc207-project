@@ -41,7 +41,7 @@ Every interaction a user can trigger is its own Clean Architecture slice: its ow
 
 | Lane | Owner | Use cases | Count | Done |
 |------|-------|-----------|-------|------|
-| L1 | Alan | UC-B1 to UC-B7 | 7 | 1 |
+| L1 | Alan | UC-B1 to UC-B7 | 7 | 7 |
 | L2 | Aidan | UC-C1 to UC-C6 | 6 | 0 |
 | L3 | Andy | UC-A1 to UC-A7 | 7 | 4 |
 | L4 | Aarav | UC-D1 to UC-D6 | 6 | 0 |
@@ -59,12 +59,12 @@ Every interaction a user can trigger is its own Clean Architecture slice: its ow
 | UC-A6 | `change_user_role` | Admin - Manage Users | L3 | 3 | P2 | |
 | UC-A7 | `deactivate_user` | Admin - Manage Users | L3 | 4 | P2 | |
 | UC-B1 | `create_event` | New Event page (coach) | L1 | 1 | P0 | done |
-| UC-B2 | `view_schedule` | Calendar - month and week views | L1 | 2 | P0 | |
-| UC-B3 | `view_event_details` | Calendar - open an event | L1 | 2 | P0 | |
-| UC-B4 | `edit_event` | Event details - Edit | L1 | 2 | P1 | |
-| UC-B5 | `browse_events` | Events list page | L1 | 2 | P0 | |
-| UC-B6 | `cancel_event` | Event details - Cancel | L1 | 2 | P1 | |
-| UC-B7 | `export_schedule` | Calendar - Export .ics | L1 | 3 | P2 | |
+| UC-B2 | `view_schedule` | Calendar - month and week views | L1 | 2 | P0 | done |
+| UC-B3 | `view_event_details` | Calendar - open an event | L1 | 2 | P0 | done |
+| UC-B4 | `edit_event` | Event details - Edit | L1 | 2 | P1 | done |
+| UC-B5 | `browse_events` | Events list page | L1 | 2 | P0 | done |
+| UC-B6 | `cancel_event` | Event details - Cancel | L1 | 2 | P1 | done |
+| UC-B7 | `export_schedule` | Calendar - Export .ics | L1 | 3 | P2 | done |
 | UC-C1 | `record_attendance` | Attendance page (coach) | L2 | 2 | P0 | |
 | UC-C2 | `edit_attendance` | Attendance page - fix a record | L2 | 3 | P2 | |
 | UC-C3 | `rsvp` | Calendar - RSVP (player) | L2 | 2 | P0 | |
@@ -105,7 +105,7 @@ Nothing can be built in parallel until persistence, navigation and roles are rea
 | 1.4 | `AppBuilder` refactor + `ViewManagerModel` so presenters can trigger navigation |  | L3 (taken over from L1) | 1.0 | `Main` slimmed to one `add...UseCase()` per feature | Tue 11-03 | ✅ |
 | 1.5 | Role-based nav filtering in `AppShell` (existing TODO in that file) |  | L3 (done) - review: L4 | 1.3 | sidebar shows only the pages the role may use | Wed 11-04 | ✅ |
 | 1.6 | Persistence adapters for events and teams; stop wiring `InMemoryEventDataAccessObject` in `Main` |  | L3 (done) - review: L5 | 1.2 | a created event survives an app restart | Wed 11-04 | ✅ |
-| 1.7 | `Documentation.md` skeleton: layer + package diagram (L1), entity model diagram (L4), glossary (L2) |  | L1, L4, L2 | 1.1 | diagram + package map committed | Wed 11-04 | |
+| 1.7 | `Documentation.md` skeleton: layer + package diagram (L1), entity model diagram (L4), glossary (L2) |  | L1, L4, L2 | 1.1 | diagram + package map committed | Wed 11-04 | done for L1's share (layer and package diagram, package map); L4 and L2 parts are tracked separately |
 | 1.8 | Test harness: JUnit in the build + unit tests for the existing `create_event` slice |  | L2 | 1.0 | `gradle test` green locally | Wed 11-04 | ⚠️ partly |
 | 1.9 | Week-1 API spike: prove an external API calls from Java (Open-Meteo: done 2026-10-29) and rewrite the README API section in the course format |  | L3 | - | README API section with doc links and call status | Wed 11-04 | ✅ |
 
@@ -117,9 +117,9 @@ Nothing can be built in parallel until persistence, navigation and roles are rea
 
 | ID | Task | Use cases | Owner | Depends on | Deliverable | Due | Done |
 |----|------|------|-------|------------|-------------|-----|------|
-| 2.1 | `view_schedule` use case: `CalendarView` reads real events; delete `addDemoEvents()` | UC-B2 | L1 | 1.4, 1.6 | month/week views show stored events | Mon 11-09 | |
-| 2.2 | "Events" list page (replace the placeholder in `Main`), with filters by type/team | UC-B5 | L1 | 2.1 | working list page | Tue 11-10 | |
-| 2.3 | Event details page + `edit_event` / `cancel_event` use cases (the date-click TODO in `CalendarView`) | UC-B3, UC-B4, UC-B6 | L1 | 2.1 | cancelled events visibly flagged everywhere | Wed 11-11 | |
+| 2.1 | `view_schedule` use case: `CalendarView` reads real events; delete `addDemoEvents()` | UC-B2 | L1 | 1.4, 1.6 | month/week views show stored events | Mon 11-09 | done |
+| 2.2 | "Events" list page (replace the placeholder in `Main`), with filters by type/team | UC-B5 | L1 | 2.1 | working list page | Tue 11-10 | done |
+| 2.3 | Event details page + `edit_event` / `cancel_event` use cases (the date-click TODO in `CalendarView`) | UC-B3, UC-B4, UC-B6 | L1 | 2.1 | cancelled events visibly flagged everywhere | Wed 11-11 | done |
 | 2.4 | `record_attendance` use case (PRESENT / ABSENT / EXCUSED per player) | UC-C1 | L2 | 1.5, 1.6 | coach marks a whole roster's attendance | Tue 11-10 | |
 | 2.5 | `rsvp` use case: player responds to an upcoming event | UC-C3 | L2 | 2.1 | RSVP stored and visible to the coach | Wed 11-11 | |
 | 2.6 | `manage_teams` use case: create team, assign coach, add/remove players (Roster page) | UC-D1, UC-D2, UC-D3, UC-D4 | L4 | 1.5 | Roster page functional | Wed 11-11 | |
@@ -141,9 +141,9 @@ Nothing can be built in parallel until persistence, navigation and roles are rea
 | 3.3 | Parent↔child linking (invite/accept flow) + parent view of a child's schedule | UC-D5, UC-D6 | L4 | 2.6, 1.3 | parent sees their child's events | Tue 11-17 | |
 | 3.4 | `submit_absence_notice` use case: parent submits, coach sees it | UC-E4, UC-E5 | L5 | 3.3 | coach sees absence notices | Wed 11-18 | |
 | 3.5 | `manage_users` use case: admin creates/deactivates accounts and changes roles | UC-A5, UC-A6, UC-A7 | L3 | 1.3 | admin page works and roles are enforced | Wed 11-18 | |
-| 3.6 | `export_schedule` use case: promote `IcsExporter` behind a data-access gateway | UC-B7 | L1 | 2.1 | export runs from the calendar UI | Wed 11-18 | |
+| 3.6 | `export_schedule` use case: promote `IcsExporter` behind a data-access gateway | UC-B7 | L1 | 2.1 | export runs from the calendar UI | Wed 11-18 | done |
 | 3.7 | `view_event_weather` use case: forecast for an event (Open-Meteo gateway + controller/presenter) | UC-F1 | L5 | 2.3 | forecast shown on event details | Wed 11-18 | |
-| 3.8 | `Documentation.md`: sequence diagrams, one per lane for their own use cases |  | All (L5 coordinates) | 1.3, 2.4 | diagrams committed | Wed 11-18 | |
+| 3.8 | `Documentation.md`: sequence diagrams, one per lane for their own use cases |  | All (L5 coordinates) | 1.3, 2.4 | diagrams committed | Wed 11-18 | done for L1's share; other lanes' sequence diagrams are separate |
 | 3.9 | Sprint 3 test verification (non-authors only) |  | L5 | 3.1–3.7 | green suite | Wed 11-18 | |
 | 3.10 | `change_password` use case: a user changes their own password | UC-A4 | L3 | 1.3 | new password stored and usable | Wed 11-18 | ✅ |
 | 3.11 | `edit_attendance` use case: correct an attendance record after the fact | UC-C2 | L2 | 2.4 | records can be fixed | Wed 11-18 | |

@@ -1,6 +1,6 @@
 # Documentation
 
-How the project is built. Diagrams marked **owed** are the deliverables named in `Plan.md` (task 1.7).
+How the project is built. Diagrams marked **owed** are the deliverables named in `Plan.md` (task 1.7). The existing L1 diagrams and wiring notes describe the PR #10 baseline. Section 8 records the L5 additions on `daniel/l5-completion` as of November 23, 2026.
 
 ## 1. What the app is
 
@@ -189,7 +189,7 @@ Each slice is a pair of packages with the same name:
 
 ### AppBuilder wiring notes (L1)
 
-`AppBuilder` creates the shared objects once, as fields: a single `FileAppDataAccessObject`, the `ViewManagerModel`, the `Session`, a `UserFactory` and the `ViewManager`. Its constructor also seeds the demo accounts and team if `coach1` is missing. `Main` then calls a chain of `add...` methods and finishes with `build()`.
+`AppBuilder` creates the shared objects once, as fields: a single `FileAppDataAccessObject`, the `ViewManagerModel`, the `Session`, a `UserFactory` and the `ViewManager`. The current constructor seeds presentation data only when the store is genuinely empty. The PR #10 baseline used the earlier demo setup. `Main` then calls a chain of `add...` methods and finishes with `build()`.
 
 **Where views are built.** Only three methods exist purely to build views: `addLoginView()`, `addSignupView()` and `addChangePasswordView()`. The other pages are built inside larger methods:
 
@@ -240,7 +240,7 @@ Built so far:
 | `signup` (UC-A2) | `use_case/signup` + `interface_adapter/signup` | `SignupView` | `SignupInteractorTest` (8) |
 | `logout` (UC-A3) | `use_case/logout` + `interface_adapter/logout` | Log out button in `AppShell` | `LogoutInteractorTest` (2) |
 | `change_password` (UC-A4) | `use_case/change_password` + `interface_adapter/change_password` | `ChangePasswordView` (Account page) | `ChangePasswordInteractorTest` (8) |
-| `create_event` (UC-B1) | `use_case/create_event` + `interface_adapter/create_event` | `CreateEventView` | owed by L2 (task 1.8) |
+| `create_event` (UC-B1) | `use_case/create_event` + `interface_adapter/create_event` | `CreateEventView` | `CreateEventInteractorTest`, supplied with PR #10 |
 
 - **Sequence diagrams** - owed by each lane for its own use cases (task 3.8, coordinated by L5)
 
@@ -758,7 +758,7 @@ The already-cancelled branch cannot be reached from the UI, because the Cancel e
 
 ## 4. Storage
 
-One local JSON file, `data/app-data.json` (git-ignored, created on first write), holds users, teams, events and attendance. `EntityJsonMapper` is the single place the on-disk shape lives, so a hosted store can replace the file without touching any use case.
+One local JSON file, `data/app-data.json` (git-ignored, created on first write), holds users, teams, events, attendance, announcements, event notifications, parent links, and absence notices. `EntityJsonMapper` is the single place the on-disk shape lives, so a hosted store can replace the file without touching any use case.
 
 The signed-in user is deliberately not in the file: it lives in `Session`, behind the `use_case/current_user/CurrentUserInterface` port, so the interactors own the session transitions rather than the views.
 
@@ -767,21 +767,394 @@ The signed-in user is deliberately not in the file: it lives in `Session`, behin
 ## 5. How to build, test and run
 
 ```bash
-./gradlew build            # compile
-./gradlew test             # unit tests (network-tagged tests skipped, so it works offline)
-./gradlew test -Pnetwork   # also runs the live Open-Meteo check
-./gradlew run              # start the app
+./gradlew build
+./gradlew test
+./gradlew test -Pnetwork
+./gradlew run
+./gradlew seedDemo -PdemoData=data/demo-data.json
+./gradlew run -PappData=data/demo-data.json
 ```
 
-Demo accounts are created on first run (password `pw`): `coach1`, `player1`, `parent1`, `admin1`.
+Use JDK 21 and the checked-in wrapper. The project targets Java 17 bytecode. Default tests exclude live-network checks. With dependencies cached, `./gradlew --offline build` runs the build without downloads. The seeder refuses an existing destination. A genuinely empty application store is seeded with the dataset described in section 10, and existing stores retain their data.
 
 ## 6. Known limitations
 
 - Data is **per machine**: the JSON file is local, so nothing is shared between devices yet. A hosted store is a later one-class swap.
-- The calendar still shows hard-coded demo events until `view_schedule` lands (task 2.1).
+- Attendance, RSVP, stats, and roster management are maintained on the other lanes' branches and remain subject to integration and review.
 - `manage_users` is not built yet, so roles are chosen at sign-up.
 - One role per user (decision D5).
+- City forecasts can differ from conditions at an exact venue. Events outside the 16-day window and missing provider values show unavailable weather.
+- Parent relationships are currently admin-controlled. The original invite/accept design remains a separate L4 product choice.
 
 ## 7. API notes
 
 Open-Meteo (no key required) is our external API. It was called successfully from Java on 2026-10-29 and is documented in the README API section in the course required format (link, how it is used, whether it was called). Alternatives we considered are listed in `Plan.md` decision D7.
+
+## 8. Communication, parent access, and weather (L5)
+
+All seven L5 use cases are implemented on `daniel/l5-completion`. This includes the previously merged announcement slices. Teammate approval remains a separate step. The minimal admin-controlled parent-link workflow is a dependency needed for the requested parent features, with shared ownership review still required from L4. The scheduling source and diagrams above arrived through the PR #10 merge.
+
+### Architecture and ownership
+
+| Package or class | Responsibility | Owner or dependency |
+|---|---|---|
+| `post_announcement`, `view_announcements` | Validate coach posting and read authorized team posts | Daniel, L5 |
+| `view_notifications` | Filter durable event changes by current team membership or linked children | Daniel, L5 |
+| `submit_absence_notice`, `view_absence_notices` | Validate advance absence reports and show the parent or coach an authorized history | Daniel, L5 |
+| `link_parent_to_player` | Let an administrator approve or revoke a parent/player relationship | L4 dependency bridge for the requested L5 parent flows |
+| `view_event_weather`, `flag_rain_risk` | Authorize forecasts, represent unavailable data, and compute the 60% rain threshold | Daniel, L5 |
+| `EventWeatherGateway` | Use-case-owned contract for obtaining a daily forecast | Implemented by `OpenMeteoWeatherGateway` |
+| `FileAppDataAccessObject`, `EntityJsonMapper` | Persist the shared schema and keep event changes in the same transaction as their notifications | Shared data layer |
+| `AnnouncementsView`, `NotificationsView`, `AbsenceNoticesView`, `ParentLinksView`, `EventWeatherPanel`, `RainRiskPanel` | Forms, selectors, feedback, refresh, and session clearing | L5 UI with L1 page integration |
+
+The new parent and notification interactors read identity through `CurrentUserInterface`. Announcement and weather controllers obtain the current identity from `Session`, and their interactors check current stored roles and membership. Page visibility helps navigation, while business logic enforces access. Failed loads clear previous private results. Session changes clear forms and cancel or invalidate outstanding weather requests.
+
+The L5 view models currently expose immutable use-case output DTOs to the views. This follows the announcement implementation's existing coupling described in the L1 baseline. The additional parent and weather views share that characteristic, so the earlier statement that announcements are the only such view applies to the baseline snapshot.
+
+```mermaid
+flowchart LR
+    UI["L5 Swing pages and weather panels"] --> AD["Controllers, presenters, view models"]
+    AD --> UC["L5 input and output boundaries"]
+    UC --> SESSION["CurrentUserInterface"]
+    UC --> PORTS["Narrow data-access interfaces"]
+    UC --> WEATHER["EventWeatherGateway"]
+    UC --> ENT["Immutable communication entities"]
+    DAO["FileAppDataAccessObject"] -. implements .-> PORTS
+    API["OpenMeteoWeatherGateway"] -. implements .-> WEATHER
+    DAO --> JSON["EntityJsonMapper and local JSON"]
+    API --> HTTP["Public forecast and geocoding endpoints"]
+```
+
+### Entities, schema, and CRC cards
+
+The four communication entities are immutable. They reference existing users, teams, and events by stable identifiers. Role and membership checks belong to the use cases. An absence notice records advance intent, while the coach's attendance record remains a separate observation.
+
+```mermaid
+classDiagram
+    class Announcement {
+        String announcementId
+        String teamId
+        String authorUsername
+        String message
+        LocalDateTime createdAt
+    }
+    class EventNotification {
+        String notificationId
+        String eventId
+        String teamId
+        String changeType
+        String message
+        LocalDateTime createdAt
+    }
+    class ParentPlayerLink {
+        String parentUsername
+        String playerUsername
+    }
+    class AbsenceNotice {
+        String noticeId
+        String parentUsername
+        String playerUsername
+        String eventId
+        String reason
+        LocalDateTime submittedAt
+    }
+    Announcement --> Team : teamId
+    Announcement --> User : authorUsername
+    EventNotification --> Event : eventId
+    EventNotification --> Team : teamId
+    ParentPlayerLink --> User : parent and player usernames
+    AbsenceNotice --> Event : eventId
+    AbsenceNotice --> User : parent and player usernames
+```
+
+| Class | Responsibilities | Collaborators |
+|---|---|---|
+| `Announcement` | Keep one coach's team message, authorship, and posting time immutable | Posting/reading interactors, `Team`, `User`, JSON mapper |
+| `EventNotification` | Preserve one created, changed, or cancelled event message and its original timestamp | Event persistence transaction, notification interactor, `Event`, `Team` |
+| `ParentPlayerLink` | Identify one approved parent/player pair | Admin link interactor, parent authorization, `User` |
+| `AbsenceNotice` | Keep a parent's reason for one child and event, including submission time | Submit/view absence interactors, `Event`, parent/player users |
+| `PostAnnouncementInteractor` | Require a current coach assigned to the team and report success after saving | Posting data-access port and output boundary |
+| `ViewNotificationsInteractor` | Recheck role, roster, and parent links before presenting event history | Current-user port, notification data-access port, presenter |
+| `SubmitAbsenceNoticeInteractor` | Require a linked player on the event's roster and an upcoming active event | Current-user port, submission data-access port, `Clock` |
+| `ViewAbsenceNoticesInteractor` | Provide linked-child/event options to parents and own-team notices to coaches | Reading data-access port, current-user port, presenter |
+| `LinkParentToPlayerInteractor` | Restrict approval and removal to a stored administrator | User/link data-access port, current-user port |
+| `ViewEventWeatherInteractor` | Authorize event weather before and after an external lookup | Event data-access port, weather gateway, output boundary |
+| `FlagRainRiskInteractor` | Read upcoming authorized events and preserve unavailable or stale states | Rain-risk data-access port, weather gateway, presenter |
+
+The top-level JSON collections added by L5 are shown below. Examples illustrate the field names rather than a complete seed file.
+
+```json
+{
+  "announcements": [
+    {"announcementId": "post-1", "teamId": "demo-team", "authorUsername": "coach1", "message": "Bring water.", "createdAt": "2026-11-23T12:00"}
+  ],
+  "eventNotifications": [
+    {"notificationId": "change-1", "eventId": "demo-demo-team-1", "teamId": "demo-team", "changeType": "CREATED", "message": "Practice scheduled.", "createdAt": "2026-11-23T12:00"}
+  ],
+  "parentLinks": [
+    {"parentUsername": "parent1", "playerUsername": "player1"}
+  ],
+  "absenceNotices": [
+    {"noticeId": "notice-1", "parentUsername": "parent1", "playerUsername": "player1", "eventId": "demo-demo-team-1", "reason": "Medical appointment.", "submittedAt": "2026-11-23T12:00"}
+  ]
+}
+```
+
+Older stores load with empty missing collections. A present collection with an invalid type is rejected. Saves preserve unknown sections and record fields. The file is written to a temporary sibling and then replaced, using atomic replacement when supported. Event changes and their notifications share that write. A failed write restores the prior entries, and an unchanged event update produces no notification. Loading the notification feed performs no delivery or reconstruction, so refreshing cannot duplicate the persisted history.
+
+An absence notice has a deterministic ID derived from parent, player, and event. Submitting again updates that same report with explicit feedback. An ID collision with a different identity is rejected. Parent links support multiple players per parent, and removing a link revokes the parent's access on the next authorization check. Previously submitted notices remain available to the event team's coach.
+
+### Sequence diagrams
+
+#### Post and view announcements (UC-E1 and UC-E2)
+
+```mermaid
+sequenceDiagram
+    actor Coach
+    participant V as AnnouncementsView
+    participant C as Announcement controllers
+    participant I as Announcement interactors
+    participant S as Session
+    participant D as Announcement data-access ports
+    participant P as Presenters and view models
+    Coach->>V: Select team and post message
+    V->>C: execute(teamId, message)
+    C->>S: Read current username
+    C->>I: Submit input data
+    I->>D: Get stored user and team
+    alt User coaches the selected team and message is valid
+        I->>D: Save immutable announcement
+        D-->>I: Durable save completed
+        I->>P: Present success
+        P-->>V: Clear draft and refresh
+        V->>C: Load selected team's posts
+        C->>I: Execute reading use case
+        I->>D: Recheck role, roster, and parent links
+        I->>D: Read authorized team's posts
+        I->>P: Present newest-first posts
+        P-->>V: Replace visible feed
+    else Invalid input, denied access, or failed write
+        I->>P: Present failure
+        P-->>V: Show error and retain unsaved draft
+    end
+```
+
+#### Event transaction and notification reading (UC-E3)
+
+```mermaid
+sequenceDiagram
+    actor Coach
+    actor Reader as Player or linked parent
+    participant E as Event controller and interactor
+    participant D as FileAppDataAccessObject
+    participant F as Local JSON file
+    participant V as NotificationsView
+    participant I as ViewNotificationsInteractor
+    participant S as CurrentUserInterface
+    participant P as Notification presenter
+    Coach->>E: Create, edit, or cancel event
+    E->>D: Save authorized event change
+    D->>D: Stage event and one change notification
+    D->>F: Write complete temporary file and replace
+    alt Replacement succeeds
+        D-->>E: Save completed
+    else Replacement fails
+        D->>D: Restore previous event and notification state
+        D-->>E: Report persistence failure
+    end
+    Reader->>V: Open page or refresh
+    V->>I: Load notifications through controller
+    I->>S: Get current username
+    I->>D: Read stored role, teams, and parent links
+    I->>D: Read persisted notification history
+    I->>I: Filter authorized teams and sort newest first
+    I->>P: Present authorized snapshot
+    P-->>V: Replace feed and team filter
+```
+
+#### Administrator approves parent access (L4 dependency bridge)
+
+```mermaid
+sequenceDiagram
+    actor Admin
+    participant V as ParentLinksView
+    participant I as LinkParentToPlayerInteractor
+    participant S as CurrentUserInterface
+    participant D as Link data-access port
+    participant P as Link presenter and view model
+    Admin->>V: Choose parent and player accounts
+    V->>I: Link through controller
+    I->>S: Read current username
+    I->>D: Verify stored administrator role
+    I->>D: Verify existing PARENT and PLAYER accounts
+    alt Accounts and actor are valid
+        I->>D: Save relationship
+        I->>D: Reload accounts and approved links
+        I->>P: Present updated list
+        P-->>V: Show relationship and feedback
+    else Authorization, account, or persistence failure
+        I->>P: Present error
+        P-->>V: Clear stale list and show explanation
+    end
+    Admin->>V: Select an approved link and unlink
+    V->>I: Unlink through controller
+    I->>D: Recheck administrator and delete exact pair
+    Note over I,D: Parent authorization reads the current links on the next request
+```
+
+#### Submit an advance absence (UC-E4)
+
+```mermaid
+sequenceDiagram
+    actor Parent
+    participant V as AbsenceNoticesView
+    participant I as SubmitAbsenceNoticeInteractor
+    participant S as CurrentUserInterface
+    participant D as Submission data-access port
+    participant P as Submit presenter and view model
+    Parent->>V: Select linked child, event, and reason
+    V->>I: Execute through controller
+    I->>S: Get current username
+    I->>D: Read current PARENT role and approved child link
+    I->>D: Read event and team roster
+    I->>I: Require upcoming active event and child membership
+    alt Authorized and valid
+        I->>D: Save or update deterministic parent-child-event notice
+        D-->>I: Durable save completed
+        I->>P: Present saved or updated notice
+        P-->>V: Clear draft and reload history
+    else Denied, invalid, or failed save
+        I->>P: Present failure
+        P-->>V: Show error and retain reason
+    end
+```
+
+#### View parent or coach absence history (UC-E5)
+
+```mermaid
+sequenceDiagram
+    actor Reader as Parent or coach
+    participant V as AbsenceNoticesView
+    participant I as ViewAbsenceNoticesInteractor
+    participant S as CurrentUserInterface
+    participant D as Reading data-access port
+    participant P as Read presenter and view model
+    Reader->>V: Open page, change child, or refresh
+    V->>I: Execute through controller
+    I->>S: Get current username
+    I->>D: Read stored user role
+    alt Parent
+        I->>D: Read approved children and their rostered teams
+        I->>D: Read upcoming active event choices
+        I->>D: Read this parent's notices for the selected child
+    else Coach
+        I->>D: Read teams coached by current user
+        I->>D: Read notices for those teams' events
+    end
+    I->>P: Present authorized history and form choices
+    P-->>V: Replace feed and selectors
+    Note over V,P: Session changes clear history, reason, and feedback
+```
+
+#### Event weather and upcoming rain flags (UC-F1 and UC-F2)
+
+```mermaid
+sequenceDiagram
+    actor Reader
+    participant V as EventWeatherPanel or RainRiskPanel
+    participant C as Weather controller
+    participant W as Background worker
+    participant I as Weather or rain-risk interactor
+    participant D as Authorized event data port
+    participant G as OpenMeteoWeatherGateway
+    participant API as Open-Meteo public endpoints
+    participant P as Presenter and view model
+    Reader->>V: Check weather or Check rain risk
+    V->>C: Request forecast or authorized event overview
+    C->>W: Start work away from Swing event thread
+    W->>I: Execute use case
+    I->>D: Verify current role, event, roster, and parent links
+    I->>G: Request city or coordinates and event date
+    alt Forecast is at most 15 minutes old
+        G-->>I: Return cached forecast
+    else Lookup requires a refresh
+        G->>API: Resolve city if needed and request 16-day forecast
+        alt Usable response
+            API-->>G: Daily temperature and precipitation probability
+            G->>G: Validate values and cache available days
+            G-->>I: Return forecast with fetch time
+        else Request fails
+            G-->>I: Return labelled stale forecast up to 24 hours old, or unavailable
+        end
+    end
+    I->>D: Recheck event and access after lookup
+    I-->>W: Authorized forecast or measured rain flags
+    W->>C: Completed result
+    C->>C: Discard obsolete session or request result
+    C->>P: Publish on Swing event thread
+    P-->>V: Show forecast or unavailable state
+    V->>V: Apply measured flags to calendar and events list
+```
+
+A probability of at least 60% produces a rain-risk flag. Missing numbers, out-of-range dates, and unresolved locations remain unavailable. The gateway's cache lasts for the current process, treats data as fresh for 15 minutes, and permits a labelled fallback up to 24 hours old after a failed lookup. Calendar and event-list flags are cleared or refreshed when event context or session changes. Both explicit check buttons use background work, and opening event details loads metadata without initiating a weather request.
+
+## 9. Delivery and independent verification — November 23, 2026
+
+### Integrated application checks
+
+| Check | Result |
+|---|---|
+| `./gradlew --offline build installDist` | 297 tests, 0 failures. The installed application and distribution archives were built |
+| `./gradlew --offline test -Pnetwork` | 298 tests, 0 failures, including the live Open-Meteo test |
+| Live coordinate forecast for November 23 | Toronto high 10.0 °C, rain probability 20% |
+| Actual event-weather panel for November 24 | Resolved Toronto, Ontario, Canada, high 2.7 °C, rain probability 1%, fetched at `2026-11-23T20:42:14Z` |
+| Actual entry point and forms | `Main.configure` exercised the configured application, including linked-parent access, notice submission, event changes, and authorization boundaries |
+| Screenshot inspection | Actual Swing pages captured and visually inspected at `docs/images/notifications.png`, `docs/images/absence-notices.png`, and `docs/images/weather.png` |
+
+The live batch used four public requests in total, consisting of two coordinate forecasts and a city geocoding/forecast pair through the actual event panel. The estimated provider charge was CAD $0 under the published noncommercial terms. The checks created no account, subscription, or recurring activity. Weather attribution appears in the interface as Open-Meteo, CC BY 4.0.
+
+The offline suite includes regressions for two issues found during final integration. Successful create/edit/cancel flows cancel and clear obsolete rain-risk flags. Event mutations require the actor's current stored COACH role, so a former coach who is now a linked parent cannot retain event-management access. The suite also covers the configured application form flows, rollback, parent-link authorization, repeated absence updates, session clearing, and unavailable forecasts.
+
+The installed package is `build/install/team-sports-platform`, with launcher `bin/team-sports-platform` (or `bin/team-sports-platform.bat` on Windows). Distribution archives are in `build/distributions`, including `team-sports-platform-0.1.0.zip`. The delivery branch remains `daniel/l5-completion` with owning-lane and non-author review pending.
+
+### Other-lane verification
+
+The following runs checked other lanes at their recorded branch heads. Both suites passed, and the additional reproductions found behavior outside their test coverage. The findings need the owning lanes' follow-up and teammate review.
+
+| Lane and branch head | Suite result | Reproduced issue | Owner action |
+|---|---|---|---|
+| L2, `977b912` | 120 tests, 0 failures | `FileAppDataAccessObject.java:205–208` in that branch removes former roster players' event records during `saveAttendanceRoster`. A one-record history became empty after correcting the current roster and reopening the store | Aidan should preserve existing event attendance for players outside the current edited roster and add a regression covering removal from a team |
+| L4, `d171e05` | 126 tests, 0 failures | `ViewRosterInteractor.java:53` throws for a team with no coach. `ManageRosterInteractor.java:52,59` and `AssignCoachInteractor.java:45` change the live `Team` before a failed persistence operation, so the running view changes while reopening restores the older roster | Aarav should handle an unassigned coach and stage team changes or restore them after a failed write, with tests comparing memory and reopened data |
+
+The line references above identify those branch snapshots. Their source is separate from this branch's L5 implementation. The integrated application results above cover the current delivery branch. To repeat the offline check with cached dependencies, run `./gradlew --offline build installDist`. A live check is opt-in through `./gradlew --offline test -Pnetwork`.
+
+## 10. Five-minute demo
+
+Create a fresh demo file before the presentation. Use an unused destination, because the seeder refuses to replace a file. Reuse the resulting path when starting or restarting the app.
+
+```bash
+./gradlew seedDemo -PdemoData=data/demo-data.json
+./gradlew run -PappData=data/demo-data.json
+```
+
+All accounts use password `pw`. The dataset has 15 accounts, three announcements, one example absence notice, eight parent/player relationships, and 42 upcoming events over the next 14 days. Event IDs follow `demo-<teamId>-<day>`, where day 1 is tomorrow relative to seeding.
+
+| Team | Coach | Players | City and first event |
+|---|---|---|---|
+| Toronto Hawks (`demo-team`) | `coach1` | `player1`–`player3` | Toronto, Ontario, `demo-demo-team-1` at 18:00 tomorrow |
+| Ottawa Bears (`north-team`) | `coach2` | `player4`–`player6` | Ottawa, Ontario, `demo-north-team-1` at 19:00 tomorrow |
+| Hamilton Falcons (`south-team`) | `coach1` | `player7`–`player8` | Hamilton, Ontario, `demo-south-team-1` at 20:00 tomorrow |
+
+The links pair `parent1` with `player1`/`player2`, `parent2` with `player3`/`player4`, `parent3` with `player5`/`player6`, and `parent4` with `player7`/`player8`. `admin1` manages links. The example absence is from `parent1` for `player1` at `demo-demo-team-2`.
+
+| Time | Actions | Visible result |
+|---|---|---|
+| 0:00–0:35 | Sign in as `admin1`, open Parent links, select `parent1`/`player2`, unlink and link that pair again | The approved links list returns to eight relationships, demonstrating administrator control |
+| 0:35–1:25 | Sign in as `coach1`. Post “Bring indoor shoes and water” to Toronto Hawks. Open tomorrow's first Toronto event and change its time from 18:00 to 18:30 | The new team announcement appears and the event update saves |
+| 1:25–2:15 | Sign in as `parent1`. Open Announcements and Notifications. In Absence notices choose `player1` and that first event, submit “Medical appointment”, then resubmit “Medical appointment confirmed” | The parent sees the team's post and change history. One notice displays the updated reason |
+| 2:15–2:50 | Sign in as `coach1` and open Absence notices | The feed identifies the parent, child, event, submission time, and updated reason for the coach's team |
+| 2:50–3:25 | Sign in as `player1`, open Calendar, Announcements, and Notifications | Only the player's team data appears, with the updated event time and new post |
+| 3:25–4:25 | Open the first Toronto event, press Check weather, then open Weather and press Check rain risk | A forecast, a labelled cached result, or an explicit unavailable state appears. Measured flags are reflected in Calendar and Events. City or coordinates can correct an ambiguous venue |
+| 4:25–5:00 | Restart using the same demo path and sign in as `parent1` | The updated notice, post, event time, and persisted change history survive reopening |
+
+For the weather step, use a network connection and an event within the 16-day window. A failed lookup may show a labelled stale forecast if the process has a usable cached result. Otherwise show the unavailable message and continue the local communication flow. The API panel credits Open-Meteo under CC BY 4.0. Avoid reseeding the presentation file between steps, since the demo is intended to show persistence.

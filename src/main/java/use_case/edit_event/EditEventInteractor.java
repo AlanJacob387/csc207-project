@@ -43,21 +43,21 @@ public class EditEventInteractor implements EditEventInputBoundary {
         }
 
         final Event original;
-        final String coach;
+        final boolean canManage;
         try {
             original = dataAccess.getEvent(inputData.getEventId());
             if (original == null) {
                 presenter.prepareFailView("That event no longer exists.");
                 return;
             }
-            coach = dataAccess.getCoachUsername(original.getTeamId());
+            canManage = dataAccess.canManageEvent(username, original.getTeamId());
         }
         catch (IllegalStateException | UncheckedIOException ex) {
             presenter.prepareFailView("Could not read the event: " + ex.getMessage());
             return;
         }
 
-        if (!username.equals(coach)) {
+        if (!canManage) {
             presenter.prepareFailView("Only the team's coach can edit this event.");
             return;
         }

@@ -43,6 +43,7 @@ class CreateEventInteractorTest {
         private final Map<String, String> teams = new HashMap<>();
         private final List<Event> saved = new ArrayList<>();
         private boolean failWrites;
+        private boolean failAuthorityRead;
 
         @Override
         public void saveEvent(Event event) {
@@ -61,6 +62,14 @@ class CreateEventInteractorTest {
         @Override
         public String getCoachUsername(String teamId) {
             return teams.get(teamId);
+        }
+
+        @Override
+        public boolean canManageEvent(String username, String teamId) {
+            if (failAuthorityRead) {
+                throw new IllegalStateException("Account authority is unavailable");
+            }
+            return username != null && username.equals(teams.get(teamId));
         }
     }
 
@@ -236,6 +245,17 @@ class CreateEventInteractorTest {
 
         assertNull(presenter.success);
         assertNotNull(presenter.error);
+        assertTrue(dataAccess.saved.isEmpty());
+    }
+
+    @Test
+    void anAuthorityReadFailureIsReportedBeforeAnyEventIsSaved() {
+        dataAccess.failAuthorityRead = true;
+
+        interactor.execute(new CreateEventInputData("hawks", "GAME", FUTURE, "Arena", "Rivals"));
+
+        assertNull(presenter.success);
+        assertTrue(presenter.error.startsWith("Could not read the team:"));
         assertTrue(dataAccess.saved.isEmpty());
     }
 }

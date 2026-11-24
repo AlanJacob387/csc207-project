@@ -25,6 +25,9 @@ public interface CancelEventDataAccessInterface {
      */
     String getCoachUsername(String teamId);
 
+    /** Checks the current stored coach role as well as this team's assignment. */
+    boolean canManageEvent(String username, String teamId);
+
     /**
      * Replaces the stored event that has the same id. If the write fails, the
      * stored event is left as it was.

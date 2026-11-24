@@ -51,7 +51,7 @@ public class ViewEventDetailsInteractor implements ViewEventDetailsInputBoundary
 
         final Event event;
         final String teamName;
-        final String coach;
+        final boolean canManage;
         try {
             event = dataAccess.getEvent(eventId);
             if (event == null) {
@@ -64,7 +64,7 @@ public class ViewEventDetailsInteractor implements ViewEventDetailsInputBoundary
                 return;
             }
             teamName = dataAccess.getTeamName(event.getTeamId());
-            coach = dataAccess.getCoachUsername(event.getTeamId());
+            canManage = dataAccess.canManageEvent(username, event.getTeamId());
         }
         catch (IllegalStateException | UncheckedIOException ex) {
             presenter.prepareFailView("Could not read the event: " + ex.getMessage());
@@ -79,6 +79,6 @@ public class ViewEventDetailsInteractor implements ViewEventDetailsInputBoundary
                 event.getLocation(),
                 event.getOpponent(),
                 event.isCancelled(),
-                username.equals(coach)));
+                canManage));
     }
 }

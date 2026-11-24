@@ -83,6 +83,8 @@ public class EventDetailsView extends JPanel implements PropertyChangeListener {
 
     private final CardLayout cards = new CardLayout();
     private final JPanel body = new JPanel(cards);
+    private final JPanel readContent = new JPanel(new BorderLayout(0, 14));
+    private EventWeatherPanel weatherPanel;
     private final JButton editButton = new JButton("Edit");
     private final JButton cancelEventButton = new JButton("Cancel event");
     private final JButton saveButton = new JButton("Save");
@@ -90,6 +92,7 @@ public class EventDetailsView extends JPanel implements PropertyChangeListener {
 
     private JDialog dialog;
     private Runnable onClose = () -> { };
+    private Runnable onEventChanged = () -> { };
     private String currentEventId;
     private boolean editing;
 
@@ -135,6 +138,9 @@ public class EventDetailsView extends JPanel implements PropertyChangeListener {
 
         final JPanel form = new JPanel(new GridLayout(0, 2, 12, 8));
         form.setOpaque(false);
+        dateTimeField.setName("eventEditDateTime");
+        locationField.setName("eventEditLocation");
+        opponentField.setName("eventEditOpponent");
         form.add(captionLabel("Date/time (yyyy-MM-dd HH:mm)"));
         form.add(dateTimeField);
         form.add(captionLabel("Location"));
@@ -145,7 +151,9 @@ public class EventDetailsView extends JPanel implements PropertyChangeListener {
         // Top-aligned wrappers so the shorter form doesn't stretch its rows to
         // the height of the details card.
         body.setOpaque(false);
-        body.add(topAligned(rows), READ_CARD);
+        readContent.setOpaque(false);
+        readContent.add(rows, BorderLayout.NORTH);
+        body.add(topAligned(readContent), READ_CARD);
         body.add(topAligned(form), EDIT_CARD);
         add(body, BorderLayout.CENTER);
 
@@ -208,6 +216,20 @@ public class EventDetailsView extends JPanel implements PropertyChangeListener {
         this.onClose = onClose;
     }
 
+    /** Invalidates forecast snapshots whenever an event edit or cancellation succeeds. */
+    public void setOnEventChanged(Runnable callback) {
+        onEventChanged = callback;
+    }
+
+    /** Adds the forecast owned by the event-weather slice to the event's read view. */
+    public void setWeatherPanel(EventWeatherPanel panel) {
+        if (weatherPanel != null) {
+            readContent.remove(weatherPanel);
+        }
+        weatherPanel = panel;
+        readContent.add(panel, BorderLayout.CENTER);
+    }
+
     /**
      * Loads an event and shows it in a modal dialog. Returns once the dialog
      * is closed.
@@ -216,9 +238,7 @@ public class EventDetailsView extends JPanel implements PropertyChangeListener {
      * @param parent  component the dialog is centred over
      */
     public void open(String eventId, Component parent) {
-        currentEventId = eventId;
-        editing = false;
-        detailsController.execute(eventId);
+        loadEvent(eventId);
 
         final Window owner = SwingUtilities.getWindowAncestor(parent);
         dialog = new JDialog(owner, "Event Details", Dialog.ModalityType.APPLICATION_MODAL);
@@ -231,7 +251,17 @@ public class EventDetailsView extends JPanel implements PropertyChangeListener {
 
         // setVisible blocks until the dialog is closed, by button or window X.
         dialog = null;
+        if (weatherPanel != null) {
+            weatherPanel.clear();
+        }
         onClose.run();
+    }
+
+    /** Loads the details through the same controller for dialogs and offscreen verification. */
+    public void loadEvent(String eventId) {
+        currentEventId = eventId;
+        editing = false;
+        detailsController.execute(eventId);
     }
 
     private void close() {
@@ -300,6 +330,7 @@ public class EventDetailsView extends JPanel implements PropertyChangeListener {
             return;
         }
         editing = false;
+        onEventChanged.run();
         // Reload from the store so the dialog shows what was saved, not what
         // was typed.
         detailsController.execute(currentEventId);
@@ -311,6 +342,7 @@ public class EventDetailsView extends JPanel implements PropertyChangeListener {
             showStatus(cancelViewModel.getErrorMessage(), true);
             return;
         }
+        onEventChanged.run();
         detailsController.execute(currentEventId);
         showStatus(cancelViewModel.getSuccessMessage(), false);
     }
@@ -332,6 +364,14 @@ public class EventDetailsView extends JPanel implements PropertyChangeListener {
         // Practices have no opponent, so the row would only ever be blank.
         opponentCaption.setVisible(detailsViewModel.isGame());
         opponentValue.setVisible(detailsViewModel.isGame());
+        if (weatherPanel != null) {
+            if (error.isEmpty()) {
+                weatherPanel.showEvent(currentEventId);
+            }
+            else {
+                weatherPanel.clear();
+            }
+        }
 
         updateControls();
     }

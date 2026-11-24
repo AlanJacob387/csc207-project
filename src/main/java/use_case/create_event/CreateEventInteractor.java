@@ -42,19 +42,19 @@ public class CreateEventInteractor implements CreateEventInputBoundary {
             return;
         }
 
-        final String coach;
+        final boolean canManage;
         try {
             if (!dataAccess.teamExists(inputData.getTeamId())) {
                 presenter.prepareFailView("Team does not exist: " + inputData.getTeamId());
                 return;
             }
-            coach = dataAccess.getCoachUsername(inputData.getTeamId());
+            canManage = dataAccess.canManageEvent(username, inputData.getTeamId());
         }
         catch (IllegalStateException | UncheckedIOException ex) {
             presenter.prepareFailView("Could not read the team: " + ex.getMessage());
             return;
         }
-        if (!username.equals(coach)) {
+        if (!canManage) {
             presenter.prepareFailView("Only the team's coach can create events for this team.");
             return;
         }

@@ -43,6 +43,7 @@ class ViewEventDetailsInteractorTest {
         private final Map<String, String> coaches = new HashMap<>();
         private final Map<String, Set<String>> players = new HashMap<>();
         private boolean failReads;
+        private boolean failAuthorityRead;
 
         @Override
         public Event getEvent(String eventId) {
@@ -72,6 +73,14 @@ class ViewEventDetailsInteractorTest {
         @Override
         public String getCoachUsername(String teamId) {
             return coaches.get(teamId);
+        }
+
+        @Override
+        public boolean canManageEvent(String username, String teamId) {
+            if (failAuthorityRead) {
+                throw new IllegalStateException("Account authority is unavailable");
+            }
+            return username != null && username.equals(coaches.get(teamId));
         }
     }
 
@@ -246,6 +255,27 @@ class ViewEventDetailsInteractorTest {
     void reportsDataAccessFailure() {
         currentUser.username = "coach1";
         dataAccess.failReads = true;
+
+        interactor.execute(new ViewEventDetailsInputData("game-1"));
+
+        assertNull(presenter.success);
+        assertTrue(presenter.error.startsWith("Could not read the event:"));
+    }
+
+    @Test
+    void unrelatedUserCannotReadAnEventByGuessingItsIdentifier() {
+        currentUser.username = "unrelated-player";
+
+        interactor.execute(new ViewEventDetailsInputData("game-1"));
+
+        assertNull(presenter.success);
+        assertEquals("You're not on this event's team.", presenter.error);
+    }
+
+    @Test
+    void anAuthorityReadFailureIsReportedInsteadOfShowingEditableDetails() {
+        currentUser.username = "coach1";
+        dataAccess.failAuthorityRead = true;
 
         interactor.execute(new ViewEventDetailsInputData("game-1"));
 

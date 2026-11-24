@@ -2,7 +2,6 @@ package data_access;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -70,7 +69,10 @@ class FileAppDataAccessObjectUpdateEventTest {
         assertThrows(UncheckedIOException.class, () -> dao.updateEvent(changed));
 
         final Event afterwards = dao.getEvent("game-1");
-        assertSame(original, afterwards);
+        assertEquals(original.getEventId(), afterwards.getEventId());
+        assertEquals(original.getTeamId(), afterwards.getTeamId());
+        assertEquals(original.getType(), afterwards.getType());
+        assertEquals(original.getOpponent(), afterwards.getOpponent());
         assertFalse(afterwards.isCancelled());
         assertEquals("Civic Arena", afterwards.getLocation());
         assertEquals(WHEN, afterwards.getDateTime());

@@ -73,6 +73,7 @@ public class EventsListView extends JPanel implements PropertyChangeListener {
     // Event id and cancelled flag for each table row, in the same order.
     private final List<String> rowEventIds = new ArrayList<>();
     private final List<Boolean> rowCancelled = new ArrayList<>();
+    private java.util.Map<String, String> rainRiskFlags = java.util.Map.of();
 
     private final CardLayout cards = new CardLayout();
     private final JPanel body = new JPanel(cards);
@@ -201,7 +202,8 @@ public class EventsListView extends JPanel implements PropertyChangeListener {
         for (BrowseEventsViewModel.Entry entry : viewModel.getEntries()) {
             tableModel.addRow(new Object[] {
                 entry.getDate(), entry.getTime(), entry.getTitle(), entry.getTeamName(),
-                entry.getLocation(), entry.isCancelled() ? "Cancelled" : "",
+                entry.getLocation(), entry.isCancelled() ? "Cancelled"
+                        : rainRiskFlags.getOrDefault(entry.getEventId(), ""),
             });
             rowEventIds.add(entry.getEventId());
             rowCancelled.add(entry.isCancelled());
@@ -214,6 +216,15 @@ public class EventsListView extends JPanel implements PropertyChangeListener {
         }
         else {
             cards.show(body, TABLE_CARD);
+        }
+    }
+
+    /** Updates forecast status while keeping cancellation status visible. */
+    public void setRainRiskFlags(java.util.Map<String, String> flags) {
+        rainRiskFlags = java.util.Map.copyOf(flags);
+        for (int row = 0; row < rowEventIds.size(); row++) {
+            tableModel.setValueAt(rowCancelled.get(row) ? "Cancelled"
+                    : rainRiskFlags.getOrDefault(rowEventIds.get(row), ""), row, STATUS_COLUMN);
         }
     }
 

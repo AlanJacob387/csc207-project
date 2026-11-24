@@ -33,12 +33,12 @@ Built so far:
 
 | Use case | Slice | View | Tests |
 |---|---|---|---|
-| `login` (UC-A1) | `use_case/login` + `interface_adapter/login` | `LoginView` | `LoginInteractorTest` (8) |
+| `login` (UC-A1) | `use_case/login` + `interface_adapter/login` | `LoginView` | `LoginInteractorTest` (11), `LoginViewTest` (2) |
 | `signup` (UC-A2) | `use_case/signup` + `interface_adapter/signup` | `SignupView` | `SignupInteractorTest` (8) |
 | `logout` (UC-A3) | `use_case/logout` + `interface_adapter/logout` | Log out button in `AppShell` | `LogoutInteractorTest` (2) |
 | `change_password` (UC-A4) | `use_case/change_password` + `interface_adapter/change_password` | `ChangePasswordView` (Account page) | `ChangePasswordInteractorTest` (8), `ChangePasswordViewTest` (3) |
 | `create_event` (UC-B1) | `use_case/create_event` + `interface_adapter/create_event` | `CreateEventView` | owed by L2 (task 1.8) |
-| `manage_users` (UC-A5, UC-A6, UC-A7) | `use_case/manage_users` + `interface_adapter/manage_users` | `ManageUsersView` (Manage Users page, administrators only) | `CreateUserInteractorTest` (11), `ChangeUserRoleInteractorTest` (9), `DeactivateUserInteractorTest` (9), `ReactivateUserInteractorTest` (6), `ListAccountsInteractorTest` (5), `ManageUsersViewTest` (11), `ManageUsersFlowTest` (8) |
+| `manage_users` (UC-A5, UC-A6, UC-A7) | `use_case/manage_users` + `interface_adapter/manage_users` | `ManageUsersView` (Manage Users page, administrators only) | `CreateUserInteractorTest` (11), `ChangeUserRoleInteractorTest` (9), `DeactivateUserInteractorTest` (8), `ReactivateUserInteractorTest` (6), `ListAccountsInteractorTest` (5), `AdminPolicyTest` (11), `ManageUsersViewTest` (14), `ManageUsersFlowTest` (10) |
 | `post_announcement` (UC-E1) | `use_case/post_announcement` + `interface_adapter/post_announcement` | Announcements page | `PostAnnouncementInteractorTest` (17) |
 | `view_announcements` (UC-E2) | `use_case/view_announcements` + `interface_adapter/view_announcements` | Announcements page | `ViewAnnouncementsInteractorTest` (17) |
 
@@ -71,6 +71,16 @@ settings** page writes. With nothing configured the app uses the local JSON file
 tests stay offline. `AppDataStore` is the interface the wiring holds, so the two
 stores are interchangeable and no use case changes.
 
+**When the store is not usable.** The connection is chosen once, when the app
+starts. If the configured database cannot be reached, the app still opens on the
+sign-in page and shows `Could not reach the account store: …` there; it never
+switches to the local file, because two people who believe they share data must
+not diverge. A local file that cannot be parsed is moved to
+`app-data.json.corrupt-<timestamp>`, the store starts empty and the sign-in page
+names the kept file - the old records stay in that file and are not merged back.
+`AppBuilderTest`, `FileAppDataAccessObjectTest` and
+`FileAnnouncementPersistenceTest` cover both paths against temporary files.
+
 The signed-in user is deliberately not stored: it lives in `Session`, behind the
 `use_case/current_user/CurrentUserInterface` port, so the interactors own the
 session transitions rather than the views.
@@ -83,6 +93,8 @@ The publishable key is meant to ship inside a client and reaches only what row
 level security allows; a **secret** key bypasses row level security, so the app
 refuses one. Anyone who extracts the publishable key inherits the app's own
 permissions, which is why passwords are hashed rather than stored plainly.
+`PasswordHasherTest` pins the iteration count, the salt length and the derived key
+length, so a weaker hash cannot pass unnoticed.
 
 ## 5. How to build, test and run
 
@@ -113,9 +125,28 @@ sign-in page, paste the project URL and publishable key, test and save
 - **Last write wins.** Two people editing the same row at the same time overwrite
   each other; there is no versioning or optimistic locking. Different rows are
   independent.
-- **A free project pauses after 7 days without activity.** The app then reports
-  that the account store cannot be read instead of silently switching to a local
-  file, because two people who believe they share data must not diverge.
+- **A free project pauses after 7 days without activity.** The app then opens on
+  the sign-in page and shows `Could not reach the account store: …` there; it does
+  not switch to a local file, because two people who believe they share data must
+  not diverge. Resume the project from the dashboard and signing in works again.
+  Every remote call runs before the page can answer, so a paused project is felt as
+  a wait of up to 15 seconds and then a message, not as a greyed-out button.
+- **A damaged local file is set aside, not repaired.** `data/app-data.json` that
+  cannot be parsed is moved to `app-data.json.corrupt-<timestamp>`, the store starts
+  empty and the sign-in page names the kept file. Nothing is merged back: the old
+  records are in that file. A file that cannot be *read* at all (permissions) still
+  stops startup, because there is no store to open.
+- **An administrator's rights are re-checked against the stored account, not the
+  session.** `AdminPolicy` re-reads the signed-in account on every Manage Users
+  action, so a demoted or deactivated administrator loses those actions immediately,
+  even in an open session. Two gaps remain: the sidebar is rebuilt only when the
+  session changes, and a *promoted* account needs a fresh sign-in before its new
+  role does anything. Outside Manage Users nothing re-checks the account, so a
+  deactivated user keeps working until they log out.
+- **The last active administrator is a backstop, not a lock.** An administrator
+  cannot act on their own account, so the "one active administrator left" check is
+  only reachable when two administrators act at the same moment; the read and the
+  write are separate requests, so two simultaneous demotions can still leave none.
 - **No delete policy** on any table: accounts are deactivated rather than deleted,
   and demo data is reset from the Supabase SQL editor.
 - The calendar still shows hard-coded demo events until `view_schedule` lands
@@ -137,8 +168,11 @@ sign-in page, paste the project URL and publishable key, test and save
   insert-only path for account creation belongs to the 4.3 pass.
 - **Password rules and sign-up are still loose.** Any non-empty password is
   accepted and sign-up admits `ADMIN`, so the administrator page is not the only
-  route to an administrative account. One shared password policy and a restricted
-  sign-up belong to the 4.3 validation pass.
+  route to an administrative account. Nothing caps a username or a display name
+  outside the administrator page (40 and 60 characters there), so a very long name
+  can be created through sign-up and is then clipped in the account list. One shared
+  password policy, one length rule and a restricted sign-up belong to the 4.3
+  validation pass.
 - One role per user (decision D5).
 
 ## 7. API notes

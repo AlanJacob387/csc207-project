@@ -21,10 +21,11 @@ without any setup.
 | Data API URL | Dashboard -> **Integrations -> Data API** | `https://<project-ref>.supabase.co` |
 | Publishable key | Dashboard -> **Settings -> API Keys** | `sb_publishable_...` |
 
-The Data API panel prints the REST URL with `/rest/v1` on the end. Only the part
-up to `.supabase.co` belongs in `TEAMSPORTS_DB_URL`; the client adds `/rest/v1`
-itself. Keeping the suffix builds `.../rest/v1/rest/v1/users`, which answers 404
-for every table.
+The Data API panel prints the REST URL with `/rest/v1` on the end. Either form
+works in `TEAMSPORTS_DB_URL`: the client and `probe.ps1` both drop a trailing
+`/rest/v1` (and any trailing slash), so nobody has to trim it by hand. The suffix
+only matters if you build a request yourself, for example with
+`Invoke-RestMethod`; `.../rest/v1/rest/v1/users` then answers 404 for every table.
 
 Use the **publishable** key, never the secret key. Supabase is retiring the old
 `anon` / `service_role` keys, and a secret key bypasses Row Level Security, so it
@@ -130,10 +131,10 @@ project cannot answer the REST API. A few requests a day are enough; visiting
 the dashboard also counts. If it does pause, the dashboard shows a **Resume
 project** button, and the data is kept for a year.
 
-A paused project does **not** silently switch the app to its local file: the
-sign-in page reports that the account store could not be read, because two people
-who believe they share data should not quietly diverge. Resume the project and the
-app works again.
+A paused project does **not** silently switch the app to its local file: the app
+still opens on the sign-in page and shows `Could not reach the account store: …`
+there, because two people who believe they share data should not quietly diverge.
+Resume the project and the app works again.
 
 ## Security notes
 

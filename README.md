@@ -55,6 +55,7 @@ The individual use cases behind each story are catalogued in `Plan.md`.
 - **Shared:** accounts, teams, events, attendance and announcements live in the Supabase database above, so every device that connects with the same project sees the same data.
 - **Local fallback:** with no database configured the app uses `data/app-data.json` (git-ignored), which is also what the unit tests use. The sign-in page always shows which store is active.
 - **Connection settings are per user and per machine**, outside the repository: `%USERPROFILE%\.team-sports\database.properties` on Windows, `~/.team-sports/database.properties` on macOS and Linux.
+- **If a store is not usable the app says so.** A database that cannot be reached leaves the app on the sign-in page with the reason instead of switching to the local file, and a `data/app-data.json` that cannot be parsed is kept beside the new file as `app-data.json.corrupt-<timestamp>` while the app starts empty.
 
 ## How to run
 

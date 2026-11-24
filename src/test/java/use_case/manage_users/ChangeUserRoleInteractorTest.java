@@ -153,11 +153,6 @@ class ChangeUserRoleInteractorTest {
             }
 
             @Override
-            public void createUser(User user) {
-                throw new AssertionError("nothing should be created");
-            }
-
-            @Override
             public void save(User user) {
                 throw new AssertionError("nothing should be saved");
             }

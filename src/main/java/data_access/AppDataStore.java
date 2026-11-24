@@ -8,6 +8,7 @@ import entity.Team;
 import use_case.change_password.ChangePasswordUserDataAccessInterface;
 import use_case.create_event.CreateEventDataAccessInterface;
 import use_case.login.LoginUserDataAccessInterface;
+import use_case.manage_users.CreateUserDataAccessInterface;
 import use_case.manage_users.ManageUsersDataAccessInterface;
 import use_case.post_announcement.PostAnnouncementDataAccessInterface;
 import use_case.signup.SignupUserDataAccessInterface;
@@ -32,7 +33,8 @@ public interface AppDataStore extends
         CreateEventDataAccessInterface,
         PostAnnouncementDataAccessInterface,
         ViewAnnouncementsDataAccessInterface,
-        ManageUsersDataAccessInterface {
+        ManageUsersDataAccessInterface,
+        CreateUserDataAccessInterface {
 
     /**
      * Saves a team, replacing the stored one with the same id.

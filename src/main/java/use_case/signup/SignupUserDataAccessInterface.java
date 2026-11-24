@@ -1,12 +1,16 @@
 package use_case.signup;
 
-import entity.User;
+import use_case.accounts.CreateAccountDataAccessInterface;
 
 /**
  * Data access interface required by the Sign Up use case.
- * Implemented in the data_access layer (local JSON file, in-memory fake).
+ * Implemented in the data_access layer (local JSON file, hosted database,
+ * in-memory fake).
+ *
+ * Sign up only creates accounts, so the port offers creation plus the username
+ * check it shows first; it deliberately cannot read or update an account.
  */
-public interface SignupUserDataAccessInterface {
+public interface SignupUserDataAccessInterface extends CreateAccountDataAccessInterface {
 
     /**
      * Checks whether a username is already taken.
@@ -15,15 +19,4 @@ public interface SignupUserDataAccessInterface {
      * @return true if a user with that username already exists
      */
     boolean existsByName(String username);
-
-    /**
-     * Persists a new user.
-     *
-     * Creation is an insert, not a replace: a username that is already stored is
-     * reported instead of overwritten, so two people creating the same name at
-     * the same moment cannot end up with one of them holding the other's password.
-     *
-     * @param user the user to create
-     */
-    void createUser(User user);
 }

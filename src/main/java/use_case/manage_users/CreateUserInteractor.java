@@ -19,7 +19,7 @@ import use_case.current_user.CurrentUserInterface;
  */
 public class CreateUserInteractor implements CreateUserInputBoundary {
 
-    private final ManageUsersDataAccessInterface dataAccess;
+    private final CreateUserDataAccessInterface dataAccess;
     private final ManageUsersOutputBoundary presenter;
     private final CurrentUserInterface currentUser;
     private final UserFactory userFactory;
@@ -27,12 +27,12 @@ public class CreateUserInteractor implements CreateUserInputBoundary {
     /**
      * Creates the interactor.
      *
-     * @param dataAccess  where accounts are read and written
+     * @param dataAccess  where accounts are confirmed and written
      * @param presenter   where the result is sent
      * @param currentUser the port that says who is signed in
      * @param userFactory builds the new account
      */
-    public CreateUserInteractor(ManageUsersDataAccessInterface dataAccess,
+    public CreateUserInteractor(CreateUserDataAccessInterface dataAccess,
                                 ManageUsersOutputBoundary presenter,
                                 CurrentUserInterface currentUser,
                                 UserFactory userFactory) {

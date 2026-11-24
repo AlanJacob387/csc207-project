@@ -165,15 +165,15 @@ class CreateUserInteractorTest {
     @Test
     void aUsernameClaimedBeforeTheWriteIsReported() {
         final User admin = new User("admin1", "pw", "Ada Admin", Role.ADMIN);
-        final ManageUsersDataAccessInterface racy = new ManageUsersDataAccessInterface() {
-            @Override
-            public List<User> getAllUsers() {
-                return List.of(admin);
-            }
-
+        final CreateUserDataAccessInterface racy = new CreateUserDataAccessInterface() {
             @Override
             public User get(String username) {
                 return admin;
+            }
+
+            @Override
+            public List<User> getAllUsers() {
+                return List.of(admin);
             }
 
             @Override
@@ -184,11 +184,6 @@ class CreateUserInteractorTest {
             @Override
             public void createUser(User user) {
                 throw new DuplicateUsernameException(user.getUsername());
-            }
-
-            @Override
-            public void save(User user) {
-                throw new AssertionError("nothing should be saved");
             }
         };
 
@@ -201,16 +196,16 @@ class CreateUserInteractorTest {
 
     @Test
     void aBrokenStoreIsReportedInsteadOfThrown() {
-        final ManageUsersDataAccessInterface broken = new ManageUsersDataAccessInterface() {
-            @Override
-            public List<User> getAllUsers() {
-                return List.of();
-            }
-
+        final CreateUserDataAccessInterface broken = new CreateUserDataAccessInterface() {
             @Override
             public User get(String username) {
                 return "admin1".equals(username)
                         ? new User("admin1", "pw", "Ada Admin", Role.ADMIN) : null;
+            }
+
+            @Override
+            public List<User> getAllUsers() {
+                return List.of();
             }
 
             @Override
@@ -220,11 +215,6 @@ class CreateUserInteractorTest {
 
             @Override
             public void createUser(User user) {
-                throw new IllegalStateException("the store is unwritable");
-            }
-
-            @Override
-            public void save(User user) {
                 throw new IllegalStateException("the store is unwritable");
             }
         };

@@ -5,6 +5,7 @@ import java.util.List;
 
 import entity.Role;
 import entity.User;
+import use_case.accounts.GetAccountDataAccessInterface;
 import use_case.current_user.CurrentUserInterface;
 
 /**
@@ -42,7 +43,7 @@ final class AdminPolicy {
      * @return the message to show, or null when the caller may manage users
      */
     static String refusalFor(CurrentUserInterface currentUser,
-                             ManageUsersDataAccessInterface dataAccess) {
+                             GetAccountDataAccessInterface dataAccess) {
         if (currentUser.getCurrentRole() != Role.ADMIN) {
             return NOT_ADMIN;
         }

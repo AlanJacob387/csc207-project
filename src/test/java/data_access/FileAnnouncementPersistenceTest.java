@@ -140,21 +140,25 @@ class FileAnnouncementPersistenceTest {
     }
 
     @Test
-    void presentSectionsMustBeArraysAndInvalidFilesAreLeftUntouched() throws IOException {
+    void presentSectionsMustBeArraysAndTheDamagedFileIsKeptAside() throws IOException {
         for (String section : new String[]{"users", "teams", "events", "attendance", "announcements"}) {
             for (Object wrongType : new Object[]{new JSONObject().put("unexpected", true), JSONObject.NULL}) {
                 final JSONObject invalid = legacyDocument().put(section, wrongType);
                 final Path file = writeDocument(invalid);
                 final String before = Files.readString(file);
 
-                assertThrows(IllegalStateException.class, () -> new FileAppDataAccessObject(file), section);
-                assertEquals(before, Files.readString(file));
+                final FileAppDataAccessObject dao = new FileAppDataAccessObject(file);
+                assertFalse(Files.exists(file), section + " must be set aside, not rewritten");
+                assertEquals(before, Files.readString(dao.quarantinedFile()),
+                        section + ": the original bytes must survive");
+                assertTrue(dao.get("player-7") == null,
+                        section + ": nothing may be guessed from a damaged file");
             }
         }
     }
 
     @Test
-    void malformedAnnouncementRecordsAreRejectedWithoutChangingTheFile() throws IOException {
+    void malformedAnnouncementRecordsAreSetAsideWithoutBeingGuessedAt() throws IOException {
         final JSONObject missingMessage = EntityJsonMapper.toJson(announcement("post-1", "team-7", "Message"));
         missingMessage.remove("message");
         final JSONObject invalidDate = EntityJsonMapper.toJson(announcement("post-1", "team-7", "Message"));
@@ -163,21 +167,26 @@ class FileAnnouncementPersistenceTest {
             final Path file = writeDocument(legacyDocument().put("announcements", new JSONArray().put(record)));
             final String before = Files.readString(file);
 
-            assertThrows(IllegalStateException.class, () -> new FileAppDataAccessObject(file));
-            assertEquals(before, Files.readString(file));
+            final FileAppDataAccessObject dao = new FileAppDataAccessObject(file);
+            assertEquals(before, Files.readString(dao.quarantinedFile()));
+            assertTrue(dao.getAnnouncementsForTeam("team-7").isEmpty());
         }
     }
 
     @Test
-    void duplicateAnnouncementIdsInAFileAreRejectedWithoutChoosingAWinner() throws IOException {
+    void duplicateAnnouncementIdsAreSetAsideWithoutChoosingAWinner() throws IOException {
         final JSONArray posts = new JSONArray()
                 .put(EntityJsonMapper.toJson(announcement("post-1", "team-7", "First")))
                 .put(EntityJsonMapper.toJson(announcement("post-1", "team-8", "Second")));
         final Path file = writeDocument(legacyDocument().put("announcements", posts));
         final String before = Files.readString(file);
 
-        assertThrows(IllegalStateException.class, () -> new FileAppDataAccessObject(file));
-        assertEquals(before, Files.readString(file));
+        final FileAppDataAccessObject dao = new FileAppDataAccessObject(file);
+
+        assertEquals(before, Files.readString(dao.quarantinedFile()));
+        assertTrue(dao.getAnnouncementsForTeam("team-7").isEmpty(),
+                "a duplicate must not be resolved by choosing a winner");
+        assertTrue(dao.getAnnouncementsForTeam("team-8").isEmpty());
     }
 
     private Announcement announcement(String id, String teamId, String message) {

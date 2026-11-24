@@ -84,7 +84,8 @@ public interface AppDataStore extends
 
     /**
      * Describes the store in one line, so the sign-in page can show whether the
-     * app is on the shared database or on a local file.
+     * app is on the shared database or on a local file. A store that had to recover
+     * from a damaged file adds a short note about where the old file went.
      *
      * @return a short description, such as "Local file: data/app-data.json"
      */

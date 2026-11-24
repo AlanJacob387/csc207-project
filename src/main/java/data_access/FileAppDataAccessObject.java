@@ -8,6 +8,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.time.DateTimeException;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -32,6 +34,10 @@ import entity.User;
  * The file (and its folder) are created on the first write, so a fresh clone
  * runs with no setup. Pass a temporary path in tests.
  *
+ * A file that cannot be parsed is set aside as {@code <name>.corrupt-<timestamp>}
+ * and the store starts empty, so a damaged file costs the user a screen rather
+ * than the whole application; {@link #describe()} says what happened.
+ *
  * Default location: {@code data/app-data.json} relative to the working
  * directory (git-ignored).
  */
@@ -46,7 +52,12 @@ public class FileAppDataAccessObject implements AppDataStore {
     private static final String ATTENDANCE = "attendance";
     private static final String ANNOUNCEMENTS = "announcements";
 
+    /** Suffix added to a store file that had to be set aside, then the timestamp. */
+    private static final String CORRUPT_SUFFIX = ".corrupt-";
+
     private final Path file;
+    private String loadNote = "";
+    private Path quarantined;
     private final Map<String, User> users = new LinkedHashMap<>();
     private final Map<String, Team> teams = new LinkedHashMap<>();
     private final Map<String, Event> events = new LinkedHashMap<>();
@@ -61,7 +72,16 @@ public class FileAppDataAccessObject implements AppDataStore {
 
     @Override
     public String describe() {
-        return "Local file: " + file;
+        return "Local file: " + file + loadNote;
+    }
+
+    /**
+     * The file a damaged store was moved to, or null when the store loaded.
+     *
+     * @return the set-aside file, so a test or a support note can point at it
+     */
+    Path quarantinedFile() {
+        return quarantined;
     }
 
     /**
@@ -298,7 +318,7 @@ public class FileAppDataAccessObject implements AppDataStore {
                 final Announcement announcement = EntityJsonMapper.announcementFromJson(
                         announcementsJson.getJSONObject(i));
                 if (announcements.putIfAbsent(announcement.getAnnouncementId(), announcement) != null) {
-                    throw new IllegalStateException("Duplicate announcement id in " + file);
+                    throw new InvalidStoreException("Duplicate announcement id in " + file);
                 }
             }
             storedDocument = root;
@@ -306,8 +326,57 @@ public class FileAppDataAccessObject implements AppDataStore {
         catch (IOException ex) {
             throw new UncheckedIOException("Could not read app data from " + file, ex);
         }
-        catch (JSONException | IllegalArgumentException | DateTimeException ex) {
-            throw new IllegalStateException("App data file has an invalid format: " + file, ex);
+        catch (JSONException | IllegalArgumentException | DateTimeException
+                | InvalidStoreException ex) {
+            // A file the app cannot load must not stop it starting: keep the file,
+            // begin empty and say what happened on the sign-in page.
+            quarantine();
+        }
+    }
+
+    /** Marks a store file the app cannot load, so the whole file is set aside. */
+    private static final class InvalidStoreException extends IllegalStateException {
+
+        private static final long serialVersionUID = 1L;
+
+        InvalidStoreException(String message) {
+            super(message);
+        }
+    }
+
+    /**
+     * Moves a store file that cannot be parsed beside itself, so the original bytes
+     * survive and the app can start with an empty store. The name carries a
+     * timestamp, so a second rescue never overwrites the first.
+     */
+    private void quarantine() {
+        // Nothing may survive a failed load: a half-filled store would let the next
+        // save rewrite the file without the sections that failed to parse.
+        users.clear();
+        teams.clear();
+        events.clear();
+        attendance.clear();
+        announcements.clear();
+        storedDocument = new JSONObject();
+
+        final Path target = file.toAbsolutePath();
+        final String stamp = LocalDateTime.now()
+                .format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"));
+        Path kept = target.resolveSibling(target.getFileName() + CORRUPT_SUFFIX + stamp);
+        int attempt = 1;
+        while (Files.exists(kept)) {
+            kept = target.resolveSibling(target.getFileName() + CORRUPT_SUFFIX + stamp
+                    + "-" + attempt++);
+        }
+        try {
+            Files.move(target, kept);
+            quarantined = kept;
+            loadNote = " (previous file was unreadable; kept as " + kept.getFileName() + ")";
+        }
+        catch (IOException ex) {
+            loadNote = " (previous file was unreadable and could not be kept: "
+                    + ex.getMessage() + ")";
+            System.err.println(loadNote.trim());
         }
     }
 

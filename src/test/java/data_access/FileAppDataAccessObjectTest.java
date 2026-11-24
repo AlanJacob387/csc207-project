@@ -2,9 +2,12 @@ package data_access;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
@@ -152,5 +155,38 @@ class FileAppDataAccessObjectTest {
         final FileAppDataAccessObject reloaded = new FileAppDataAccessObject(file);
         assertEquals("Patricia", reloaded.get("p1").getDisplayName());
         assertFalse(reloaded.get("p1").isActive());
+    }
+
+    @Test
+    void aCorruptFileIsKeptAsideAndTheStoreStartsEmpty() throws IOException {
+        final Path file = tempDir.resolve("app-data.json");
+        Files.writeString(file, "{\"users\":[{\"username\":\"p1\"");
+
+        final FileAppDataAccessObject dao = new FileAppDataAccessObject(file);
+
+        assertNull(dao.get("p1"), "a damaged file must not be guessed at");
+        assertFalse(Files.exists(file), "the damaged file is moved beside the store");
+        assertNotNull(dao.quarantinedFile());
+        assertEquals("{\"users\":[{\"username\":\"p1\"", Files.readString(dao.quarantinedFile()),
+                "the original bytes are kept for inspection");
+        assertTrue(dao.describe().contains(".corrupt-"), dao.describe());
+    }
+
+    @Test
+    void aSecondCorruptStartKeepsBothFiles() throws IOException {
+        final Path file = tempDir.resolve("app-data.json");
+        Files.writeString(file, "not json at all");
+        final FileAppDataAccessObject first = new FileAppDataAccessObject(file);
+        Files.writeString(file, "still not json");
+
+        final FileAppDataAccessObject second = new FileAppDataAccessObject(file);
+
+        assertNotNull(first.quarantinedFile());
+        assertNotNull(second.quarantinedFile());
+        assertNotEquals(first.quarantinedFile(), second.quarantinedFile(),
+                "a second rescue must not overwrite the first");
+        assertEquals("not json at all", Files.readString(first.quarantinedFile()));
+        assertEquals("still not json", Files.readString(second.quarantinedFile()));
+        assertNull(second.get("anyone"));
     }
 }

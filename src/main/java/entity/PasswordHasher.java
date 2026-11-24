@@ -34,7 +34,7 @@ public final class PasswordHasher {
     private static final String ALGORITHM = "PBKDF2WithHmacSHA256";
 
     /** Work factor used for new hashes. */
-    private static final int ITERATIONS = 120_000;
+    private static final int ITERATIONS = 600_000;
 
     /** Length of the derived key in bits. */
     private static final int KEY_BITS = 256;
@@ -56,13 +56,31 @@ public final class PasswordHasher {
      * @return the encoded credential, including the salt and iteration count
      */
     public static String hash(String password) {
+        return hash(password, ITERATIONS);
+    }
+
+    /**
+     * Hashes a password with a chosen work factor.
+     *
+     * Only the test uses another value: it proves that a credential written with
+     * an older work factor still verifies after the default is raised, which is
+     * what makes raising the default safe for accounts already in the store.
+     *
+     * @param password   the plaintext password
+     * @param iterations the work factor to use
+     * @return the encoded credential
+     */
+    static String hash(String password, int iterations) {
         if (password == null) {
             throw new IllegalArgumentException("A password is required.");
         }
+        if (iterations <= 0) {
+            throw new IllegalArgumentException("A work factor is required.");
+        }
         final byte[] salt = new byte[SALT_BYTES];
         new SecureRandom().nextBytes(salt);
-        final byte[] derived = derive(password, salt, ITERATIONS);
-        return PREFIX + SEPARATOR + ITERATIONS + SEPARATOR
+        final byte[] derived = derive(password, salt, iterations);
+        return PREFIX + SEPARATOR + iterations + SEPARATOR
                 + Base64.getEncoder().encodeToString(salt) + SEPARATOR
                 + Base64.getEncoder().encodeToString(derived);
     }

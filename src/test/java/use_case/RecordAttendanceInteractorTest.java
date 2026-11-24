@@ -31,6 +31,26 @@ public class RecordAttendanceInteractorTest {
         assertEquals(AttendanceRecord.Status.PRESENT, store.saved.get(0).getStatus());
         assertNull(output.failure);
     }
+    @Test void savesNotesAndReloadsThemForCoach() {
+        current.username = "coach";
+        interactor().execute(new RecordAttendanceInputData("event", status(),
+                Map.of("player", "Two assists")));
+        assertEquals("Two assists", store.saved.get(0).getStatsNotes());
+        interactor().loadRoster("event");
+        assertEquals("Two assists", output.roster.getNotes().get("player"));
+        interactor().execute(new RecordAttendanceInputData("event", status(),
+                Map.of("player", "")));
+        assertEquals("", store.saved.get(0).getStatsNotes());
+    }
+    @Test void statusOnlyCallerPreservesExistingNotes() {
+        current.username = "coach";
+        final AttendanceRecord existing = new AttendanceRecord(
+                "event", "player", AttendanceRecord.Status.ABSENT);
+        existing.setStatsNotes("Prior note");
+        store.saved = List.of(existing);
+        interactor().execute(new RecordAttendanceInputData("event", status()));
+        assertEquals("Prior note", store.saved.get(0).getStatsNotes());
+    }
     @Test void rejectsAnonymousRequest() {
         interactor().execute(new RecordAttendanceInputData("event", status()));
         assertTrue(output.failure.contains("Sign in"));
@@ -76,7 +96,12 @@ public class RecordAttendanceInteractorTest {
     }
     private static final class Output implements RecordAttendanceOutputBoundary {
         String failure;
+        RecordAttendanceRosterData roster;
         @Override public void prepareSuccessView(RecordAttendanceOutputData data) { failure = null; }
+        @Override public void prepareRosterView(RecordAttendanceRosterData data) {
+            failure = null;
+            roster = data;
+        }
         @Override public void prepareFailView(String message) { failure = message; }
     }
 }

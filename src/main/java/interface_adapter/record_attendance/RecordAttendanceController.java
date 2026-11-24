@@ -9,7 +9,12 @@ public final class RecordAttendanceController {
     public RecordAttendanceController(RecordAttendanceInputBoundary interactor) {
         this.interactor = interactor;
     }
+    public void loadRoster(String eventId) { interactor.loadRoster(eventId); }
     public void execute(String eventId, Map<String, AttendanceRecord.Status> statuses) {
         interactor.execute(new RecordAttendanceInputData(eventId, statuses));
+    }
+    public void execute(String eventId, Map<String, AttendanceRecord.Status> statuses,
+            Map<String, String> notes) {
+        interactor.execute(new RecordAttendanceInputData(eventId, statuses, notes));
     }
 }

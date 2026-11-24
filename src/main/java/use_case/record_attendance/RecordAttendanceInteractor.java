@@ -24,6 +24,41 @@ public final class RecordAttendanceInteractor implements RecordAttendanceInputBo
         this.presenter = presenter;
         this.currentUser = currentUser;
     }
+    /** Lists all players and current statuses only for the event's assigned coach. */
+    @Override
+    public void loadRoster(String eventId) {
+        if (eventId == null || eventId.isBlank()) {
+            presenter.prepareFailView("Choose an event."); return;
+        }
+        try {
+            final User actor = dataAccess.get(currentUser.getCurrentUsername());
+            final Event event = dataAccess.getEvent(eventId);
+            final Team team = event == null ? null : dataAccess.getTeam(event.getTeamId());
+            if (actor == null || actor.getRole() != Role.COACH || team == null
+                    || !actor.getUsername().equals(team.getCoachUsername())) {
+                presenter.prepareFailView("Only the event team's coach can load this roster.");
+                return;
+            }
+            final Map<String, AttendanceRecord.Status> previous = new java.util.HashMap<>();
+            final Map<String, String> savedNotes = new java.util.HashMap<>();
+            for (AttendanceRecord record : dataAccess.getAttendanceFor(eventId)) {
+                previous.put(record.getPlayerUsername(), record.getStatus());
+                savedNotes.put(record.getPlayerUsername(),
+                        record.getStatsNotes() == null ? "" : record.getStatsNotes());
+            }
+            final Map<String, AttendanceRecord.Status> roster = new java.util.LinkedHashMap<>();
+            final Map<String, String> notes = new java.util.LinkedHashMap<>();
+            for (String player : team.getPlayerUsernames()) {
+                roster.put(player, previous.get(player));
+                notes.put(player, savedNotes.getOrDefault(player, ""));
+            }
+            presenter.prepareRosterView(new RecordAttendanceRosterData(roster, notes));
+        }
+        catch (IllegalStateException | UncheckedIOException ex) {
+            presenter.prepareFailView("Could not load roster: " + ex.getMessage());
+        }
+    }
+
     @Override
     public void execute(RecordAttendanceInputData data) {
         if (data == null || data.getEventId() == null || data.getEventId().isBlank()
@@ -57,7 +92,12 @@ public final class RecordAttendanceInteractor implements RecordAttendanceInputBo
             }
             final List<String> players = team.getPlayerUsernames();
             final Map<String, AttendanceRecord.Status> statuses = data.getStatuses();
+            final Map<String, String> notes = data.getNotes();
             final Set<String> expected = new HashSet<>(players);
+            if (notes != null && !notes.keySet().equals(expected)) {
+                presenter.prepareFailView("Submit notes for exactly the event's roster players.");
+                return;
+            }
             if (expected.size() != players.size() || !statuses.keySet().equals(expected)) {
                 presenter.prepareFailView("Mark each roster player exactly once, and no outsiders.");
                 return;
@@ -74,9 +114,12 @@ public final class RecordAttendanceInteractor implements RecordAttendanceInputBo
                     return;
                 }
                 final AttendanceRecord record = new AttendanceRecord(event.getEventId(), player, status);
-                // Preserve existing performance notes when re-recording a roster.
+                // Old clients that submit only statuses preserve their saved notes.
+                // The unified form sends notes explicitly, including empty text to clear notes.
                 final AttendanceRecord old = oldRecords.get(player);
-                if (old != null) { record.setStatsNotes(old.getStatsNotes()); }
+                record.setStatsNotes(notes == null
+                        ? (old == null ? null : old.getStatsNotes())
+                        : (notes.get(player) == null ? "" : notes.get(player).trim()));
                 records.add(record);
             }
             dataAccess.saveAttendanceRoster(event.getEventId(), records);

@@ -34,6 +34,10 @@ import entity.User;
  * The file (and its folder) are created on the first write, so a fresh clone
  * runs with no setup. Pass a temporary path in tests.
  *
+ * A save writes the document first and only then records the change in memory,
+ * so a write that fails changes nothing: the caller can report the failure
+ * truthfully, and the change cannot reappear on the next successful write.
+ *
  * A file that cannot be parsed is set aside as {@code <name>.corrupt-<timestamp>}
  * and the store starts empty, so a damaged file costs the user a screen rather
  * than the whole application; {@link #describe()} says what happened.
@@ -110,8 +114,10 @@ public class FileAppDataAccessObject implements AppDataStore {
 
     @Override
     public void save(User user) {
+        final Map<String, User> updated = new LinkedHashMap<>(users);
+        updated.put(user.getUsername(), user);
+        writeDocument(updated, teams, events, attendance, announcements);
         users.put(user.getUsername(), user);
-        persist();
     }
 
     /**
@@ -139,8 +145,10 @@ public class FileAppDataAccessObject implements AppDataStore {
         final User existing = users.get(username);
         final String password = existing == null ? "" : existing.getPassword();
         final boolean active = existing == null || existing.isActive();
-        users.put(username, new User(username, password, displayName, role, active));
-        persist();
+        final Map<String, User> updated = new LinkedHashMap<>(users);
+        updated.put(username, new User(username, password, displayName, role, active));
+        writeDocument(updated, teams, events, attendance, announcements);
+        users.put(username, updated.get(username));
     }
 
     // ------------------------------------------------------------------
@@ -149,8 +157,10 @@ public class FileAppDataAccessObject implements AppDataStore {
 
     @Override
     public void saveEvent(Event event) {
+        final Map<String, Event> updated = new LinkedHashMap<>(events);
+        updated.put(event.getEventId(), event);
+        writeDocument(users, teams, updated, attendance, announcements);
         events.put(event.getEventId(), event);
-        persist();
     }
 
     @Override
@@ -187,8 +197,10 @@ public class FileAppDataAccessObject implements AppDataStore {
      * @param team the team to save
      */
     public void saveTeam(Team team) {
+        final Map<String, Team> updated = new LinkedHashMap<>(teams);
+        updated.put(team.getTeamId(), team);
+        writeDocument(users, updated, events, attendance, announcements);
         teams.put(team.getTeamId(), team);
-        persist();
     }
 
     /**
@@ -221,11 +233,14 @@ public class FileAppDataAccessObject implements AppDataStore {
      * @param record the record to save
      */
     public void saveAttendance(AttendanceRecord record) {
-        attendance.removeIf(existing ->
+        final List<AttendanceRecord> updated = new ArrayList<>(attendance);
+        updated.removeIf(existing ->
                 existing.getEventId().equals(record.getEventId())
                         && existing.getPlayerUsername().equals(record.getPlayerUsername()));
-        attendance.add(record);
-        persist();
+        updated.add(record);
+        writeDocument(users, teams, events, updated, announcements);
+        attendance.clear();
+        attendance.addAll(updated);
     }
 
     /**
@@ -257,7 +272,7 @@ public class FileAppDataAccessObject implements AppDataStore {
         }
         final Map<String, Announcement> updated = new LinkedHashMap<>(announcements);
         updated.put(announcementId, announcement);
-        persist(updated);
+        writeDocument(users, teams, events, attendance, updated);
         announcements.put(announcementId, announcement);
     }
 
@@ -380,42 +395,55 @@ public class FileAppDataAccessObject implements AppDataStore {
         }
     }
 
-    /** Writes the whole store back to disk, creating folders if needed. */
-    private void persist() {
-        persist(announcements);
-    }
-
-    /** Writes a staged announcement collection alongside the current legacy data. */
-    private void persist(Map<String, Announcement> announcementsToPersist) {
+    /**
+     * Writes the whole store back to disk, creating folders if needed, and only
+     * then records it as what the next write starts from.
+     *
+     * Every saver passes the section it is changing and commits that change to
+     * memory after this returns, so a write that fails leaves the store exactly
+     * as it was: nothing is readable that could not be saved, and the next save
+     * cannot write a change the user was told had failed.
+     *
+     * @param usersToWrite         the accounts to write
+     * @param teamsToWrite         the teams to write
+     * @param eventsToWrite        the events to write
+     * @param attendanceToWrite    the attendance records to write
+     * @param announcementsToWrite the announcements to write
+     */
+    private void writeDocument(Map<String, User> usersToWrite,
+                               Map<String, Team> teamsToWrite,
+                               Map<String, Event> eventsToWrite,
+                               List<AttendanceRecord> attendanceToWrite,
+                               Map<String, Announcement> announcementsToWrite) {
         final JSONObject root = new JSONObject(storedDocument.toString());
 
         final JSONArray usersJson = new JSONArray();
-        for (User user : users.values()) {
+        for (User user : usersToWrite.values()) {
             usersJson.put(withStoredFields(USERS, EntityJsonMapper.toJson(user), "username"));
         }
         root.put(USERS, usersJson);
 
         final JSONArray teamsJson = new JSONArray();
-        for (Team team : teams.values()) {
+        for (Team team : teamsToWrite.values()) {
             teamsJson.put(withStoredFields(TEAMS, EntityJsonMapper.toJson(team), "teamId"));
         }
         root.put(TEAMS, teamsJson);
 
         final JSONArray eventsJson = new JSONArray();
-        for (Event event : events.values()) {
+        for (Event event : eventsToWrite.values()) {
             eventsJson.put(withStoredFields(EVENTS, EntityJsonMapper.toJson(event), "eventId"));
         }
         root.put(EVENTS, eventsJson);
 
         final JSONArray attendanceJson = new JSONArray();
-        for (AttendanceRecord record : attendance) {
+        for (AttendanceRecord record : attendanceToWrite) {
             attendanceJson.put(withStoredFields(ATTENDANCE, EntityJsonMapper.toJson(record),
                     "eventId", "playerUsername"));
         }
         root.put(ATTENDANCE, attendanceJson);
 
         final JSONArray announcementsJson = new JSONArray();
-        for (Announcement announcement : announcementsToPersist.values()) {
+        for (Announcement announcement : announcementsToWrite.values()) {
             announcementsJson.put(withStoredFields(ANNOUNCEMENTS, EntityJsonMapper.toJson(announcement),
                     "announcementId"));
         }

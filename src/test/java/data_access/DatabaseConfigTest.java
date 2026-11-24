@@ -6,8 +6,10 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
@@ -18,7 +20,8 @@ import org.junit.jupiter.api.io.TempDir;
 /**
  * Tests where the database settings are found: the environment first, then the
  * system properties, then the file the settings page writes. Also tests that a
- * secret key or a non-HTTP URL is refused before it can be saved.
+ * key which bypasses row level security - in either of Supabase's two formats -
+ * or a URL that is not HTTPS is refused before it can be saved.
  */
 class DatabaseConfigTest {
 
@@ -107,9 +110,44 @@ class DatabaseConfigTest {
     }
 
     @Test
-    void aUrlThatIsNotHttpIsRefused() {
+    void aLegacyServiceRoleKeyIsRefusedToo() {
+        final IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+                () -> DatabaseConfig.fromValues("https://x.example",
+                        legacyKey("service_role"), "test"));
+
+        assertTrue(thrown.getMessage().contains("row level security"),
+                "the old service_role JWT is as powerful as the new secret key");
+    }
+
+    @Test
+    void aLegacyAnonKeyIsAccepted() {
+        final String key = legacyKey("anon");
+
+        final DatabaseConfig config = DatabaseConfig.fromValues("https://x.example", key, "test");
+
+        assertEquals(key, config.getKey(), "the legacy anon key is the low-privilege key");
+    }
+
+    @Test
+    void aKeyThatIsNotAJwtIsLeftForTheDatabaseToJudge() {
+        final DatabaseConfig config =
+                DatabaseConfig.fromValues("https://x.example", "not-a-key", "test");
+
+        assertEquals("not-a-key", config.getKey());
+    }
+
+    @Test
+    void aUrlWithoutASchemeIsRefused() {
         final IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
                 () -> DatabaseConfig.fromValues("x.supabase.co", "sb_publishable_key", "test"));
+
+        assertTrue(thrown.getMessage().contains("https://"));
+    }
+
+    @Test
+    void aPlainHttpUrlIsRefusedBecauseTheKeyWouldTravelInTheClear() {
+        final IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+                () -> DatabaseConfig.fromValues("http://x.example", "sb_publishable_key", "test"));
 
         assertTrue(thrown.getMessage().contains("https://"));
     }
@@ -140,5 +178,21 @@ class DatabaseConfigTest {
 
         assertEquals(DatabaseConfig.FILE_NAME, file.getFileName().toString());
         assertTrue(file.toString().contains(DatabaseConfig.FOLDER));
+    }
+
+    /**
+     * Builds a legacy Supabase key: a JWT with the given role in its payload. The
+     * signature is not checked by anything here, so a placeholder is enough.
+     *
+     * @param role the role the key would run as
+     * @return a three-part base64url key, the shape the dashboard shows
+     */
+    private static String legacyKey(String role) {
+        final Base64.Encoder encoder = Base64.getUrlEncoder().withoutPadding();
+        final String header = encoder.encodeToString(
+                "{\"alg\":\"HS256\",\"typ\":\"JWT\"}".getBytes(StandardCharsets.UTF_8));
+        final String payload = encoder.encodeToString(
+                ("{\"role\":\"" + role + "\"}").getBytes(StandardCharsets.UTF_8));
+        return header + "." + payload + ".c2lnbmF0dXJl";
     }
 }

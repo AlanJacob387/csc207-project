@@ -68,7 +68,7 @@ Needs JDK 17 or newer, with `JAVA_HOME` pointing at it.
 ./gradlew run               # start the app
 ```
 
-Demo accounts are created automatically the first time the app runs (password `pw`): `coach1` (coach), `player1` (player), `parent1` (parent), `admin1` (admin). Their passwords are stored hashed. Each role sees only the pages it may use, an administrator creates, re-roles, deactivates and reactivates accounts on **Manage Users**, and **Create an Account** makes a new one.
+Demo accounts are created automatically the first time the app runs (password `teampass`): `coach1` (coach), `player1` (player), `parent1` (parent), `admin1` (admin). Their passwords are stored hashed. Each role sees only the pages it may use, an administrator creates, re-roles, deactivates and reactivates accounts on **Manage Users**, and **Create an Account** makes a new one - a username of 3 to 40 characters and a password of 8 to 128, the same rule on every page that writes a credential.
 
 To use the shared database, open **Database settings** on the sign-in page and paste the project URL and publishable key (see `db/README.md`) - nothing is needed in a terminal. Without it the app keeps its data in `data/app-data.json`, which is git-ignored.
 

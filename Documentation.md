@@ -34,11 +34,11 @@ Built so far:
 | Use case | Slice | View | Tests |
 |---|---|---|---|
 | `login` (UC-A1) | `use_case/login` + `interface_adapter/login` | `LoginView` | `LoginInteractorTest` (11), `LoginViewTest` (2) |
-| `signup` (UC-A2) | `use_case/signup` + `interface_adapter/signup` | `SignupView` | `SignupInteractorTest` (8) |
+| `signup` (UC-A2) | `use_case/signup` + `interface_adapter/signup` | `SignupView` | `SignupInteractorTest` (11), `SignupViewTest` (2) |
 | `logout` (UC-A3) | `use_case/logout` + `interface_adapter/logout` | Log out button in `AppShell` | `LogoutInteractorTest` (2) |
-| `change_password` (UC-A4) | `use_case/change_password` + `interface_adapter/change_password` | `ChangePasswordView` (Account page) | `ChangePasswordInteractorTest` (8), `ChangePasswordViewTest` (3) |
+| `change_password` (UC-A4) | `use_case/change_password` + `interface_adapter/change_password` | `ChangePasswordView` (Account page) | `ChangePasswordInteractorTest` (9), `ChangePasswordViewTest` (3) |
 | `create_event` (UC-B1) | `use_case/create_event` + `interface_adapter/create_event` | `CreateEventView` | owed by L2 (task 1.8) |
-| `manage_users` (UC-A5, UC-A6, UC-A7) | `use_case/manage_users` + `interface_adapter/manage_users` | `ManageUsersView` (Manage Users page, administrators only) | `CreateUserInteractorTest` (11), `ChangeUserRoleInteractorTest` (9), `DeactivateUserInteractorTest` (8), `ReactivateUserInteractorTest` (6), `ListAccountsInteractorTest` (5), `AdminPolicyTest` (11), `ManageUsersViewTest` (14), `ManageUsersFlowTest` (10) |
+| `manage_users` (UC-A5, UC-A6, UC-A7) | `use_case/manage_users` + `interface_adapter/manage_users` | `ManageUsersView` (Manage Users page, administrators only) | `CreateUserInteractorTest` (12), `ChangeUserRoleInteractorTest` (9), `DeactivateUserInteractorTest` (8), `ReactivateUserInteractorTest` (6), `ListAccountsInteractorTest` (5), `AdminPolicyTest` (11), `ManageUsersViewTest` (14), `ManageUsersFlowTest` (10) |
 | `post_announcement` (UC-E1) | `use_case/post_announcement` + `interface_adapter/post_announcement` | Announcements page | `PostAnnouncementInteractorTest` (17) |
 | `view_announcements` (UC-E2) | `use_case/view_announcements` + `interface_adapter/view_announcements` | Announcements page | `ViewAnnouncementsInteractorTest` (17) |
 
@@ -52,7 +52,9 @@ App data lives in a hosted **Supabase Postgres** database, read and written over
 its REST API (PostgREST). `SupabaseAppDataAccessObject` uses one table per entity:
 a read filters on the key (`?username=eq.coach1`), and a save posts to
 `?on_conflict=<key>` with `Prefer: resolution=merge-duplicates`, so one save
-touches one row. Because the tables are shared, two clients can no longer
+touches one row. Creating an account is the exception: it inserts strictly, so a
+username that already exists answers 409 and the stored account is left alone.
+Because the tables are shared, two clients can no longer
 overwrite each other's unrelated records - something the single-document file
 store could not avoid.
 
@@ -79,14 +81,20 @@ not diverge. A local file that cannot be parsed is moved to
 `app-data.json.corrupt-<timestamp>`, the store starts empty and the sign-in page
 names the kept file - the old records stay in that file and are not merged back.
 `AppBuilderTest`, `FileAppDataAccessObjectTest` and
-`FileAnnouncementPersistenceTest` cover both paths against temporary files.
+`FileAnnouncementPersistenceTest` cover both paths against temporary files. A
+database that answers `200` with something that is not JSON, or a row whose role
+or status the app does not know, is reported the same way - `The database
+answered with something that is not JSON…` or `The database holds an account that
+cannot be read…` - instead of throwing the parser's exception past the use case.
 
 The signed-in user is deliberately not stored: it lives in `Session`, behind the
 `use_case/current_user/CurrentUserInterface` port, so the interactors own the
 session transitions rather than the views.
 
 **Security note.** Passwords are stored as PBKDF2-HMAC-SHA256 hashes
-(`entity/PasswordHasher`: 120 000 iterations, per-user salt, `pbkdf2$…` format).
+(`entity/PasswordHasher`: 600 000 iterations, per-user salt, `pbkdf2$…` format).
+The iteration count travels inside each hash, so raising it later does not lock
+anyone out: a credential written at 120 000 still verifies, and a test proves it.
 A credential written before hashing existed is still accepted, so an older store
 keeps working, and that fallback is the only place a plaintext value is compared.
 The publishable key is meant to ship inside a client and reaches only what row
@@ -95,6 +103,18 @@ refuses one. Anyone who extracts the publishable key inherits the app's own
 permissions, which is why passwords are hashed rather than stored plainly.
 `PasswordHasherTest` pins the iteration count, the salt length and the derived key
 length, so a weaker hash cannot pass unnoticed.
+
+**One account rule.** `entity/AccountRules` is the single definition of an
+acceptable account: a username of 3 to 40 letters, digits, dots, underscores or
+hyphens, a display name of at most 60 characters, and a password of 8 to 128
+characters. `UserFactory.create` and `User.withNewPassword` refuse anything it
+rejects, so neither sign up nor the administrator page nor a password change can
+store an account the rule would refuse. Sign up offers `COACH`, `PLAYER` and
+`PARENT`; the use case refuses `ADMIN` even if something calls it directly, so an
+administrative account comes only from the demo seed or from another
+administrator. The rule is applied when a credential is
+written, never at login, which is what keeps an account whose password predates it
+usable. `AccountRulesTest` pins each boundary.
 
 ## 5. How to build, test and run
 
@@ -108,7 +128,7 @@ Needs JDK 17 or newer; `JAVA_HOME` must point at it, or Gradle refuses to start
 ./gradlew run              # start the app
 ```
 
-Demo accounts are created on first run (password `pw`): `coach1`, `player1`,
+Demo accounts are created on first run (password `teampass`): `coach1`, `player1`,
 `parent1`, `admin1`. Their passwords are hashed as they are written.
 
 To use the shared database, start the app, open **Database settings** on the
@@ -161,18 +181,19 @@ sign-in page, paste the project URL and publishable key, test and save
   slow project or a paused one the window waits for the request (5 s to connect,
   10 s to read) instead of showing a progress state; a background worker for the
   store is the fix we would make next.
-- **Creating an account validates the username and then upserts.** Two
-  administrators submitting the same username in the same moment would have the
-  second write replace the first account's credential, because `save` is an
-  upsert. The window is milliseconds and the username is checked first; an
-  insert-only path for account creation belongs to the 4.3 pass.
-- **Password rules and sign-up are still loose.** Any non-empty password is
-  accepted and sign-up admits `ADMIN`, so the administrator page is not the only
-  route to an administrative account. Nothing caps a username or a display name
-  outside the administrator page (40 and 60 characters there), so a very long name
-  can be created through sign-up and is then clipped in the account list. One shared
-  password policy, one length rule and a restricted sign-up belong to the 4.3
-  validation pass.
+- **Creating an account is an insert, but the check and the write are still two
+  requests.** `createUser` refuses a username that is already stored - a `409`
+  from the database, a key check in the file store - so two people creating the
+  same name at the same moment cannot end up with one holding the other's
+  password: the second one is told "already exists" and can pick another name.
+- **The password rule is length only.** 8 to 128 characters, with no requirement
+  for a digit or a symbol and no check against a list of common passwords, so
+  `teampass` passes and so would `password`. There is also no lockout and no rate
+  limit: a wrong password can be tried as often as someone cares to. Both are
+  recorded as gaps rather than oversights - a strength check needs a word list and
+  a lockout needs a clock and a store this app does not have yet. Sign up offers
+  `COACH`, `PLAYER` and `PARENT` only; an administrative account comes from the
+  demo seed or from another administrator.
 - One role per user (decision D5).
 
 ## 7. API notes

@@ -5,19 +5,13 @@ import java.io.UncheckedIOException;
 /**
  * Interactor for the Database Settings use case.
  *
- * It owns the rules for a pair of settings - both values present, a URL that
- * starts with https, and never the secret key, which would bypass row level
- * security - and it owns the wording of every outcome. The data layer is asked
- * only for facts: how many accounts these settings can see, and whether a save
- * worked.
- *
- * The same checks exist inside {@code DatabaseConfig} as a backstop for the other
- * way in (environment variables and system properties); this is where a person
- * sees them.
+ * It decides when the questions are asked and words every outcome: both values
+ * present, never a secret key, and a URL that cannot expose the key. The two
+ * decisions themselves come from the data layer - {@code isSecretKey} and
+ * {@code isSecureUrl} - so the page, the environment variables and the settings
+ * file cannot drift apart, and there is one implementation to change.
  */
 public class DatabaseSettingsInteractor implements DatabaseSettingsInputBoundary {
-
-    private static final String SECRET_PREFIX = "sb_secret_";
 
     private final DatabaseSettingsDataAccessInterface dataAccess;
     private final DatabaseSettingsOutputBoundary presenter;
@@ -82,18 +76,18 @@ public class DatabaseSettingsInteractor implements DatabaseSettingsInputBoundary
      * @param inputData the typed values
      * @return the sentence to show, or null when the values may be tried
      */
-    private static String refusalFor(DatabaseSettingsInputData inputData) {
+    private String refusalFor(DatabaseSettingsInputData inputData) {
         final String url = inputData.getUrl() == null ? "" : inputData.getUrl().trim();
         final String key = inputData.getKey() == null ? "" : inputData.getKey().trim();
         if (url.isEmpty() || key.isEmpty()) {
             return "Enter both a project URL and a publishable key.";
         }
-        if (key.startsWith(SECRET_PREFIX)) {
+        if (dataAccess.isSecretKey(key)) {
             return "That is a secret key. A secret key bypasses row level security and must not "
                     + "be used in a desktop app; paste the publishable key "
                     + "(sb_publishable_...) instead.";
         }
-        if (!url.startsWith("https://")) {
+        if (!dataAccess.isSecureUrl(url)) {
             return "The project URL must start with https://";
         }
         return null;

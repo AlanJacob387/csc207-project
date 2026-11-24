@@ -271,9 +271,9 @@ public class SupabaseAppDataAccessObject implements AppDataStore {
         if (teamId == null || teamId.isEmpty()) {
             return announcements;
         }
-        final HttpUrl url = client.tableUrl(ANNOUNCEMENTS)
-                .addQueryParameter("select", PostgrestClient.SELECT_ALL)
-                .addQueryParameter("teamId", "eq." + teamId)
+        final HttpUrl url = client.where(client.tableUrl(ANNOUNCEMENTS)
+                        .addQueryParameter("select", PostgrestClient.SELECT_ALL),
+                "teamId", teamId)
                 .addQueryParameter("order", "createdAt.asc")
                 .build();
         final JSONArray rows = client.get(url, "the read from announcements");

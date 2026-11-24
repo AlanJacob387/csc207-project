@@ -87,6 +87,7 @@ public class ChangePasswordInteractor implements ChangePasswordInputBoundary {
         }
         catch (InvalidAccountException ex) {
             presenter.prepareFailView(AccountRefusalText.forRefusal(ex.getRefusal()));
+            return;
         }
         catch (IllegalStateException | UncheckedIOException ex) {
             presenter.prepareFailView("Could not save the new password: " + ex.getMessage());

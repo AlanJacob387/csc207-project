@@ -77,13 +77,25 @@ final class PostgrestClient {
      * @param limit the maximum number of rows, or 0 for no limit
      */
     JSONArray selectWhere(String table, String column, String value, int limit) {
-        HttpUrl.Builder url = tableUrl(table)
-                .addQueryParameter("select", SELECT_ALL)
-                .addEncodedQueryParameter(column, "eq." + encodedFilterValue(value));
+        HttpUrl.Builder url = where(tableUrl(table).addQueryParameter("select", SELECT_ALL),
+                column, value);
         if (limit > 0) {
             url = url.addQueryParameter("limit", Integer.toString(limit));
         }
         return parseArray(execute(request(url.build()).get().build(), "the read from " + table));
+    }
+
+    /**
+     * Adds an equality filter to a route, so every filtered read goes through one
+     * place and no caller has to remember how a value has to be written.
+     *
+     * @param url    the route being built
+     * @param column the column to compare
+     * @param value  the value to compare against
+     * @return the same builder, with the filter added
+     */
+    HttpUrl.Builder where(HttpUrl.Builder url, String column, String value) {
+        return url.addEncodedQueryParameter(column, "eq." + encodedFilterValue(value));
     }
 
     /**

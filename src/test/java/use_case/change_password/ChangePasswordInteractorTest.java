@@ -87,6 +87,7 @@ class ChangePasswordInteractorTest {
         interactor.execute(new ChangePasswordInputData("oldpass1", "pw", "pw"));
 
         assertEquals("Passwords are 8 to 128 characters.", presenter.error);
+        assertNull(presenter.success, "a refusal must not also report success");
         assertEquals("oldpass1", dataAccess.get("coach1").getPassword(),
                 "a refused password must leave the stored credential alone");
     }

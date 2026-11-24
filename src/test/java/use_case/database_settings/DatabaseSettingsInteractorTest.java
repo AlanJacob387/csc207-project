@@ -11,6 +11,9 @@ import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import data_access.DatabaseConfig;
+import data_access.LegacyKeys;
+
 /**
  * Tests the Database Settings use case: the view it prepares, a check that works,
  * every way the typed values are refused, and a save that works or fails.
@@ -69,6 +72,16 @@ class DatabaseSettingsInteractorTest {
             if (saveFailure != null) {
                 throw saveFailure;
             }
+        }
+
+        @Override
+        public boolean isSecretKey(String key) {
+            return DatabaseConfig.isSecretKey(key);
+        }
+
+        @Override
+        public boolean isSecureUrl(String url) {
+            return DatabaseConfig.isSecureUrl(url);
         }
 
         @Override
@@ -137,6 +150,24 @@ class DatabaseSettingsInteractorTest {
 
         assertEquals("The project URL must start with https://", presenter.result.getMessage());
         assertTrue(calls.isEmpty());
+    }
+
+    @Test
+    void aLegacyServiceRoleKeyIsRefusedHereToo() {
+        interactor.test(new DatabaseSettingsInputData(URL, LegacyKeys.of("service_role")));
+
+        assertTrue(presenter.result.getMessage().contains("secret key"),
+                presenter.result.getMessage());
+        assertTrue(calls.isEmpty(),
+                "the page must refuse it before the key is ever sent");
+    }
+
+    @Test
+    void aLocalHttpUrlIsAllowedBecauseALocalStackNeverLeavesTheMachine() {
+        interactor.test(new DatabaseSettingsInputData("http://127.0.0.1:54321", KEY));
+
+        assertTrue(presenter.result.isOk(), presenter.result.getMessage());
+        assertEquals(List.of("test:http://127.0.0.1:54321|" + KEY), calls);
     }
 
     @Test

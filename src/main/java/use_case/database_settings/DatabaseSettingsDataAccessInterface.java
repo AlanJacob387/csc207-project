@@ -42,4 +42,24 @@ public interface DatabaseSettingsDataAccessInterface {
      * @return the settings file path
      */
     String settingsFile();
+
+    /**
+     * Says whether a key would bypass row level security.
+     *
+     * A fact, not a rule the use case invents: the page asks, and the answer is the
+     * same decision that guards the environment variables and the settings file, so
+     * the two ways in cannot drift apart.
+     *
+     * @param key the pasted key
+     * @return true for a secret key, in either format Supabase issues
+     */
+    boolean isSecretKey(String key);
+
+    /**
+     * Says whether a URL can carry the key without exposing it.
+     *
+     * @param url the pasted project URL
+     * @return true for HTTPS, and for plain HTTP to this machine
+     */
+    boolean isSecureUrl(String url);
 }

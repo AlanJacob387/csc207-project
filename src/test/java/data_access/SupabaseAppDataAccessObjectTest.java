@@ -271,6 +271,15 @@ class SupabaseAppDataAccessObjectTest {
         assertEquals("select=*&teamId=eq.t1&order=createdAt.asc", only().query);
     }
 
+    @Test
+    void theAnnouncementFilterQuotesATeamIdThatNeedsItToo() {
+        store.getAnnouncementsForTeam("demo.team");
+
+        assertEquals("select=*&teamId=eq.%22demo.team%22&order=createdAt.asc", only().rawQuery,
+                "every filtered read has to quote through the same helper, not just the "
+                        + "account lookups");
+    }
+
     // ------------------------------------------------------------------
     // Failures and configuration
     // ------------------------------------------------------------------

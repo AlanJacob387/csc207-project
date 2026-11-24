@@ -18,18 +18,31 @@ public class DatabaseSettingsGateway implements DatabaseSettingsDataAccessInterf
 
     @Override
     public int countAccounts(String url, String key) {
-        return new SupabaseAppDataAccessObject(url, key).getAllUsers().size();
+        final DatabaseConfig config = validated(url, key);
+        return new SupabaseAppDataAccessObject(config.getUrl(), config.getKey())
+                .getAllUsers().size();
     }
 
     @Override
     public void save(String url, String key) {
+        final DatabaseConfig config = validated(url, key);
         try {
-            DatabaseConfig.save(url.trim(), key.trim());
+            DatabaseConfig.save(config.getUrl(), config.getKey());
         }
         catch (IOException ex) {
             throw new UncheckedIOException("the settings file could not be written ("
                     + ex.getMessage() + ")", ex);
         }
+    }
+
+    @Override
+    public boolean isSecretKey(String key) {
+        return DatabaseConfig.isSecretKey(key);
+    }
+
+    @Override
+    public boolean isSecureUrl(String url) {
+        return DatabaseConfig.isSecureUrl(url);
     }
 
     @Override
@@ -41,5 +54,31 @@ public class DatabaseSettingsGateway implements DatabaseSettingsDataAccessInterf
     @Override
     public String settingsFile() {
         return DatabaseConfig.userFile().toString();
+    }
+
+    /**
+     * Applies the same rules the environment and file paths apply before anything
+     * is sent, and reports a refusal as the failure this port promises rather than
+     * as the argument error {@link DatabaseConfig} raises for its own callers.
+     *
+     * The use case asks the same questions before calling in, so this is the
+     * backstop rather than the way a person normally meets the rule.
+     *
+     * @param url the project URL
+     * @param key the publishable key
+     * @return the validated settings
+     * @throws IllegalStateException when the values are missing or refused
+     */
+    private static DatabaseConfig validated(String url, String key) {
+        try {
+            final DatabaseConfig config = DatabaseConfig.fromValues(url, key, "the settings page");
+            if (config == null) {
+                throw new IllegalStateException("the settings were incomplete");
+            }
+            return config;
+        }
+        catch (IllegalArgumentException ex) {
+            throw new IllegalStateException(ex.getMessage(), ex);
+        }
     }
 }

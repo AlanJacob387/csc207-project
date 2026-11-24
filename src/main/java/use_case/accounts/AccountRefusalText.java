@@ -23,6 +23,11 @@ public final class AccountRefusalText {
     /**
      * Words a refusal.
      *
+     * The switch is an expression with no {@code default}, so a reason added to
+     * {@link AccountRules.Refusal} stops this class compiling until it has a
+     * sentence - a new refusal cannot reach a page worded as if it were a password
+     * problem.
+     *
      * @param refusal the reason, possibly null
      * @return the sentence to show, or an empty string when there is no refusal
      */
@@ -30,23 +35,17 @@ public final class AccountRefusalText {
         if (refusal == null) {
             return "";
         }
-        switch (refusal) {
-            case USERNAME_MISSING:
-                return "Choose a username.";
-            case USERNAME_LENGTH:
-                return "Usernames are " + AccountRules.USERNAME_MIN + " to "
-                        + AccountRules.USERNAME_MAX + " characters.";
-            case USERNAME_CHARACTERS:
-                return "Use only letters, digits, dots, underscores and hyphens in a username.";
-            case DISPLAY_NAME_LENGTH:
-                return "Display names are at most " + AccountRules.DISPLAY_NAME_MAX
-                        + " characters.";
-            case PASSWORD_MISSING:
-                return "Choose a password.";
-            case PASSWORD_LENGTH:
-            default:
-                return "Passwords are " + AccountRules.PASSWORD_MIN + " to "
-                        + AccountRules.PASSWORD_MAX + " characters.";
-        }
+        return switch (refusal) {
+            case USERNAME_MISSING -> "Choose a username.";
+            case USERNAME_LENGTH -> "Usernames are " + AccountRules.USERNAME_MIN + " to "
+                    + AccountRules.USERNAME_MAX + " characters.";
+            case USERNAME_CHARACTERS ->
+                    "Use only letters, digits, dots, underscores and hyphens in a username.";
+            case DISPLAY_NAME_LENGTH -> "Display names are at most "
+                    + AccountRules.DISPLAY_NAME_MAX + " characters.";
+            case PASSWORD_MISSING -> "Choose a password.";
+            case PASSWORD_LENGTH -> "Passwords are " + AccountRules.PASSWORD_MIN + " to "
+                    + AccountRules.PASSWORD_MAX + " characters.";
+        };
     }
 }

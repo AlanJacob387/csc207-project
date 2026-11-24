@@ -2,6 +2,7 @@ package app;
 
 import java.awt.BorderLayout;
 import java.awt.Dimension;
+import java.io.UncheckedIOException;
 
 import javax.swing.BorderFactory;
 import javax.swing.JFrame;
@@ -100,9 +101,12 @@ public class AppBuilder {
     private ChangePasswordView changePasswordView;
     private ChangePasswordViewModel changePasswordViewModel;
 
+    /** What went wrong before any page could open, such as an unreachable store. */
+    private String startupNotice = "";
+
     /** Sets up the collaborators and makes sure a fresh install is usable. */
     public AppBuilder() {
-        seedDemoDataIfEmpty();
+        startupNotice = seedDemoDataIfEmpty(dataAccess, userFactory);
     }
 
     /**
@@ -114,6 +118,9 @@ public class AppBuilder {
         loginViewModel = new LoginViewModel();
         loginView = new LoginView(loginViewModel);
         loginView.setStoreDescription(dataAccess.describe());
+        if (!startupNotice.isEmpty()) {
+            loginView.setStartupProblem(startupNotice);
+        }
         loginView.setOnOpenDatabaseSettings(() -> navigate(ViewManagerModel.DATABASE));
         viewManager.register(ViewManager.LOGIN, loginView);
         return this;
@@ -335,23 +342,39 @@ public class AppBuilder {
      * Creates one demo account per role (password "pw") and a demo team, but
      * only where they are missing, so the app can be tried straight away.
      *
+     * Reports a failure instead of throwing: a store that cannot be reached while
+     * the app is starting must still leave the user on the sign-in page, where the
+     * reason is shown and the database settings can be corrected. Nothing is
+     * swapped for a local file - the caller keeps the store it chose.
+     *
      * Every account is checked separately: a store that already holds a
      * customised player1 keeps it, instead of being overwritten because only
      * coach1 had been deleted. The factory hashes each demo password, so a fresh
      * store never holds plaintext credentials. Replace this with the team's real
      * seed data (task 4.4).
+     *
+     * @param dataAccess  the store the whole app will use
+     * @param userFactory builds and hashes the demo accounts
+     * @return an empty string on success, or what the sign-in page should say
      */
-    private void seedDemoDataIfEmpty() {
-        seedUser("coach1", "Coach One", Role.COACH);
-        seedUser("player1", "Pat Player", Role.PLAYER);
-        seedUser("parent1", "Sam Parent", Role.PARENT);
-        seedUser("admin1", "Ada Admin", Role.ADMIN);
+    static String seedDemoDataIfEmpty(AppDataStore dataAccess, UserFactory userFactory) {
+        try {
+            seedUser(dataAccess, userFactory, "coach1", "Coach One", Role.COACH);
+            seedUser(dataAccess, userFactory, "player1", "Pat Player", Role.PLAYER);
+            seedUser(dataAccess, userFactory, "parent1", "Sam Parent", Role.PARENT);
+            seedUser(dataAccess, userFactory, "admin1", "Ada Admin", Role.ADMIN);
 
-        if (dataAccess.getTeam(DEMO_TEAM_ID) == null) {
-            final Team team = new Team(DEMO_TEAM_ID, "Demo Team", "Basketball", "coach1");
-            team.addPlayer("player1");
-            dataAccess.saveTeam(team);
+            if (dataAccess.getTeam(DEMO_TEAM_ID) == null) {
+                final Team team = new Team(DEMO_TEAM_ID, "Demo Team", "Basketball", "coach1");
+                team.addPlayer("player1");
+                dataAccess.saveTeam(team);
+            }
         }
+        catch (IllegalStateException | UncheckedIOException ex) {
+            return "Could not reach the account store: " + ex.getMessage()
+                    + " Sign-in will fail until it is back.";
+        }
+        return "";
     }
 
     /**
@@ -397,11 +420,14 @@ public class AppBuilder {
     /**
      * Inserts one demo account only when that username is still free.
      *
+     * @param dataAccess  the store to check and write
+     * @param userFactory builds and hashes the account
      * @param username    the demo username
      * @param displayName the name to show in the app
      * @param role        the role to give the account
      */
-    private void seedUser(String username, String displayName, Role role) {
+    private static void seedUser(AppDataStore dataAccess, UserFactory userFactory,
+                                 String username, String displayName, Role role) {
         if (!dataAccess.existsByName(username)) {
             dataAccess.save(userFactory.create(username, DEMO_PASSWORD, displayName, role));
         }

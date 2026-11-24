@@ -212,6 +212,27 @@ public class LoginView extends JPanel implements PropertyChangeListener {
         return storeLabel.getText();
     }
 
+    /**
+     * Shows a problem that happened before this page could open, such as a store
+     * that could not be reached while the app was starting. It is shown in the
+     * message line, so the user learns why signing in will fail.
+     *
+     * @param problem what to tell the user; blank clears the line
+     */
+    public void setStartupProblem(String problem) {
+        errorLabel.setForeground(new Color(180, 30, 30));
+        errorLabel.setText(problem == null || problem.isBlank() ? " " : problem);
+    }
+
+    /**
+     * Reads back the message line, so a test can check the startup problem.
+     *
+     * @return the text currently shown in the message line
+     */
+    String startupProblem() {
+        return errorLabel.getText();
+    }
+
     @Override
     public void propertyChange(PropertyChangeEvent evt) {
         final String error = viewModel.getErrorMessage();

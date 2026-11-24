@@ -5,8 +5,10 @@ import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 
 import org.json.JSONArray;
+import org.json.JSONException;
 import org.json.JSONObject;
 
 import entity.Announcement;
@@ -130,7 +132,8 @@ public class SupabaseAppDataAccessObject implements AppDataStore {
             return null;
         }
         final JSONArray rows = selectWhere(USERS, "username", username, 1);
-        return rows.isEmpty() ? null : EntityJsonMapper.userFromJson(rows.getJSONObject(0));
+        return rows.isEmpty() ? null
+                : mapRow(rows, 0, EntityJsonMapper::userFromJson, "an account");
     }
 
     @Override
@@ -154,7 +157,7 @@ public class SupabaseAppDataAccessObject implements AppDataStore {
         final List<User> users = new ArrayList<>();
         final JSONArray rows = read(USERS);
         for (int i = 0; i < rows.length(); i++) {
-            users.add(EntityJsonMapper.userFromJson(rows.getJSONObject(i)));
+            users.add(mapRow(rows, i, EntityJsonMapper::userFromJson, "an account"));
         }
         return users;
     }
@@ -185,7 +188,8 @@ public class SupabaseAppDataAccessObject implements AppDataStore {
             return null;
         }
         final JSONArray rows = selectWhere(TEAMS, "teamId", teamId, 1);
-        return rows.isEmpty() ? null : EntityJsonMapper.teamFromJson(rows.getJSONObject(0));
+        return rows.isEmpty() ? null
+                : mapRow(rows, 0, EntityJsonMapper::teamFromJson, "a team");
     }
 
     @Override
@@ -198,7 +202,7 @@ public class SupabaseAppDataAccessObject implements AppDataStore {
         final List<Team> teams = new ArrayList<>();
         final JSONArray rows = read(TEAMS);
         for (int i = 0; i < rows.length(); i++) {
-            teams.add(EntityJsonMapper.teamFromJson(rows.getJSONObject(i)));
+            teams.add(mapRow(rows, i, EntityJsonMapper::teamFromJson, "a team"));
         }
         return teams;
     }
@@ -220,7 +224,8 @@ public class SupabaseAppDataAccessObject implements AppDataStore {
             return null;
         }
         final JSONArray rows = selectWhere(EVENTS, "eventId", eventId, 1);
-        return rows.isEmpty() ? null : EntityJsonMapper.eventFromJson(rows.getJSONObject(0));
+        return rows.isEmpty() ? null
+                : mapRow(rows, 0, EntityJsonMapper::eventFromJson, "an event");
     }
 
     @Override
@@ -228,7 +233,7 @@ public class SupabaseAppDataAccessObject implements AppDataStore {
         final List<Event> events = new ArrayList<>();
         final JSONArray rows = read(EVENTS);
         for (int i = 0; i < rows.length(); i++) {
-            events.add(EntityJsonMapper.eventFromJson(rows.getJSONObject(i)));
+            events.add(mapRow(rows, i, EntityJsonMapper::eventFromJson, "an event"));
         }
         return events;
     }
@@ -246,7 +251,8 @@ public class SupabaseAppDataAccessObject implements AppDataStore {
         }
         final JSONArray rows = selectWhere(ATTENDANCE, "eventId", eventId, 0);
         for (int i = 0; i < rows.length(); i++) {
-            records.add(EntityJsonMapper.attendanceFromJson(rows.getJSONObject(i)));
+            records.add(mapRow(rows, i, EntityJsonMapper::attendanceFromJson,
+                    "an attendance record"));
         }
         return records;
     }
@@ -298,7 +304,8 @@ public class SupabaseAppDataAccessObject implements AppDataStore {
         final JSONArray rows = parseArray(execute(request(url).get().build(),
                 "the read from announcements"));
         for (int i = 0; i < rows.length(); i++) {
-            announcements.add(EntityJsonMapper.announcementFromJson(rows.getJSONObject(i)));
+            announcements.add(mapRow(rows, i, EntityJsonMapper::announcementFromJson,
+                    "an announcement"));
         }
         return announcements;
     }
@@ -371,16 +378,63 @@ public class SupabaseAppDataAccessObject implements AppDataStore {
     }
 
     private static String describe(Response response, String body, String what) {
-        String preview = body == null ? "" : body.replaceAll("\\s+", " ").trim();
-        if (preview.length() > BODY_PREVIEW) {
-            preview = preview.substring(0, BODY_PREVIEW) + "...";
-        }
+        final String shown = preview(body);
         return "The database rejected " + what + ": HTTP " + response.code()
-                + (preview.isEmpty() ? "" : " " + preview);
+                + (shown.isEmpty() ? "" : " " + shown);
     }
 
+    /**
+     * Parses a response body as a JSON array.
+     *
+     * A paused project, a proxy or a mistyped URL can answer 200 with something
+     * that is not JSON, and the parser's own exception would escape the use
+     * cases, which only handle IllegalStateException and UncheckedIOException.
+     * The message names the problem and shows the start of the answer.
+     */
     private static JSONArray parseArray(String body) {
-        return body == null || body.isBlank() ? new JSONArray() : new JSONArray(body);
+        if (body == null || body.isBlank()) {
+            return new JSONArray();
+        }
+        try {
+            return new JSONArray(body);
+        }
+        catch (JSONException ex) {
+            throw new IllegalStateException("The database answered with something that is not "
+                    + "JSON. Check the project URL. The answer began: " + preview(body), ex);
+        }
+    }
+
+    /**
+     * Maps one row, naming the record when a stored value cannot be rebuilt.
+     *
+     * Without this a row holding an unknown role or status would throw the
+     * parser's exception out of the use case. The file store sets such a file
+     * aside and starts empty; here the read stops with a message, because
+     * skipping the row would quietly hide an account from the administrator page.
+     *
+     * @param rows   the rows read from the table
+     * @param index  the row to map
+     * @param mapper the mapper for that entity
+     * @param what   what the row should have been, for the message
+     */
+    private static <T> T mapRow(JSONArray rows, int index,
+                                Function<JSONObject, T> mapper, String what) {
+        try {
+            return mapper.apply(rows.getJSONObject(index));
+        }
+        catch (JSONException | IllegalArgumentException ex) {
+            throw new IllegalStateException("The database holds " + what
+                    + " that cannot be read: " + ex.getMessage(), ex);
+        }
+    }
+
+    /** Shortens an answer or a row for a message. */
+    private static String preview(String body) {
+        String shown = body == null ? "" : body.replaceAll("\\s+", " ").trim();
+        if (shown.length() > BODY_PREVIEW) {
+            shown = shown.substring(0, BODY_PREVIEW) + "...";
+        }
+        return shown;
     }
 
     /**

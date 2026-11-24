@@ -269,6 +269,31 @@ class SupabaseAppDataAccessObjectTest {
     }
 
     @Test
+    void aTwoHundredThatIsNotJsonIsExplainedInsteadOfThrown() {
+        respond(200, "<html><body>This project is paused</body></html>");
+
+        final IllegalStateException thrown = assertThrows(IllegalStateException.class,
+                () -> store.get("coach1"));
+
+        assertTrue(thrown.getMessage().contains("not JSON"), thrown.getMessage());
+        assertTrue(thrown.getMessage().contains("This project is paused"),
+                "the message shows what came back: " + thrown.getMessage());
+    }
+
+    @Test
+    void aRowThatCannotBeReadNamesTheRecord() {
+        respond(200, "[{\"username\":\"x\",\"password\":\"hash\",\"displayName\":\"X\","
+                + "\"role\":\"SUPERADMIN\"}]");
+
+        final IllegalStateException thrown = assertThrows(IllegalStateException.class,
+                () -> store.getAllUsers());
+
+        assertTrue(thrown.getMessage().contains("holds an account that cannot be read"),
+                thrown.getMessage());
+        assertTrue(thrown.getMessage().contains("SUPERADMIN"), thrown.getMessage());
+    }
+
+    @Test
     void theStoreIsOnlyBuiltWhenBothValuesArePresent() {
         assertNull(SupabaseAppDataAccessObject.fromValues(null, "key"));
         assertNull(SupabaseAppDataAccessObject.fromValues("", "key"));

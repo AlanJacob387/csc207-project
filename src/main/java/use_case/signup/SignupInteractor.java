@@ -82,7 +82,7 @@ public class SignupInteractor implements SignupInputBoundary {
                 presenter.prepareFailView("That username is already taken.");
                 return;
             }
-            dataAccess.save(userFactory.create(username, password, displayName, role));
+            dataAccess.createUser(userFactory.create(username, password, displayName, role));
         }
         catch (IllegalStateException | IllegalArgumentException | UncheckedIOException ex) {
             presenter.prepareFailView("Could not save the account: " + ex.getMessage());

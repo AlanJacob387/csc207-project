@@ -142,7 +142,7 @@ class SignupInteractorTest {
             }
 
             @Override
-            public void save(User user) {
+            public void createUser(User user) {
                 throw new IllegalStateException("the file is unreadable");
             }
         };

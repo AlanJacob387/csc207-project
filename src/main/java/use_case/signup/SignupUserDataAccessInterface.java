@@ -19,7 +19,11 @@ public interface SignupUserDataAccessInterface {
     /**
      * Persists a new user.
      *
-     * @param user the user to save
+     * Creation is an insert, not a replace: a username that is already stored is
+     * reported instead of overwritten, so two people creating the same name at
+     * the same moment cannot end up with one of them holding the other's password.
+     *
+     * @param user the user to create
      */
-    void save(User user);
+    void createUser(User user);
 }

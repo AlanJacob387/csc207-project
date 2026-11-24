@@ -36,7 +36,21 @@ public interface ManageUsersDataAccessInterface {
     boolean existsByName(String username);
 
     /**
+     * Stores a new account.
+     *
+     * An insert, so an existing username is reported rather than replaced: the
+     * check in the interactor and the write are separate requests, and this makes
+     * the write itself refuse to overwrite somebody else's credential.
+     *
+     * @param user the account to create
+     */
+    void createUser(User user);
+
+    /**
      * Saves an account, replacing the stored one with the same username.
+     *
+     * Used for changes to an account that already exists - a new role, a new
+     * status, a new password - never for creation.
      *
      * @param user the account to save
      */

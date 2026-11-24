@@ -108,6 +108,21 @@ public class FileAppDataAccessObject implements AppDataStore {
         return users.containsKey(username);
     }
 
+    /**
+     * Stores a new account, refusing a username that is already taken.
+     *
+     * @param user the account to create
+     */
+    @Override
+    public void createUser(User user) {
+        if (users.containsKey(user.getUsername())) {
+            throw new IllegalStateException("An account with username "
+                    + user.getUsername() + " already exists.");
+        }
+        users.put(user.getUsername(), user);
+        persist();
+    }
+
     @Override
     public void save(User user) {
         users.put(user.getUsername(), user);

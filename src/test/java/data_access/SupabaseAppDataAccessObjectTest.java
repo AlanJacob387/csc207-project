@@ -172,6 +172,29 @@ class SupabaseAppDataAccessObjectTest {
     // ------------------------------------------------------------------
 
     @Test
+    void creatingAnAccountInsertsInsteadOfUpserting() {
+        store.createUser(new User("p1", "hash", "Pat", Role.PLAYER));
+
+        final Recorded call = only();
+        assertEquals("POST", call.method);
+        assertEquals("/rest/v1/users", call.path);
+        assertNull(call.query, "a strict insert must not ask for merge-duplicates");
+        assertEquals("return=minimal", call.prefer);
+        assertEquals("p1", new JSONObject(call.body).getString("username"));
+        assertTrue(new JSONObject(call.body).getBoolean("active"));
+    }
+
+    @Test
+    void aDuplicateAccountIsReportedInsteadOfReplacingTheStoredOne() {
+        respond(409, "{\"code\":\"23505\",\"message\":\"duplicate key value\"}");
+
+        final IllegalStateException thrown = assertThrows(IllegalStateException.class,
+                () -> store.createUser(new User("p1", "hash", "Pat", Role.PLAYER)));
+
+        assertTrue(thrown.getMessage().contains("already exists"), thrown.getMessage());
+    }
+
+    @Test
     void anEventIsUpsertedOnTheEventId() {
         store.saveEvent(new Event("e1", "t1", Event.EventType.GAME,
                 LocalDateTime.of(2026, 11, 30, 18, 0), "Gym A", "Bears"));

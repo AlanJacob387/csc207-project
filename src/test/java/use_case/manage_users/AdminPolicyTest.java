@@ -143,6 +143,11 @@ class AdminPolicyTest {
             }
 
             @Override
+            public void createUser(User user) {
+                throw new AssertionError("nothing may be written");
+            }
+
+            @Override
             public void save(User user) {
                 throw new AssertionError("nothing may be written");
             }

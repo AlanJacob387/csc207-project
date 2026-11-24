@@ -181,6 +181,11 @@ class CreateUserInteractorTest {
             }
 
             @Override
+            public void createUser(User user) {
+                throw new IllegalStateException("the store is unwritable");
+            }
+
+            @Override
             public void save(User user) {
                 throw new IllegalStateException("the store is unwritable");
             }

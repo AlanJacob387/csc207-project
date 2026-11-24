@@ -142,6 +142,38 @@ public class SupabaseAppDataAccessObject implements AppDataStore {
                 && !selectWhere(USERS, "username", username, 1).isEmpty();
     }
 
+    /**
+     * Stores a new account with a strict insert.
+     *
+     * A plain POST uses PostgREST's strict resolution, so a username that is
+     * already stored answers 409 and nothing is overwritten - the same shape as
+     * the announcement insert, and the reason the create check in the interactor
+     * is not the only guard.
+     */
+    @Override
+    public void createUser(User user) {
+        final JSONObject row = EntityJsonMapper.toJson(user);
+        row.put("active", user.isActive());
+        final Request request = request(tableUrl(USERS).build())
+                .post(RequestBody.create(row.toString(), JSON))
+                .header("Prefer", "return=minimal")
+                .build();
+        try (Response response = client.newCall(request).execute()) {
+            final String text = bodyOf(response);
+            if (response.code() == CONFLICT) {
+                throw new IllegalStateException("An account with username "
+                        + user.getUsername() + " already exists.");
+            }
+            if (!response.isSuccessful()) {
+                throw new IllegalStateException(describe(response, text,
+                        "the account insert"));
+            }
+        }
+        catch (IOException ex) {
+            throw new UncheckedIOException("Could not reach the database: " + ex.getMessage(), ex);
+        }
+    }
+
     @Override
     public void save(User user) {
         final JSONObject row = EntityJsonMapper.toJson(user);

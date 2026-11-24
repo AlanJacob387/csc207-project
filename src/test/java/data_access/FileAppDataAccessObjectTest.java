@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
@@ -137,6 +138,32 @@ class FileAppDataAccessObjectTest {
         assertEquals(2, dao.getAllUsers().size());
         assertFalse(dao.get("p1").isActive());
         assertTrue(dao.get("c1").isActive());
+    }
+
+    @Test
+    void creatingAnAccountRefusesAUsernameThatIsAlreadyStored() {
+        final Path file = tempDir.resolve("app-data.json");
+        final FileAppDataAccessObject dao = new FileAppDataAccessObject(file);
+        dao.save(new User("p1", "pbkdf2$1000$c2FsdA==$aGFzaA==", "Pat", Role.PLAYER));
+
+        final IllegalStateException thrown = assertThrows(IllegalStateException.class,
+                () -> dao.createUser(new User("p1", "pbkdf2$1000$c2FsdA==$b3RoZXI=",
+                        "Impostor", Role.COACH)));
+
+        assertTrue(thrown.getMessage().contains("already exists"), thrown.getMessage());
+        assertEquals("Pat", dao.get("p1").getDisplayName(),
+                "a second create must not replace the first account");
+        assertEquals(Role.PLAYER, dao.get("p1").getRole());
+    }
+
+    @Test
+    void aNewAccountIsCreatedAndSurvivesAReopen() {
+        final Path file = tempDir.resolve("app-data.json");
+        new FileAppDataAccessObject(file)
+                .createUser(new User("p9", "pbkdf2$1000$c2FsdA==$aGFzaA==", "Pat Nine",
+                        Role.PLAYER));
+
+        assertEquals("Pat Nine", new FileAppDataAccessObject(file).get("p9").getDisplayName());
     }
 
     @Test

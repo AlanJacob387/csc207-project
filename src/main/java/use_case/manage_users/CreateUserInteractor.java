@@ -84,7 +84,7 @@ public class CreateUserInteractor implements CreateUserInputBoundary {
                 presenter.prepareFailView("That username is already taken.");
                 return;
             }
-            dataAccess.save(userFactory.create(username, password,
+            dataAccess.createUser(userFactory.create(username, password,
                     displayName.isEmpty() ? username : displayName, role));
             presenter.prepareSuccessView(ManageUsersOutputData.of(
                     "Account created for " + username + ".", dataAccess.getAllUsers()));

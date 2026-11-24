@@ -9,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
@@ -198,5 +199,40 @@ class FileAppDataAccessObjectTest {
         assertEquals("not json at all", Files.readString(first.quarantinedFile()));
         assertEquals("still not json", Files.readString(second.quarantinedFile()));
         assertNull(second.get("anyone"));
+    }
+
+    /**
+     * A write that fails has to change nothing. The caller reports the failure,
+     * and the change must not reappear on the next write that succeeds - and
+     * does succeed - for some unrelated record.
+     */
+    @Test
+    void aFailedWriteLeavesEverySectionAsItWas() throws IOException {
+        final Path blocker = tempDir.resolve("blocker");
+        Files.writeString(blocker, "a file, not a folder");
+        final FileAppDataAccessObject dao =
+                new FileAppDataAccessObject(blocker.resolve("app-data.json"));
+
+        assertThrows(UncheckedIOException.class,
+                () -> dao.save(new User("p1", "pw", "Pat", Role.PLAYER)));
+        assertThrows(UncheckedIOException.class,
+                () -> dao.saveProfile("p1", "Pat", Role.COACH));
+        assertThrows(UncheckedIOException.class,
+                () -> dao.saveTeam(new Team("t1", "Raptors", "Basketball", "p1")));
+        assertThrows(UncheckedIOException.class,
+                () -> dao.saveEvent(new Event("e1", "t1", Event.EventType.GAME,
+                        LocalDateTime.of(2026, 11, 1, 18, 0), "Gym A", "Bears")));
+        assertThrows(UncheckedIOException.class,
+                () -> dao.saveAttendance(new AttendanceRecord("e1", "p1",
+                        AttendanceRecord.Status.PRESENT)));
+
+        assertNull(dao.get("p1"), "an account that could not be written must not be readable");
+        assertFalse(dao.existsByName("p1"));
+        assertTrue(dao.getAllUsers().isEmpty());
+        assertNull(dao.getTeam("t1"));
+        assertTrue(dao.getAllTeams().isEmpty());
+        assertNull(dao.getEvent("e1"));
+        assertTrue(dao.getAllEvents().isEmpty());
+        assertTrue(dao.getAttendanceFor("e1").isEmpty());
     }
 }

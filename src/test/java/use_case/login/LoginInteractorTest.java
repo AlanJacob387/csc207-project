@@ -4,10 +4,14 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import data_access.InMemoryUserDataAccessObject;
+import entity.PasswordHasher;
 import entity.Role;
 import entity.User;
 import entity.UserFactory;
@@ -118,6 +122,11 @@ class LoginInteractorTest {
             public User get(String username) {
                 throw new IllegalStateException("the file is unreadable");
             }
+
+            @Override
+            public void save(User user) {
+                throw new IllegalStateException("the file is unreadable");
+            }
         };
 
         new LoginInteractor(broken, presenter, session)
@@ -156,5 +165,75 @@ class LoginInteractorTest {
         interactor.execute(new LoginInputData("gone1", "nope"));
 
         assertEquals("Incorrect password.", presenter.error);
+    }
+
+    @Test
+    void aLegacyPlaintextCredentialIsRehashedWhenItsOwnerSignsIn() {
+        interactor.execute(new LoginInputData("coach1", "pw"));
+
+        assertNull(presenter.error);
+        final User stored = dataAccess.get("coach1");
+        assertTrue(PasswordHasher.isHashed(stored.getPassword()),
+                "a plaintext password must not stay in the store after a successful sign-in");
+        assertTrue(stored.matches("pw"), "the account keeps working with the same password");
+        assertEquals(Role.COACH, stored.getRole());
+        assertEquals("Coach One", stored.getDisplayName());
+    }
+
+    @Test
+    void anAlreadyHashedCredentialIsNotRewritten() {
+        final User hashed = new UserFactory().create("coach1", "pw", "Coach One", Role.COACH);
+
+        new LoginInteractor(
+                new UnwritableStore(hashed, new UnsupportedOperationException("must not rewrite")),
+                presenter, session)
+                .execute(new LoginInputData("coach1", "pw"));
+
+        assertNull(presenter.error, "a hash is left alone, so no write is attempted");
+        assertEquals("coach1", session.getCurrentUsername());
+    }
+
+    @Test
+    void aStoreThatCannotRewriteTheCredentialStillSignsTheUserIn() {
+        final UnwritableStore store = new UnwritableStore(
+                new User("coach1", "pw", "Coach One", Role.COACH),
+                new UncheckedIOException(new IOException("read-only store")));
+
+        new LoginInteractor(store, presenter, session)
+                .execute(new LoginInputData("coach1", "pw"));
+
+        assertNull(presenter.error, "a failed upgrade must not cost the user their sign-in");
+        assertEquals("coach1", session.getCurrentUsername());
+        assertEquals("pw", store.storedCredential(),
+                "the old credential survives and still verifies next time");
+    }
+
+    /**
+     * A store that can be read but not written, so a test can tell whether the
+     * interactor tried to rewrite the credential.
+     */
+    private static final class UnwritableStore implements LoginUserDataAccessInterface {
+
+        private final User user;
+        private final RuntimeException failure;
+
+        UnwritableStore(User user, RuntimeException failure) {
+            this.user = user;
+            this.failure = failure;
+        }
+
+        @Override
+        public User get(String username) {
+            return user.getUsername().equals(username) ? user : null;
+        }
+
+        @Override
+        public void save(User replacement) {
+            throw failure;
+        }
+
+        String storedCredential() {
+            return user.getPassword();
+        }
     }
 }

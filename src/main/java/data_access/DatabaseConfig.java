@@ -3,10 +3,17 @@ package data_access;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Base64;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
+
+import org.json.JSONException;
+import org.json.JSONObject;
 
 /**
  * Where the app finds its database connection, and where it stores one.
@@ -47,6 +54,25 @@ public final class DatabaseConfig {
 
     /** Prefix of a key a desktop application must never use. */
     private static final String SECRET_PREFIX = "sb_secret_";
+
+    /** Scheme every request must use, so the key never travels in the clear. */
+    private static final String HTTPS_PREFIX = "https://";
+
+    /** Hosts that stay on this machine, where plain HTTP exposes nothing. */
+    private static final Set<String> LOOPBACK_HOSTS =
+            Set.of("localhost", "127.0.0.1", "::1");
+
+    /** Prefix of a legacy Supabase key, which is a base64url-encoded JWT. */
+    private static final String JWT_PREFIX = "eyJ";
+
+    /** Number of dot-separated parts in a JWT: header, payload, signature. */
+    private static final int LEGACY_JWT_PARTS = 3;
+
+    /** Role inside a legacy JWT that bypasses row level security. */
+    private static final String SECRET_ROLE = "service_role";
+
+    /** Claim in a JWT payload that names the role. */
+    private static final String ROLE_CLAIM = "role";
 
     private static final String URL_ENTRY = "url";
     private static final String KEY_ENTRY = "key";
@@ -191,14 +217,16 @@ public final class DatabaseConfig {
     }
 
     /**
-     * Refuses a secret key, which bypasses row level security and must never be
-     * shipped in a desktop application.
+     * Refuses a key that would bypass row level security, in either format the
+     * dashboard offers: a new {@code sb_secret_...} key, or a legacy JWT whose
+     * payload names the {@code service_role}. Both act as the database owner's
+     * role, so neither may be shipped in a desktop application.
      *
      * @param key the pasted key
      * @return the same key when it is a publishable key
      */
     public static String validateKey(String key) {
-        if (key.startsWith(SECRET_PREFIX)) {
+        if (isSecretKey(key)) {
             throw new IllegalArgumentException("That is a secret key. A secret key bypasses row "
                     + "level security and must not be used in a desktop app; paste the "
                     + "publishable key (sb_publishable_...) instead.");
@@ -207,17 +235,72 @@ public final class DatabaseConfig {
     }
 
     /**
-     * Refuses a URL that is not an HTTP address, so a typo fails with a clear
-     * message instead of an unreadable one at the first request.
+     * Says whether a key bypasses row level security.
+     *
+     * Both key formats are recognised, because a project created before Supabase
+     * renamed its keys still hands out the legacy JWT, and that key is as
+     * powerful as the new secret one. A key that cannot be decoded is not
+     * treated as a secret: the database will refuse it, and refusing to save it
+     * would hide the real reason from the person typing it.
+     *
+     * @param key the pasted key
+     * @return true for an {@code sb_secret_} key or a {@code service_role} JWT
+     */
+    static boolean isSecretKey(String key) {
+        if (key == null || key.isEmpty()) {
+            return false;
+        }
+        if (key.startsWith(SECRET_PREFIX)) {
+            return true;
+        }
+        if (!key.startsWith(JWT_PREFIX)) {
+            return false;
+        }
+        final String[] parts = key.split("\\.");
+        if (parts.length != LEGACY_JWT_PARTS) {
+            return false;
+        }
+        try {
+            final String payload = new String(Base64.getUrlDecoder().decode(parts[1]),
+                    StandardCharsets.UTF_8);
+            return SECRET_ROLE.equals(new JSONObject(payload).optString(ROLE_CLAIM));
+        }
+        catch (IllegalArgumentException | JSONException ex) {
+            return false;
+        }
+    }
+
+    /**
+     * Refuses a URL that would send the key in the clear: every request carries
+     * the key in a header, so the scheme has to be HTTPS. A plain-HTTP loopback
+     * address is the one exception, because it never leaves the machine and the
+     * tests reach their stub server that way.
      *
      * @param url the pasted project URL
      * @return the same URL when it looks usable
      */
     public static String validateUrl(String url) {
-        if (!url.startsWith("http://") && !url.startsWith("https://")) {
-            throw new IllegalArgumentException("The project URL must start with https://");
+        if (url.startsWith(HTTPS_PREFIX) || isLoopback(url)) {
+            return url;
         }
-        return url;
+        throw new IllegalArgumentException("The project URL must start with https://");
+    }
+
+    /**
+     * Says whether a URL points at this machine, so plain HTTP costs nothing.
+     *
+     * @param url the pasted project URL
+     * @return true for a loopback host such as {@code localhost} or {@code 127.0.0.1}
+     */
+    private static boolean isLoopback(String url) {
+        try {
+            final String host = URI.create(url).getHost();
+            return host != null && (LOOPBACK_HOSTS.contains(host)
+                    || LOOPBACK_HOSTS.contains(host.replace("[", "").replace("]", "")));
+        }
+        catch (IllegalArgumentException ex) {
+            return false;
+        }
     }
 
     public String getUrl() {

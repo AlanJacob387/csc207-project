@@ -34,11 +34,11 @@ Built so far:
 | Use case | Slice | View | Tests |
 |---|---|---|---|
 | `login` (UC-A1) | `use_case/login` + `interface_adapter/login` | `LoginView` | `LoginInteractorTest` (11), `LoginViewTest` (2) |
-| `signup` (UC-A2) | `use_case/signup` + `interface_adapter/signup` | `SignupView` | `SignupInteractorTest` (11), `SignupViewTest` (2) |
+| `signup` (UC-A2) | `use_case/signup` + `interface_adapter/signup` | `SignupView` | `SignupInteractorTest` (12), `SignupViewTest` (3) |
 | `logout` (UC-A3) | `use_case/logout` + `interface_adapter/logout` | Log out button in `AppShell` | `LogoutInteractorTest` (2) |
 | `change_password` (UC-A4) | `use_case/change_password` + `interface_adapter/change_password` | `ChangePasswordView` (Account page) | `ChangePasswordInteractorTest` (9), `ChangePasswordViewTest` (3) |
 | `create_event` (UC-B1) | `use_case/create_event` + `interface_adapter/create_event` | `CreateEventView` | owed by L2 (task 1.8) |
-| `manage_users` (UC-A5, UC-A6, UC-A7) | `use_case/manage_users` + `interface_adapter/manage_users` | `ManageUsersView` (Manage Users page, administrators only) | `CreateUserInteractorTest` (12), `ChangeUserRoleInteractorTest` (9), `DeactivateUserInteractorTest` (8), `ReactivateUserInteractorTest` (6), `ListAccountsInteractorTest` (5), `AdminPolicyTest` (11), `ManageUsersViewTest` (14), `ManageUsersFlowTest` (10) |
+| `manage_users` (UC-A5, UC-A6, UC-A7) | `use_case/manage_users` + `interface_adapter/manage_users` | `ManageUsersView` (Manage Users page, administrators only) | `CreateUserInteractorTest` (13), `ChangeUserRoleInteractorTest` (9), `DeactivateUserInteractorTest` (8), `ReactivateUserInteractorTest` (6), `ListAccountsInteractorTest` (5), `AdminPolicyTest` (11), `ManageUsersViewTest` (14), `ManageUsersFlowTest` (10) |
 | `post_announcement` (UC-E1) | `use_case/post_announcement` + `interface_adapter/post_announcement` | Announcements page | `PostAnnouncementInteractorTest` (17) |
 | `view_announcements` (UC-E2) | `use_case/view_announcements` + `interface_adapter/view_announcements` | Announcements page | `ViewAnnouncementsInteractorTest` (17) |
 
@@ -107,14 +107,28 @@ length, so a weaker hash cannot pass unnoticed.
 **One account rule.** `entity/AccountRules` is the single definition of an
 acceptable account: a username of 3 to 40 letters, digits, dots, underscores or
 hyphens, a display name of at most 60 characters, and a password of 8 to 128
-characters. `UserFactory.create` and `User.withNewPassword` refuse anything it
-rejects, so neither sign up nor the administrator page nor a password change can
-store an account the rule would refuse. Sign up offers `COACH`, `PLAYER` and
-`PARENT`; the use case refuses `ADMIN` even if something calls it directly, so an
-administrative account comes only from the demo seed or from another
-administrator. The rule is applied when a credential is
-written, never at login, which is what keeps an account whose password predates it
-usable. `AccountRulesTest` pins each boundary.
+characters. It reports an `AccountRules.Refusal`, not a sentence: the entity holds
+no wording, and `use_case/accounts/AccountRefusalText` turns a reason into the one
+sentence the three pages show. `UserFactory.create` and `User.withNewPassword`
+refuse anything the rule rejects - carrying the reason in
+`InvalidAccountException` - so neither sign up nor the administrator page nor a
+password change can store an account the rule would refuse, and because the
+factory is the only enforcement point, the interactors do not repeat the check.
+Sign up offers `COACH`, `PLAYER` and `PARENT`; `Role.isSelfAssignable()` is the
+rule, the sign-up view model carries the choices, and the use case refuses `ADMIN`
+even if something calls it directly, so an administrative account comes only from
+the demo seed or from another administrator. The rule is applied when a credential
+is written, never at login, which is what keeps an account whose password predates
+it usable. `AccountRulesTest` and `AccountRefusalTextTest` pin the reasons, the
+sentences and every boundary.
+
+**Account ports.** Each account use case asks for the capability it uses:
+`use_case.accounts.CreateAccountDataAccessInterface` (insert only),
+`GetAccountDataAccessInterface` (read one, which is all `AdminPolicy` needs) and,
+for the administrator's Create User page, `manage_users.CreateUserDataAccessInterface`
+(confirm the caller, check the name, insert, return the refreshed list). A store
+that a new account would duplicate throws `use_case.accounts.DuplicateUsernameException`
+rather than building a sentence, so the wording of a failure stays in the use case.
 
 ## 5. How to build, test and run
 
@@ -183,9 +197,10 @@ sign-in page, paste the project URL and publishable key, test and save
   store is the fix we would make next.
 - **Creating an account is an insert, but the check and the write are still two
   requests.** `createUser` refuses a username that is already stored - a `409`
-  from the database, a key check in the file store - so two people creating the
-  same name at the same moment cannot end up with one holding the other's
-  password: the second one is told "already exists" and can pick another name.
+  from the database, a key check in the file store, reported as
+  `DuplicateUsernameException` - so two people creating the same name at the same
+  moment cannot end up with one holding the other's password: the second one is
+  told "already exists" and can pick another name.
 - **The password rule is length only.** 8 to 128 characters, with no requirement
   for a digit or a symbol and no check against a list of common passwords, so
   `teampass` passes and so would `password`. There is also no lockout and no rate

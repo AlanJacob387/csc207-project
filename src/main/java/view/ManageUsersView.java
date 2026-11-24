@@ -23,8 +23,12 @@ import javax.swing.JTextField;
 
 import entity.Role;
 import interface_adapter.Session;
-import interface_adapter.manage_users.ManageUsersController;
+import interface_adapter.manage_users.ChangeUserRoleController;
+import interface_adapter.manage_users.CreateUserController;
+import interface_adapter.manage_users.DeactivateUserController;
+import interface_adapter.manage_users.ListAccountsController;
 import interface_adapter.manage_users.ManageUsersViewModel;
+import interface_adapter.manage_users.ReactivateUserController;
 import use_case.manage_users.ManageUsersOutputData.AccountData;
 
 /**
@@ -44,7 +48,11 @@ public class ManageUsersView extends JPanel implements PropertyChangeListener {
     private static final Color INK = new Color(90, 98, 110);
     private static final int FIELD_WIDTH = 240;
 
-    private final ManageUsersController controller;
+    private final ListAccountsController listAccountsController;
+    private final CreateUserController createUserController;
+    private final ChangeUserRoleController changeUserRoleController;
+    private final DeactivateUserController deactivateUserController;
+    private final ReactivateUserController reactivateUserController;
     private final ManageUsersViewModel viewModel;
     private final Session session;
 
@@ -65,14 +73,27 @@ public class ManageUsersView extends JPanel implements PropertyChangeListener {
     /**
      * Creates the page.
      *
-     * @param controller the controller for the read and the three actions
-     * @param viewModel  the page state
-     * @param session    who is signed in, so the list loads when an administrator
-     *                   arrives and empties when they leave
+     * @param listAccountsController    the read that fills the page
+     * @param createUserController      the Create User use case
+     * @param changeUserRoleController  the Change User Role use case
+     * @param deactivateUserController  the Deactivate User use case
+     * @param reactivateUserController  the Reactivate User use case
+     * @param viewModel                 the page state
+     * @param session                   who is signed in, so the page reloads for the
+     *                                  next user and empties when they leave
      */
-    public ManageUsersView(ManageUsersController controller, ManageUsersViewModel viewModel,
+    public ManageUsersView(ListAccountsController listAccountsController,
+                           CreateUserController createUserController,
+                           ChangeUserRoleController changeUserRoleController,
+                           DeactivateUserController deactivateUserController,
+                           ReactivateUserController reactivateUserController,
+                           ManageUsersViewModel viewModel,
                            Session session) {
-        this.controller = controller;
+        this.listAccountsController = listAccountsController;
+        this.createUserController = createUserController;
+        this.changeUserRoleController = changeUserRoleController;
+        this.deactivateUserController = deactivateUserController;
+        this.reactivateUserController = reactivateUserController;
         this.viewModel = viewModel;
         this.session = session;
         this.viewModel.addPropertyChangeListener(this);
@@ -267,11 +288,7 @@ public class ManageUsersView extends JPanel implements PropertyChangeListener {
 
     /** Presses Create account. */
     void onCreate() {
-        if (controller == null) {
-            show("Managing users is not wired up in this preview.", PROBLEM);
-            return;
-        }
-        controller.createUser(usernameField.getText(), displayNameField.getText(),
+        createUserController.execute(usernameField.getText(), displayNameField.getText(),
                 new String(passwordField.getPassword()),
                 new String(repeatPasswordField.getPassword()),
                 (String) newRoleBox.getSelectedItem());
@@ -279,44 +296,32 @@ public class ManageUsersView extends JPanel implements PropertyChangeListener {
 
     /** Presses Change role for the selected account. */
     void onChangeRole() {
-        if (controller == null) {
-            show("Managing users is not wired up in this preview.", PROBLEM);
-            return;
-        }
-        controller.changeUserRole(selectedAccount(), (String) roleBox.getSelectedItem());
+        changeUserRoleController.execute(selectedAccount(), (String) roleBox.getSelectedItem());
     }
 
     /** Presses Deactivate for the selected account. */
     void onDeactivate() {
-        if (controller == null) {
-            show("Managing users is not wired up in this preview.", PROBLEM);
-            return;
-        }
-        controller.deactivateUser(selectedAccount());
+        deactivateUserController.execute(selectedAccount());
     }
 
     /** Presses Reactivate for the selected account. */
     void onReactivate() {
-        if (controller == null) {
-            show("Managing users is not wired up in this preview.", PROBLEM);
-            return;
-        }
-        controller.reactivateUser(selectedAccount());
+        reactivateUserController.execute(selectedAccount());
     }
 
     /** Presses Refresh: reloads the account list. */
     void onRefresh() {
-        if (controller == null) {
-            show("Managing users is not wired up in this preview.", PROBLEM);
-            return;
-        }
-        controller.listAccounts();
+        listAccountsController.execute();
     }
 
     /**
-     * Loads the list when an administrator signs in, and empties the page when
-     * anybody else does. The role check here is only about when to ask; whether
-     * the caller may read accounts is decided by the interactor.
+     * Empties the page and asks for the list again whenever somebody signs in or
+     * out.
+     *
+     * The page does not decide who may read accounts: the read use case checks the
+     * caller and the presenter reports the outcome, so a stale list cannot be kept
+     * on screen by a view that guessed wrong. Emptying first also means the next
+     * user never sees the previous one's accounts, even if the read fails.
      *
      * @param evt the session change
      */
@@ -325,9 +330,7 @@ public class ManageUsersView extends JPanel implements PropertyChangeListener {
             return;
         }
         viewModel.clear();
-        if (controller != null && session.getCurrentRole() == Role.ADMIN) {
-            controller.listAccounts();
-        }
+        listAccountsController.execute();
     }
 
     @Override

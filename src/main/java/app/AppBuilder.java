@@ -12,6 +12,7 @@ import javax.swing.SwingConstants;
 
 import data_access.AppDataStore;
 import data_access.DatabaseConfig;
+import data_access.DatabaseSettingsGateway;
 import data_access.FileAppDataAccessObject;
 import data_access.SupabaseAppDataAccessObject;
 import entity.Role;
@@ -23,6 +24,9 @@ import interface_adapter.change_password.ChangePasswordController;
 import interface_adapter.change_password.ChangePasswordPresenter;
 import interface_adapter.change_password.ChangePasswordViewModel;
 import interface_adapter.create_event.CreateEventController;
+import interface_adapter.database_settings.DatabaseSettingsController;
+import interface_adapter.database_settings.DatabaseSettingsPresenter;
+import interface_adapter.database_settings.DatabaseSettingsViewModel;
 import interface_adapter.create_event.CreateEventPresenter;
 import interface_adapter.create_event.CreateEventViewModel;
 import interface_adapter.login.LoginController;
@@ -30,9 +34,13 @@ import interface_adapter.login.LoginPresenter;
 import interface_adapter.login.LoginViewModel;
 import interface_adapter.logout.LogoutController;
 import interface_adapter.logout.LogoutPresenter;
-import interface_adapter.manage_users.ManageUsersController;
+import interface_adapter.manage_users.ChangeUserRoleController;
+import interface_adapter.manage_users.CreateUserController;
+import interface_adapter.manage_users.DeactivateUserController;
+import interface_adapter.manage_users.ListAccountsController;
 import interface_adapter.manage_users.ManageUsersPresenter;
 import interface_adapter.manage_users.ManageUsersViewModel;
+import interface_adapter.manage_users.ReactivateUserController;
 import interface_adapter.post_announcement.PostAnnouncementController;
 import interface_adapter.post_announcement.PostAnnouncementPresenter;
 import interface_adapter.post_announcement.PostAnnouncementViewModel;
@@ -44,6 +52,7 @@ import interface_adapter.view_announcements.ViewAnnouncementsPresenter;
 import interface_adapter.view_announcements.ViewAnnouncementsViewModel;
 import use_case.change_password.ChangePasswordInteractor;
 import use_case.create_event.CreateEventInteractor;
+import use_case.database_settings.DatabaseSettingsInteractor;
 import use_case.login.LoginInteractor;
 import use_case.logout.LogoutInteractor;
 import use_case.manage_users.ChangeUserRoleInteractor;
@@ -136,16 +145,15 @@ public class AppBuilder {
      * @return this builder, so the calls can be chained
      */
     public AppBuilder addDatabaseSettingsView() {
-        final DatabaseSettingsView view = new DatabaseSettingsView(
-                databaseConfig == null ? "" : databaseConfig.getUrl(),
-                DatabaseConfig.userFile().toString());
+        final DatabaseSettingsViewModel viewModel = new DatabaseSettingsViewModel();
+        final DatabaseSettingsPresenter presenter = new DatabaseSettingsPresenter(viewModel);
+        final DatabaseSettingsController controller = new DatabaseSettingsController(
+                new DatabaseSettingsInteractor(new DatabaseSettingsGateway(), presenter));
+
+        final DatabaseSettingsView view = new DatabaseSettingsView(viewModel);
+        view.setController(controller);
         view.setOnBackToLogin(() -> navigate(ViewManagerModel.LOGIN));
-        view.setOnTestConnection((url, key) -> {
-            final SupabaseAppDataAccessObject.ConnectionCheck check =
-                    SupabaseAppDataAccessObject.testConnection(url, key);
-            return new DatabaseSettingsView.TestResult(check.isOk(), check.getMessage());
-        });
-        view.setOnSave(DatabaseConfig::save);
+        controller.prepareView();
         viewManager.register(ViewManager.DATABASE, view);
         return this;
     }
@@ -261,14 +269,20 @@ public class AppBuilder {
     public AppBuilder addManageUsersUseCase() {
         final ManageUsersViewModel viewModel = new ManageUsersViewModel();
         final ManageUsersPresenter presenter = new ManageUsersPresenter(viewModel);
-        final ManageUsersController controller = new ManageUsersController(
-                new CreateUserInteractor(dataAccess, presenter, session, userFactory),
-                new ChangeUserRoleInteractor(dataAccess, presenter, session),
-                new DeactivateUserInteractor(dataAccess, presenter, session),
-                new ReactivateUserInteractor(dataAccess, presenter, session),
-                new ListAccountsInteractor(dataAccess, presenter, session));
 
-        appShell.addPage("Manage Users", new ManageUsersView(controller, viewModel, session),
+        appShell.addPage("Manage Users", new ManageUsersView(
+                        new ListAccountsController(
+                                new ListAccountsInteractor(dataAccess, presenter, session)),
+                        new CreateUserController(
+                                new CreateUserInteractor(dataAccess, presenter, session,
+                                        userFactory)),
+                        new ChangeUserRoleController(
+                                new ChangeUserRoleInteractor(dataAccess, presenter, session)),
+                        new DeactivateUserController(
+                                new DeactivateUserInteractor(dataAccess, presenter, session)),
+                        new ReactivateUserController(
+                                new ReactivateUserInteractor(dataAccess, presenter, session)),
+                        viewModel, session),
                 Role.ADMIN);
         return this;
     }

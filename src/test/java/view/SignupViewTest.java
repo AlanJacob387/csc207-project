@@ -11,14 +11,15 @@ import org.junit.jupiter.api.Test;
 import interface_adapter.signup.SignupViewModel;
 
 /**
- * Tests the role picker on the sign-up page: it offers the team roles and never
- * ADMIN, so an account cannot grant itself administration by signing up.
+ * Tests the role picker on the sign-up page: the view model offers the roles the
+ * rule allows and never ADMIN, and the page shows whatever the model carries
+ * rather than deciding for itself.
  */
 public class SignupViewTest {
 
     @Test
-    void thePickerOffersEveryTeamRoleAndNoAdministrator() {
-        final List<String> choices = List.of(SignupView.roleChoices());
+    void theViewModelOffersEveryTeamRoleAndNoAdministrator() {
+        final List<String> choices = new SignupViewModel().getRoleChoices();
 
         assertTrue(choices.contains("COACH"), choices.toString());
         assertTrue(choices.contains("PLAYER"), choices.toString());
@@ -33,5 +34,13 @@ public class SignupViewTest {
         final SignupView view = new SignupView(new SignupViewModel());
 
         assertEquals("PLAYER", view.selectedRoleName());
+    }
+
+    @Test
+    void thePickerShowsWhateverTheViewModelOffers() {
+        final SignupView view = new SignupView(new SignupViewModel(List.of("COACH")));
+
+        assertEquals("COACH", view.selectedRoleName(),
+                "the page must not add roles of its own");
     }
 }

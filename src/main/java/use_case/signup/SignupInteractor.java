@@ -64,7 +64,7 @@ public class SignupInteractor implements SignupInputBoundary {
             presenter.prepareFailView("Choose a role from the list.");
             return;
         }
-        if (role == Role.ADMIN) {
+        if (!role.isSelfAssignable()) {
             // The page does not offer it, so this only happens if something calls
             // the use case directly. The refusal stays in business logic anyway, the
             // same way AdminPolicy does not trust the sidebar.

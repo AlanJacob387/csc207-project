@@ -41,6 +41,7 @@ Built so far:
 | `manage_users` (UC-A5, UC-A6, UC-A7) | `use_case/manage_users` + `interface_adapter/manage_users` | `ManageUsersView` (Manage Users page, administrators only) | `CreateUserInteractorTest` (13), `ChangeUserRoleInteractorTest` (9), `DeactivateUserInteractorTest` (8), `ReactivateUserInteractorTest` (6), `ListAccountsInteractorTest` (5), `AdminPolicyTest` (11), `ManageUsersViewTest` (14), `ManageUsersFlowTest` (10) |
 | `post_announcement` (UC-E1) | `use_case/post_announcement` + `interface_adapter/post_announcement` | Announcements page | `PostAnnouncementInteractorTest` (17) |
 | `view_announcements` (UC-E2) | `use_case/view_announcements` + `interface_adapter/view_announcements` | Announcements page | `ViewAnnouncementsInteractorTest` (17) |
+| `database_settings` | `use_case/database_settings` + `interface_adapter/database_settings` | `DatabaseSettingsView` (the connection page) | `DatabaseSettingsInteractorTest` (9), `DatabaseSettingsViewTest` (8) |
 
 - **Sequence diagrams** - owed by each lane for its own use cases (task 3.8, coordinated by L5)
 
@@ -68,7 +69,13 @@ record shape lives, so the database and the file store share one format.
 this order: `TEAMSPORTS_DB_URL` / `TEAMSPORTS_DB_KEY`, then the
 `teamsports.db.url` / `teamsports.db.key` system properties, then
 `%USERPROFILE%\.team-sports\database.properties`, which the in-app **Database
-settings** page writes. With nothing configured the app uses the local JSON file
+settings** page writes. That page is a use case like any other
+(`use_case/database_settings`): the interactor owns the rules - both values
+present, an `https://` URL, and never the secret key, which would bypass row
+level security - and owns the wording of every result, while
+`DatabaseSettingsGateway` only reports facts (how many accounts the settings can
+see, whether the save worked, where the file is). With nothing configured the app
+uses the local JSON file
 `data/app-data.json` (git-ignored), so a clean clone runs with no account and the
 tests stay offline. `AppDataStore` is the interface the wiring holds, so the two
 stores are interchangeable and no use case changes.
@@ -210,6 +217,23 @@ sign-in page, paste the project URL and publishable key, test and save
   `COACH`, `PLAYER` and `PARENT` only; an administrative account comes from the
   demo seed or from another administrator.
 - One role per user (decision D5).
+- **The demo seed is the one business rule outside a use case.**
+  `AppBuilder.seedDemoDataIfEmpty` decides that an empty store gets four accounts
+  and a team. It stays there because it must run before any page exists and only
+  for a demo; a `seed_demo_data` use case is the tidy version.
+- **The administrator view model carries the use case's row type.**
+  `ManageUsersViewModel` stores `ManageUsersOutputData.AccountData` and the page
+  imports it, so the view sees a use-case type rather than a view-model one. The
+  type holds only display fields, so nothing hidden leaks; a stricter split would
+  have the presenter copy it into a view-model row.
+- **A store failure reaches the use cases as a JDK exception.**
+  `IllegalStateException` and `UncheckedIOException` are what an interactor
+  catches; `DuplicateUsernameException` shows the shape a typed store failure
+  should have everywhere. Converting the rest touches every slice.
+- **Reading accounts still receives a port that can save.**
+  `ManageUsersDataAccessInterface` includes `save`, which `ListAccountsInteractor`
+  never calls. Splitting it would duplicate the administrator interface for one
+  method, so it is recorded here instead.
 
 ## 7. API notes
 

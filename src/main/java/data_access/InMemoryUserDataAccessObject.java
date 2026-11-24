@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Map;
 
 import entity.User;
+import use_case.accounts.DuplicateUsernameException;
 import use_case.change_password.ChangePasswordUserDataAccessInterface;
 import use_case.login.LoginUserDataAccessInterface;
 import use_case.manage_users.ManageUsersDataAccessInterface;
@@ -37,12 +38,12 @@ public class InMemoryUserDataAccessObject
      * Stores a new account, refusing a username that is already taken.
      *
      * @param user the account to create
+     * @throws DuplicateUsernameException when that username is already stored
      */
     @Override
     public void createUser(User user) {
         if (users.containsKey(user.getUsername())) {
-            throw new IllegalStateException("An account with username "
-                    + user.getUsername() + " already exists.");
+            throw new DuplicateUsernameException(user.getUsername());
         }
         users.put(user.getUsername(), user);
     }

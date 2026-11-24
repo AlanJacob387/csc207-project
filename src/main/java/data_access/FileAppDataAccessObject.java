@@ -22,9 +22,9 @@ import org.json.JSONObject;
 import entity.Announcement;
 import entity.AttendanceRecord;
 import entity.Event;
-import entity.Role;
 import entity.Team;
 import entity.User;
+import use_case.accounts.DuplicateUsernameException;
 
 /**
  * Local JSON store for users, teams, events, attendance and announcements.
@@ -112,12 +112,12 @@ public class FileAppDataAccessObject implements AppDataStore {
      * Stores a new account, refusing a username that is already taken.
      *
      * @param user the account to create
+     * @throws DuplicateUsernameException when that username is already stored
      */
     @Override
     public void createUser(User user) {
         if (users.containsKey(user.getUsername())) {
-            throw new IllegalStateException("An account with username "
-                    + user.getUsername() + " already exists.");
+            throw new DuplicateUsernameException(user.getUsername());
         }
         users.put(user.getUsername(), user);
         persist();

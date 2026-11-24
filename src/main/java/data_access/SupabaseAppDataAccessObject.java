@@ -24,6 +24,7 @@ import okhttp3.Request;
 import okhttp3.RequestBody;
 import okhttp3.Response;
 import okhttp3.ResponseBody;
+import use_case.accounts.DuplicateUsernameException;
 
 /**
  * Hosted store: the Supabase Postgres database read and written through its REST
@@ -149,6 +150,8 @@ public class SupabaseAppDataAccessObject implements AppDataStore {
      * already stored answers 409 and nothing is overwritten - the same shape as
      * the announcement insert, and the reason the create check in the interactor
      * is not the only guard.
+     *
+     * @throws DuplicateUsernameException when the database answers 409
      */
     @Override
     public void createUser(User user) {
@@ -161,8 +164,7 @@ public class SupabaseAppDataAccessObject implements AppDataStore {
         try (Response response = client.newCall(request).execute()) {
             final String text = bodyOf(response);
             if (response.code() == CONFLICT) {
-                throw new IllegalStateException("An account with username "
-                        + user.getUsername() + " already exists.");
+                throw new DuplicateUsernameException(user.getUsername());
             }
             if (!response.isSuccessful()) {
                 throw new IllegalStateException(describe(response, text,

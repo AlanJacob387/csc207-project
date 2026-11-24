@@ -27,6 +27,7 @@ import entity.AttendanceRecord;
 import entity.Event;
 import entity.Role;
 import entity.User;
+import use_case.accounts.DuplicateUsernameException;
 
 /**
  * Tests the hosted store against a local stub server, so every request shape is
@@ -188,10 +189,10 @@ class SupabaseAppDataAccessObjectTest {
     void aDuplicateAccountIsReportedInsteadOfReplacingTheStoredOne() {
         respond(409, "{\"code\":\"23505\",\"message\":\"duplicate key value\"}");
 
-        final IllegalStateException thrown = assertThrows(IllegalStateException.class,
+        final DuplicateUsernameException thrown = assertThrows(DuplicateUsernameException.class,
                 () -> store.createUser(new User("p1", "hash", "Pat", Role.PLAYER)));
 
-        assertTrue(thrown.getMessage().contains("already exists"), thrown.getMessage());
+        assertEquals("p1", thrown.getUsername());
     }
 
     @Test

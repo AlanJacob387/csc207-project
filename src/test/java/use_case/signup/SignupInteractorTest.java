@@ -11,6 +11,7 @@ import data_access.InMemoryUserDataAccessObject;
 import entity.Role;
 import entity.User;
 import entity.UserFactory;
+import use_case.accounts.DuplicateUsernameException;
 
 /**
  * Tests the Sign Up use case: success, and every way it can fail.
@@ -131,6 +132,28 @@ class SignupInteractorTest {
         assertEquals("Administrator accounts are created by an administrator.",
                 presenter.error);
         assertNull(dataAccess.get("sneaky"));
+    }
+
+    @Test
+    void aUsernameTakenBetweenTheCheckAndTheWriteIsReported() {
+        final SignupUserDataAccessInterface racy = new SignupUserDataAccessInterface() {
+            @Override
+            public boolean existsByName(String username) {
+                return false;
+            }
+
+            @Override
+            public void createUser(User user) {
+                throw new DuplicateUsernameException(user.getUsername());
+            }
+        };
+
+        new SignupInteractor(racy, presenter, new UserFactory())
+                .execute(new SignupInputData("newbie", "password1", "password1", "New Bie",
+                        "PLAYER"));
+
+        assertEquals("That username is already taken.", presenter.error);
+        assertNull(presenter.success);
     }
 
     @Test

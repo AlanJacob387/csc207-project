@@ -21,6 +21,7 @@ import entity.Event;
 import entity.Role;
 import entity.Team;
 import entity.User;
+import use_case.accounts.DuplicateUsernameException;
 
 /**
  * Tests the local JSON store: writing, reading, persistence across instances,
@@ -146,11 +147,11 @@ class FileAppDataAccessObjectTest {
         final FileAppDataAccessObject dao = new FileAppDataAccessObject(file);
         dao.save(new User("p1", "pbkdf2$1000$c2FsdA==$aGFzaA==", "Pat", Role.PLAYER));
 
-        final IllegalStateException thrown = assertThrows(IllegalStateException.class,
+        final DuplicateUsernameException thrown = assertThrows(DuplicateUsernameException.class,
                 () -> dao.createUser(new User("p1", "pbkdf2$1000$c2FsdA==$b3RoZXI=",
                         "Impostor", Role.COACH)));
 
-        assertTrue(thrown.getMessage().contains("already exists"), thrown.getMessage());
+        assertEquals("p1", thrown.getUsername());
         assertEquals("Pat", dao.get("p1").getDisplayName(),
                 "a second create must not replace the first account");
         assertEquals(Role.PLAYER, dao.get("p1").getRole());

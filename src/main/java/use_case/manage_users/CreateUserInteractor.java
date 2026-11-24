@@ -6,6 +6,7 @@ import entity.InvalidAccountException;
 import entity.Role;
 import entity.UserFactory;
 import use_case.accounts.AccountRefusalText;
+import use_case.accounts.DuplicateUsernameException;
 import use_case.current_user.CurrentUserInterface;
 
 /**
@@ -84,6 +85,9 @@ public class CreateUserInteractor implements CreateUserInputBoundary {
                     displayName.isEmpty() ? username : displayName, role));
             presenter.prepareSuccessView(ManageUsersOutputData.of(
                     "Account created for " + username + ".", dataAccess.getAllUsers()));
+        }
+        catch (DuplicateUsernameException ex) {
+            presenter.prepareFailView("That username is already taken.");
         }
         catch (InvalidAccountException ex) {
             presenter.prepareFailView(AccountRefusalText.forRefusal(ex.getRefusal()));

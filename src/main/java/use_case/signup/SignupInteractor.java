@@ -7,6 +7,7 @@ import entity.Role;
 import entity.User;
 import entity.UserFactory;
 import use_case.accounts.AccountRefusalText;
+import use_case.accounts.DuplicateUsernameException;
 
 /**
  * Interactor for the Sign Up use case.
@@ -79,6 +80,12 @@ public class SignupInteractor implements SignupInputBoundary {
                 return;
             }
             dataAccess.createUser(userFactory.create(username, password, displayName, role));
+        }
+        catch (DuplicateUsernameException ex) {
+            // The store refuses the write itself; the pre-check above is only the
+            // fast path, and both report the same thing.
+            presenter.prepareFailView("That username is already taken.");
+            return;
         }
         catch (InvalidAccountException ex) {
             // The factory applies the rule, so this is the only place the refusal

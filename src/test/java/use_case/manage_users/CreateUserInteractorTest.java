@@ -15,6 +15,7 @@ import entity.Role;
 import entity.User;
 import entity.UserFactory;
 import interface_adapter.Session;
+import use_case.accounts.DuplicateUsernameException;
 
 /**
  * Tests the Create User use case: an administrator creates an account, and every
@@ -159,6 +160,43 @@ class CreateUserInteractorTest {
 
         assertEquals("Passwords are 8 to 128 characters.", presenter.error);
         assertNull(dataAccess.get("player9"));
+    }
+
+    @Test
+    void aUsernameClaimedBeforeTheWriteIsReported() {
+        final User admin = new User("admin1", "pw", "Ada Admin", Role.ADMIN);
+        final ManageUsersDataAccessInterface racy = new ManageUsersDataAccessInterface() {
+            @Override
+            public List<User> getAllUsers() {
+                return List.of(admin);
+            }
+
+            @Override
+            public User get(String username) {
+                return admin;
+            }
+
+            @Override
+            public boolean existsByName(String username) {
+                return false;
+            }
+
+            @Override
+            public void createUser(User user) {
+                throw new DuplicateUsernameException(user.getUsername());
+            }
+
+            @Override
+            public void save(User user) {
+                throw new AssertionError("nothing should be saved");
+            }
+        };
+
+        new CreateUserInteractor(racy, presenter, session, new UserFactory())
+                .execute(input("player9", "Pat Nine", "secretpass", "secretpass", Role.PLAYER));
+
+        assertEquals("That username is already taken.", presenter.error);
+        assertNull(presenter.success);
     }
 
     @Test

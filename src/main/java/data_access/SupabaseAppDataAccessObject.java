@@ -10,8 +10,11 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import entity.Announcement;
+import entity.AbsenceNotice;
 import entity.AttendanceRecord;
 import entity.Event;
+import entity.EventNotification;
+import entity.ParentPlayerLink;
 import entity.Role;
 import entity.Team;
 import entity.User;
@@ -59,6 +62,9 @@ public class SupabaseAppDataAccessObject implements AppDataStore {
     private static final String EVENTS = "events";
     private static final String ATTENDANCE = "attendance";
     private static final String ANNOUNCEMENTS = "announcements";
+    private static final String PARENT_LINKS = "parent_links";
+    private static final String ABSENCE_NOTICES = "absence_notices";
+    private static final String EVENT_NOTIFICATIONS = "event_notifications";
 
     private static final String REST_PATH = "/rest/v1";
     private static final String SELECT_ALL = "*";
@@ -209,9 +215,30 @@ public class SupabaseAppDataAccessObject implements AppDataStore {
                 && !selectWhere(TEAMS, "teamId", teamId, 1).isEmpty();
     }
 
+    /**
+     * Saves an event and, when its schedule changed, records the change for the
+     * notifications feed, the way the local file does in one write.
+     *
+     * Two requests cannot be one transaction through the REST API: the event is
+     * written first, and if recording the notification then fails the event stays
+     * saved and the caller is told the feed missed it.
+     */
     @Override
     public void saveEvent(Event event) {
+        final Event previous = getEvent(event.getEventId());
+        final Team team = getTeam(event.getTeamId());
+        final EventNotification notification = EventChangeNotifications.between(previous, event,
+                team == null ? event.getTeamId() : team.getName());
         upsert(EVENTS, "eventId", EntityJsonMapper.toJson(event));
+        if (notification != null) {
+            try {
+                insert(EVENT_NOTIFICATIONS, EntityJsonMapper.toJson(notification), "the notification insert");
+            }
+            catch (IllegalStateException | UncheckedIOException ex) {
+                throw new IllegalStateException("The event was saved, but its notification could not be"
+                        + " recorded: " + ex.getMessage(), ex);
+            }
+        }
     }
 
     @Override
@@ -304,8 +331,92 @@ public class SupabaseAppDataAccessObject implements AppDataStore {
     }
 
     // ------------------------------------------------------------------
+    // Family links, absence notices and event notifications
+    // ------------------------------------------------------------------
+
+    @Override
+    public List<ParentPlayerLink> getParentPlayerLinks() {
+        final List<ParentPlayerLink> links = new ArrayList<>();
+        final JSONArray rows = read(PARENT_LINKS);
+        for (int i = 0; i < rows.length(); i++) {
+            links.add(EntityJsonMapper.parentPlayerLinkFromJson(rows.getJSONObject(i)));
+        }
+        return links;
+    }
+
+    /** Linking twice is a no-op, as in the local file. */
+    @Override
+    public void saveParentPlayerLink(ParentPlayerLink link) {
+        upsert(PARENT_LINKS, "parentUsername,playerUsername", EntityJsonMapper.toJson(link));
+    }
+
+    @Override
+    public void deleteParentPlayerLink(String parentUsername, String playerUsername) {
+        final HttpUrl url = tableUrl(PARENT_LINKS)
+                .addQueryParameter("parentUsername", "eq." + parentUsername)
+                .addQueryParameter("playerUsername", "eq." + playerUsername)
+                .build();
+        execute(request(url).delete().header("Prefer", "return=minimal").build(),
+                "the removal of the family link");
+    }
+
+    @Override
+    public List<AbsenceNotice> getAbsenceNotices() {
+        final List<AbsenceNotice> notices = new ArrayList<>();
+        final JSONArray rows = read(ABSENCE_NOTICES);
+        for (int i = 0; i < rows.length(); i++) {
+            notices.add(EntityJsonMapper.absenceNoticeFromJson(rows.getJSONObject(i)));
+        }
+        return notices;
+    }
+
+    /**
+     * Saves a parent's notice, applying the local file's two rules: an id names one
+     * absence, and a parent, child and event have one notice. The table's unique
+     * constraint backs the second rule when two clients submit at once.
+     */
+    @Override
+    public void saveAbsenceNotice(AbsenceNotice notice) {
+        for (AbsenceNotice stored : getAbsenceNotices()) {
+            final boolean sameAbsence = stored.getParentUsername().equals(notice.getParentUsername())
+                    && stored.getPlayerUsername().equals(notice.getPlayerUsername())
+                    && stored.getEventId().equals(notice.getEventId());
+            if (stored.getNoticeId().equals(notice.getNoticeId()) && !sameAbsence) {
+                throw new IllegalStateException("That notice identifier belongs to a different absence.");
+            }
+            if (!stored.getNoticeId().equals(notice.getNoticeId()) && sameAbsence) {
+                throw new IllegalStateException("A notice already exists for this parent, child and event.");
+            }
+        }
+        upsert(ABSENCE_NOTICES, "noticeId", EntityJsonMapper.toJson(notice));
+    }
+
+    @Override
+    public List<EventNotification> getEventNotifications() {
+        final List<EventNotification> notifications = new ArrayList<>();
+        final HttpUrl url = tableUrl(EVENT_NOTIFICATIONS)
+                .addQueryParameter("select", SELECT_ALL)
+                .addQueryParameter("order", "createdAt.asc")
+                .build();
+        final JSONArray rows = parseArray(execute(request(url).get().build(),
+                "the read from " + EVENT_NOTIFICATIONS));
+        for (int i = 0; i < rows.length(); i++) {
+            notifications.add(EntityJsonMapper.eventNotificationFromJson(rows.getJSONObject(i)));
+        }
+        return notifications;
+    }
+
+    // ------------------------------------------------------------------
     // Request helpers
     // ------------------------------------------------------------------
+
+    /** Inserts a row and refuses a key that is already stored. */
+    private void insert(String table, JSONObject row, String what) {
+        execute(request(tableUrl(table).build())
+                .post(RequestBody.create(row.toString(), JSON))
+                .header("Prefer", "return=minimal")
+                .build(), what);
+    }
 
     /** Reads every row of a table. */
     private JSONArray read(String table) {

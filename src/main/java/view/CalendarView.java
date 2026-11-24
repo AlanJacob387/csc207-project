@@ -12,9 +12,13 @@ import java.awt.FontMetrics;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.GridLayout;
+import java.awt.Rectangle;
 import java.awt.RenderingHints;
+import java.awt.event.HierarchyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.beans.PropertyChangeEvent;
+import java.beans.PropertyChangeListener;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -25,9 +29,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.Consumer;
 
 import java.io.File;
-import java.io.IOException;
 
 import javax.swing.BorderFactory;
 import javax.swing.Box;
@@ -43,8 +47,13 @@ import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
 import javax.swing.filechooser.FileNameExtensionFilter;
 
+import interface_adapter.export_schedule.ExportScheduleController;
+import interface_adapter.export_schedule.ExportScheduleViewModel;
+import interface_adapter.view_schedule.ViewScheduleController;
+import interface_adapter.view_schedule.ViewScheduleViewModel;
+
 /**
- * Swing view template for the Team Schedule calendar.
+ * Swing view for the Team Schedule calendar.
  *
  * Two views, toggled with a segmented Month | Week control:
  *  - MONTH: flat month grid with soft event pills.
@@ -55,24 +64,23 @@ import javax.swing.filechooser.FileNameExtensionFilter;
  * Styling: airy header, pill navigation buttons, hairline grid,
  * accent circle on today, tinted blocks (green = practice, amber = game).
  *
- * UI-only template: events are held in a simple in-memory map with demo data.
- * TODO: replace with a ViewScheduleController + ViewModel following the
- * structure of use_case.create_event, so events come from the data access layer.
+ * Events come from the View Schedule use case: whenever the visible range
+ * changes, or the page is shown again, the view asks the controller for that
+ * range and redraws when the view model reports back.
  */
-public class CalendarView extends JPanel {
+public class CalendarView extends JPanel implements PropertyChangeListener {
 
-    /** Event stub for the template. Replace with ViewModel data later. */
+    /** One event as the calendar draws it, built from a view model entry. */
     public static class CalendarEvent {
+        public final String eventId;  // null = not clickable
         public final String title;
         public final boolean isGame;
         public final LocalTime start; // null = all-day / untimed
         public final LocalTime end;   // null = default 1h after start
 
-        public CalendarEvent(String title, boolean isGame) {
-            this(title, isGame, null, null);
-        }
-
-        public CalendarEvent(String title, boolean isGame, LocalTime start, LocalTime end) {
+        public CalendarEvent(String eventId, String title, boolean isGame,
+                             LocalTime start, LocalTime end) {
+            this.eventId = eventId;
             this.title = title;
             this.isGame = isGame;
             this.start = start;
@@ -115,11 +123,22 @@ public class CalendarView extends JPanel {
     private LocalDate weekAnchor = LocalDate.now(); // any day inside the shown week
 
     private final Map<LocalDate, List<CalendarEvent>> events = new HashMap<>();
+    private Map<String, String> rainRiskFlags = Map.of();
 
     private final JLabel monthLabel = new JLabel("", SwingConstants.LEFT);
+    private final JLabel statusLabel = new JLabel(" ");
     private final JPanel content = new JPanel(new BorderLayout());
     private JButton monthToggle;
     private JButton weekToggle;
+
+    private ViewScheduleController viewScheduleController;
+    private ViewScheduleViewModel viewScheduleViewModel;
+    // Range last asked for, so redrawing the same month doesn't re-query.
+    private LocalDate loadedFrom;
+    private LocalDate loadedTo;
+    private Consumer<String> onOpenEvent;
+    private ExportScheduleController exportScheduleController;
+    private ExportScheduleViewModel exportScheduleViewModel;
 
     public CalendarView() {
         setLayout(new BorderLayout());
@@ -131,25 +150,114 @@ public class CalendarView extends JPanel {
         content.setOpaque(false);
         add(content, BorderLayout.CENTER);
 
-        addDemoEvents(); // TODO: remove once wired to real data
+        // Reload whenever the page comes on screen: after logging in, switching
+        // users, or coming back from creating an event.
+        addHierarchyListener(e -> {
+            if ((e.getChangeFlags() & HierarchyEvent.SHOWING_CHANGED) != 0 && isShowing()) {
+                refresh();
+            }
+        });
+
         rebuild();
     }
 
     // ------------------------------------------------------------------
-    // Public API (the controller/presenter will use these later)
+    // Public API
     // ------------------------------------------------------------------
+
+    /**
+     * Connects the calendar to the View Schedule use case.
+     *
+     * @param controller asked for events whenever the visible range changes
+     * @param viewModel  observed for the events to draw
+     */
+    public void setViewScheduleController(ViewScheduleController controller,
+                                          ViewScheduleViewModel viewModel) {
+        this.viewScheduleController = controller;
+        this.viewScheduleViewModel = viewModel;
+        viewModel.addPropertyChangeListener(this);
+    }
+
+    /**
+     * Sets what happens when an event is clicked.
+     *
+     * @param onOpenEvent receives the clicked event's id
+     */
+    public void setOnOpenEvent(Consumer<String> onOpenEvent) {
+        this.onOpenEvent = onOpenEvent;
+    }
+
+    /** Reloads the visible range, e.g. after an event was changed elsewhere. */
+    public void refresh() {
+        loadedFrom = null;
+        rebuild();
+    }
+
+    private void openEvent(CalendarEvent ev) {
+        if (onOpenEvent != null && ev.eventId != null) {
+            onOpenEvent.accept(ev.eventId);
+        }
+    }
+
+    /**
+     * Connects the Export button to the Export Schedule use case.
+     *
+     * @param controller runs the export once a file has been chosen
+     * @param viewModel  observed for the result
+     */
+    public void setExportScheduleController(ExportScheduleController controller,
+                                            ExportScheduleViewModel viewModel) {
+        this.exportScheduleController = controller;
+        this.exportScheduleViewModel = viewModel;
+        viewModel.addPropertyChangeListener(this);
+    }
+
+    @Override
+    public void propertyChange(PropertyChangeEvent evt) {
+        if (evt.getSource() == exportScheduleViewModel) {
+            showExportResult();
+            return;
+        }
+        events.clear();
+        for (ViewScheduleViewModel.Entry entry : viewScheduleViewModel.getEntries()) {
+            events.computeIfAbsent(entry.getDate(), d -> new ArrayList<>())
+                    .add(new CalendarEvent(entry.getEventId(), entry.getTitle(),
+                            entry.isGame(), entry.getStartTime(), null));
+        }
+
+        final String message = viewScheduleViewModel.getMessage();
+        statusLabel.setText(message.isEmpty() ? " " : message);
+        statusLabel.setForeground(viewScheduleViewModel.isError()
+                ? new Color(217, 48, 37) : INK_MUTED);
+        if (viewScheduleViewModel.isError()) {
+            // Try again on the next redraw instead of keeping a failed range.
+            loadedFrom = null;
+        }
+        render();
+    }
 
     /** Replace all events shown on the calendar and refresh. */
     public void setEvents(Map<LocalDate, List<CalendarEvent>> newEvents) {
         events.clear();
         events.putAll(newEvents);
-        rebuild();
+        render();
     }
 
     /** Add a single event to a date and refresh. */
     public void addEvent(LocalDate date, CalendarEvent event) {
         events.computeIfAbsent(date, d -> new ArrayList<>()).add(event);
-        rebuild();
+        render();
+    }
+
+    /** Applies the latest explicitly requested forecast labels without changing stored events. */
+    public void setRainRiskFlags(Map<String, String> flags) {
+        rainRiskFlags = Map.copyOf(flags);
+        render();
+    }
+
+    private String eventTitle(CalendarEvent event) {
+        final String flag = event.eventId == null ? null : rainRiskFlags.get(event.eventId);
+        return flag == null ? event.title : event.title + " — " + flag;
     }
 
     // ------------------------------------------------------------------
@@ -183,6 +291,11 @@ public class CalendarView extends JPanel {
         controls.add(pillButton("Export", this::onExport));
 
         header.add(controls, BorderLayout.EAST);
+
+        statusLabel.setFont(FONT_DAY);
+        statusLabel.setForeground(INK_MUTED);
+        statusLabel.setBorder(BorderFactory.createEmptyBorder(8, 0, 0, 0));
+        header.add(statusLabel, BorderLayout.SOUTH);
         return header;
     }
 
@@ -192,14 +305,12 @@ public class CalendarView extends JPanel {
     }
 
     /**
-     * Exports all events to an .ics file; the user picks the location.
-     * The file can be imported into Google Calendar, Outlook, Apple Calendar, etc.
+     * Asks where to save the schedule, then hands the path to the Export
+     * Schedule use case. The export covers the user's whole schedule, not just
+     * what is on screen.
      */
     private void onExport() {
-        if (events.isEmpty()) {
-            JOptionPane.showMessageDialog(this,
-                    "There are no events to export yet.",
-                    "Export Schedule", JOptionPane.INFORMATION_MESSAGE);
+        if (exportScheduleController == null) {
             return;
         }
 
@@ -225,17 +336,25 @@ public class CalendarView extends JPanel {
             }
         }
 
-        try {
-            IcsExporter.export(events, "Team Schedule", file.toPath());
-            JOptionPane.showMessageDialog(this,
-                    "Exported to " + file.getAbsolutePath()
-                            + "\nImport this file into Google Calendar, Outlook, or Apple Calendar.",
-                    "Export Schedule", JOptionPane.INFORMATION_MESSAGE);
-        } catch (IOException ex) {
-            JOptionPane.showMessageDialog(this,
-                    "Could not write file: " + ex.getMessage(),
-                    "Export Schedule", JOptionPane.ERROR_MESSAGE);
+        // The result comes back through the export view model.
+        exportScheduleController.execute(file.getAbsolutePath());
+    }
+
+    /** Shows the outcome of an export in a dialog that matches its kind. */
+    private void showExportResult() {
+        final int messageType;
+        switch (exportScheduleViewModel.getStatus()) {
+            case ERROR:
+                messageType = JOptionPane.ERROR_MESSAGE;
+                break;
+            case SUCCESS:
+            case INFO:
+            default:
+                messageType = JOptionPane.INFORMATION_MESSAGE;
+                break;
         }
+        JOptionPane.showMessageDialog(this, exportScheduleViewModel.getMessage(),
+                "Export Schedule", messageType);
     }
 
     private void navigate(int delta) {
@@ -290,7 +409,47 @@ public class CalendarView extends JPanel {
     // ------------------------------------------------------------------
     // Rebuild current view
     // ------------------------------------------------------------------
+
+    /**
+     * Loads events for the visible range if it changed, then draws. When a load
+     * is sent, the view model update triggers the draw instead.
+     */
     private void rebuild() {
+        if (!loadVisibleRange()) {
+            render();
+        }
+    }
+
+    /**
+     * Asks the controller for the dates on screen, unless they're already loaded.
+     *
+     * @return true if a request was sent
+     */
+    private boolean loadVisibleRange() {
+        if (viewScheduleController == null) {
+            return false;
+        }
+        final LocalDate from;
+        final LocalDate to;
+        if (viewMode == ViewMode.MONTH) {
+            // The grid always shows 6 full weeks, including spill-over days.
+            from = startOfWeek(currentMonth.atDay(1));
+            to = from.plusDays(41);
+        } else {
+            from = startOfWeek(weekAnchor);
+            to = from.plusDays(6);
+        }
+        if (from.equals(loadedFrom) && to.equals(loadedTo)) {
+            return false;
+        }
+        loadedFrom = from;
+        loadedTo = to;
+        viewScheduleController.execute(from, to);
+        return true;
+    }
+
+    /** Redraws the current month or week from the events already loaded. */
+    private void render() {
         content.removeAll();
         if (viewMode == ViewMode.MONTH) {
             monthLabel.setText(
@@ -398,13 +557,16 @@ public class CalendarView extends JPanel {
             }
         }
 
-        // TODO: open the Event Details page for this date.
-        cell.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseClicked(MouseEvent e) {
-                // placeholder for navigation
-            }
-        });
+        // Pills handle their own clicks. A click on the rest of the cell only
+        // opens something when there is no doubt which event was meant.
+        if (dayEvents != null && dayEvents.size() == 1) {
+            cell.addMouseListener(new MouseAdapter() {
+                @Override
+                public void mouseClicked(MouseEvent e) {
+                    openEvent(dayEvents.get(0));
+                }
+            });
+        }
         return cell;
     }
 
@@ -413,7 +575,7 @@ public class CalendarView extends JPanel {
         final Color bg = ev.isGame ? GAME_BG : PRACTICE_BG;
         final Color fg = ev.isGame ? GAME_FG : PRACTICE_FG;
 
-        final JLabel pill = new JLabel(ev.title) {
+        final JLabel pill = new JLabel(eventTitle(ev)) {
             @Override
             protected void paintComponent(Graphics g) {
                 final Graphics2D g2 = (Graphics2D) g.create();
@@ -429,7 +591,16 @@ public class CalendarView extends JPanel {
         pill.setForeground(fg);
         pill.setBorder(BorderFactory.createEmptyBorder(3, 8, 3, 8));
         pill.setAlignmentX(Component.LEFT_ALIGNMENT);
-        pill.setToolTipText(ev.title);
+        pill.setToolTipText(eventTitle(ev));
+        if (ev.eventId != null) {
+            pill.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+            pill.addMouseListener(new MouseAdapter() {
+                @Override
+                public void mouseClicked(MouseEvent e) {
+                    openEvent(ev);
+                }
+            });
+        }
         return pill;
     }
 
@@ -532,17 +703,51 @@ public class CalendarView extends JPanel {
     /** Custom-painted hourly grid with timed event blocks. */
     private class WeekGridPanel extends JPanel {
         private final LocalDate weekStart;
+        // Where each block was drawn on the last paint, for click hit-testing.
+        private final List<Rectangle> blockBounds = new ArrayList<>();
+        private final List<CalendarEvent> blockEvents = new ArrayList<>();
 
         WeekGridPanel(LocalDate weekStart) {
             this.weekStart = weekStart;
             setBackground(BG);
             final int height = (DAY_END_HOUR - DAY_START_HOUR) * HOUR_HEIGHT;
             setPreferredSize(new Dimension(0, height));
+
+            final MouseAdapter mouse = new MouseAdapter() {
+                @Override
+                public void mouseClicked(MouseEvent e) {
+                    final CalendarEvent hit = eventAt(e.getX(), e.getY());
+                    if (hit != null) {
+                        openEvent(hit);
+                    }
+                }
+
+                @Override
+                public void mouseMoved(MouseEvent e) {
+                    setCursor(eventAt(e.getX(), e.getY()) != null
+                            ? Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
+                            : Cursor.getDefaultCursor());
+                }
+            };
+            addMouseListener(mouse);
+            addMouseMotionListener(mouse);
+        }
+
+        private CalendarEvent eventAt(int x, int y) {
+            // Search backwards so the block painted on top wins.
+            for (int i = blockBounds.size() - 1; i >= 0; i--) {
+                if (blockBounds.get(i).contains(x, y) && blockEvents.get(i).eventId != null) {
+                    return blockEvents.get(i);
+                }
+            }
+            return null;
         }
 
         @Override
         protected void paintComponent(Graphics g) {
             super.paintComponent(g);
+            blockBounds.clear();
+            blockEvents.clear();
             final Graphics2D g2 = (Graphics2D) g.create();
             g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
                     RenderingHints.VALUE_ANTIALIAS_ON);
@@ -626,6 +831,9 @@ public class CalendarView extends JPanel {
             final Color bg = ev.isGame ? GAME_BG : PRACTICE_BG;
             final Color fg = ev.isGame ? GAME_FG : PRACTICE_FG;
 
+            blockBounds.add(new Rectangle(x, y1 + 2, wdt, y2 - y1 - 4));
+            blockEvents.add(ev);
+
             g2.setColor(bg);
             g2.fillRoundRect(x, y1 + 2, wdt, y2 - y1 - 4, 10, 10);
             g2.setColor(fg);
@@ -636,7 +844,7 @@ public class CalendarView extends JPanel {
             g2.clipRect(x, y1 + 2, wdt, y2 - y1 - 4);
             g2.setColor(fg);
             g2.setFont(FONT_CHIP_BOLD);
-            g2.drawString(ev.title, x + 10, y1 + 16);
+            g2.drawString(eventTitle(ev), x + 10, y1 + 16);
             g2.setFont(FONT_CHIP);
             g2.drawString(formatRange(start, end), x + 10, y1 + 30);
             g2.setClip(oldClip);
@@ -664,26 +872,6 @@ public class CalendarView extends JPanel {
         final String ampm = t.getHour() < 12 ? "AM" : "PM";
         return t.getMinute() == 0 ? h12 + " " + ampm
                 : h12 + ":" + String.format("%02d", t.getMinute()) + " " + ampm;
-    }
-
-    // ------------------------------------------------------------------
-    // Demo data — delete when wiring to the real schedule use case
-    // ------------------------------------------------------------------
-    private void addDemoEvents() {
-        final LocalDate today = LocalDate.now();
-        addEventNoRefresh(today, new CalendarEvent("Practice", false,
-                LocalTime.of(18, 0), LocalTime.of(19, 30)));
-        addEventNoRefresh(today.plusDays(2), new CalendarEvent("Practice", false,
-                LocalTime.of(18, 0), LocalTime.of(19, 30)));
-        addEventNoRefresh(today.plusDays(5), new CalendarEvent("Game vs Rivals", true,
-                LocalTime.of(14, 0), LocalTime.of(16, 0)));
-        addEventNoRefresh(today.plusDays(5), new CalendarEvent("Team dinner", false));
-        addEventNoRefresh(today.plusDays(12), new CalendarEvent("Practice", false,
-                LocalTime.of(19, 0), LocalTime.of(20, 30)));
-    }
-
-    private void addEventNoRefresh(LocalDate date, CalendarEvent event) {
-        events.computeIfAbsent(date, d -> new ArrayList<>()).add(event);
     }
 
     /** Standalone preview — run this class directly to see the calendar. */

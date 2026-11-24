@@ -1,6 +1,7 @@
 # Hosted database (Supabase)
 
-The app keeps accounts, teams, events, attendance and announcements in a
+The app keeps accounts, teams, events, attendance, announcements, event
+notifications, parent links and absence notices in a
 Supabase Postgres database, reached over its REST API (PostgREST). The local
 JSON file is still used when no database is configured, so a fresh clone runs
 without any setup.
@@ -49,8 +50,8 @@ tells them apart:
 | `auth health 200`, `rest root 404` | The Data API is switched off | **Integrations -> Data API -> Enable** |
 | `auth health` fails | Wrong URL, or the free project is paused | Check the project ref; resume the project |
 
-On a working project the probe prints a 200 with `[]` for each of the five
-tables. Two lines look like errors but are healthy:
+On a working project the probe prints a 200 with `[]` for each table it
+probes. Two lines look like errors but are healthy:
 
 - `rest root -> HTTP 401 {"message":"Secret API key required"}`: that route only
   accepts a secret key, so a 401 proves PostgREST is running and the project ref
@@ -64,14 +65,15 @@ Check that the tables exist independently of the REST layer:
 ```sql
 select table_schema, table_name
 from information_schema.tables
-where table_name in ('users', 'teams', 'events', 'attendance', 'announcements')
+where table_name in ('users', 'teams', 'events', 'attendance', 'announcements',
+                     'parent_links', 'absence_notices', 'event_notifications')
 order by table_name;
 ```
 
-Five rows in `public` means the schema is there and only the REST cache or the
+Eight rows in `public` means the schema is there and only the REST cache or the
 Data API setting is behind. Add `and table_schema = 'public'` if you want to be
 strict: an unfiltered search also matches `auth.users`, which every Supabase
-project has, so six rows is the healthy answer rather than a stray table.
+project has, so nine rows is the healthy answer rather than a stray table.
 
 
 Check that it worked:

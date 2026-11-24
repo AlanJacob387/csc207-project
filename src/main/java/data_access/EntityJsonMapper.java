@@ -6,8 +6,11 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import entity.Announcement;
+import entity.AbsenceNotice;
 import entity.AttendanceRecord;
 import entity.Event;
+import entity.EventNotification;
+import entity.ParentPlayerLink;
 import entity.Role;
 import entity.Team;
 import entity.User;
@@ -25,6 +28,47 @@ import entity.User;
  * </pre>
  */
 public final class EntityJsonMapper {
+
+    /** Serializes one administrator-approved family link. */
+    public static JSONObject toJson(ParentPlayerLink link) {
+        return new JSONObject().put("parentUsername", link.getParentUsername())
+                .put("playerUsername", link.getPlayerUsername());
+    }
+
+    /** Restores a family link from the local store. */
+    public static ParentPlayerLink parentPlayerLinkFromJson(JSONObject json) {
+        return new ParentPlayerLink(json.getString("parentUsername"), json.getString("playerUsername"));
+    }
+
+    /** Serializes an advance absence notice separately from recorded attendance. */
+    public static JSONObject toJson(AbsenceNotice notice) {
+        return new JSONObject().put("noticeId", notice.getNoticeId())
+                .put("parentUsername", notice.getParentUsername())
+                .put("playerUsername", notice.getPlayerUsername()).put("eventId", notice.getEventId())
+                .put("reason", notice.getReason()).put("submittedAt", notice.getSubmittedAt().toString());
+    }
+
+    /** Restores a parent's notice and its original submission time. */
+    public static AbsenceNotice absenceNoticeFromJson(JSONObject json) {
+        return new AbsenceNotice(json.getString("noticeId"), json.getString("parentUsername"),
+                json.getString("playerUsername"), json.getString("eventId"), json.getString("reason"),
+                LocalDateTime.parse(json.getString("submittedAt")));
+    }
+
+    /** Serializes a durable change made to a scheduled event. */
+    public static JSONObject toJson(EventNotification notification) {
+        return new JSONObject().put("notificationId", notification.getNotificationId())
+                .put("eventId", notification.getEventId()).put("teamId", notification.getTeamId())
+                .put("changeType", notification.getChangeType()).put("message", notification.getMessage())
+                .put("createdAt", notification.getCreatedAt().toString());
+    }
+
+    /** Restores an event change without creating a second notification. */
+    public static EventNotification eventNotificationFromJson(JSONObject json) {
+        return new EventNotification(json.getString("notificationId"), json.getString("eventId"),
+                json.getString("teamId"), json.getString("changeType"), json.getString("message"),
+                LocalDateTime.parse(json.getString("createdAt")));
+    }
 
     // user keys
     private static final String USERNAME = "username";

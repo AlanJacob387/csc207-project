@@ -15,7 +15,14 @@ public class Main {
         SwingUtilities.invokeLater(() -> {
             final AppBuilder appBuilder = new AppBuilder();
 
-            final JFrame frame = appBuilder
+            final JFrame frame = configure(appBuilder).build();
+            frame.setVisible(true);
+        });
+    }
+
+    /** Uses one wiring path for normal startup and isolated application verification. */
+    public static AppBuilder configure(AppBuilder appBuilder) {
+        return appBuilder
                     .addLoginView()
                     .addSignupView()
                     .addDatabaseSettingsView()
@@ -24,13 +31,19 @@ public class Main {
                     .addSignupUseCase()
                     .addLogoutUseCase()
                     .addCreateEventUseCase()
+                    .addViewScheduleUseCase()
+                    .addViewEventDetailsUseCase()
+                    .addEditEventUseCase()
+                    .addCancelEventUseCase()
+                    .addBrowseEventsUseCase()
+                    .addExportScheduleUseCase()
                     .addManageUsersUseCase()
                     .addChangePasswordView()
                     .addChangePasswordUseCase()
                     .addAnnouncementUseCases()
-                    .build();
-
-            frame.setVisible(true);
-        });
+                    .addNotificationUseCase()
+                    .addAbsenceNoticeUseCases()
+                    .addParentLinksUseCase()
+                    .addWeatherUseCases();
     }
 }

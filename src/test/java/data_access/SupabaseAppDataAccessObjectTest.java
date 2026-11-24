@@ -55,6 +55,9 @@ class SupabaseAppDataAccessObjectTest {
     private final List<Recorded> recorded = new ArrayList<>();
     private int responseStatus;
     private String responseBody;
+    /** Answers for particular routes, for a test that reads one table and writes another. */
+    private final java.util.Map<String, String> routeBodies = new java.util.HashMap<>();
+    private final java.util.Map<String, Integer> routeStatuses = new java.util.HashMap<>();
     private SupabaseAppDataAccessObject store;
 
     @BeforeEach
@@ -83,9 +86,11 @@ class SupabaseAppDataAccessObjectTest {
         call.body = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
         recorded.add(call);
 
-        final byte[] bytes = responseBody.getBytes(StandardCharsets.UTF_8);
+        final byte[] bytes = routeBodies.getOrDefault(call.path, responseBody)
+                .getBytes(StandardCharsets.UTF_8);
         exchange.getResponseHeaders().add("Content-Type", "application/json");
-        exchange.sendResponseHeaders(responseStatus, bytes.length == 0 ? -1 : bytes.length);
+        exchange.sendResponseHeaders(routeStatuses.getOrDefault(call.path, responseStatus),
+                bytes.length == 0 ? -1 : bytes.length);
         if (bytes.length > 0) {
             try (OutputStream out = exchange.getResponseBody()) {
                 out.write(bytes);
@@ -188,16 +193,169 @@ class SupabaseAppDataAccessObjectTest {
     // Teams, events and attendance
     // ------------------------------------------------------------------
 
+    private static final String EVENT_ROW = "{\"eventId\":\"e1\",\"teamId\":\"t1\",\"type\":\"GAME\","
+            + "\"dateTime\":\"2026-11-30T18:00\",\"location\":\"Gym A\",\"opponent\":\"Bears\",\"cancelled\":false}";
+    private static final String TEAM_ROW = "{\"teamId\":\"t1\",\"name\":\"Falcons\",\"sport\":\"Soccer\","
+            + "\"coachUsername\":\"coach1\",\"playerUsernames\":[]}";
+    private static final String NOTICE_ROW = "{\"noticeId\":\"n1\",\"parentUsername\":\"parent1\","
+            + "\"playerUsername\":\"player1\",\"eventId\":\"e1\",\"reason\":\"Appointment\","
+            + "\"submittedAt\":\"2026-11-23T09:00\"}";
+
+    private static Event game() {
+        return new Event("e1", "t1", Event.EventType.GAME,
+                LocalDateTime.of(2026, 11, 30, 18, 0), "Gym A", "Bears");
+    }
+
+    private static entity.AbsenceNotice notice(String id, String parent, String player, String eventId) {
+        return new entity.AbsenceNotice(id, parent, player, eventId, "Appointment",
+                LocalDateTime.of(2026, 11, 23, 9, 0));
+    }
+
     @Test
-    void anEventIsUpsertedOnTheEventId() {
-        store.saveEvent(new Event("e1", "t1", Event.EventType.GAME,
-                LocalDateTime.of(2026, 11, 30, 18, 0), "Gym A", "Bears"));
+    void aNewEventIsUpsertedOnTheEventIdAndRecordedForTheNotificationFeed() {
+        routeBodies.put("/rest/v1/teams", "[" + TEAM_ROW + "]");
+
+        store.saveEvent(game());
+
+        assertEquals(4, recorded.size(), "read the old event, read the team, write the event, write the note");
+        final Recorded write = recorded.get(2);
+        assertEquals("POST", write.method);
+        assertEquals("/rest/v1/events", write.path);
+        assertEquals("on_conflict=eventId", write.query);
+        assertEquals("GAME", new JSONObject(write.body).getString("type"));
+
+        final Recorded note = recorded.get(3);
+        assertEquals("POST", note.method);
+        assertEquals("/rest/v1/event_notifications", note.path);
+        assertNull(note.query, "a strict insert: a repeated id is an error, not a replacement");
+        final JSONObject body = new JSONObject(note.body);
+        assertEquals("CREATED", body.getString("changeType"));
+        assertEquals("e1", body.getString("eventId"));
+        assertTrue(body.getString("message").startsWith("Falcons game scheduled"), body.getString("message"));
+    }
+
+    @Test
+    void savingAnEventWithoutChangingItRecordsNothing() {
+        routeBodies.put("/rest/v1/events", "[" + EVENT_ROW + "]");
+        routeBodies.put("/rest/v1/teams", "[" + TEAM_ROW + "]");
+
+        store.saveEvent(game());
+
+        assertEquals(3, recorded.size());
+        assertTrue(recorded.stream().noneMatch(call -> call.path.endsWith("event_notifications")));
+    }
+
+    @Test
+    void aCancelledEventIsRecordedAsCancelled() {
+        routeBodies.put("/rest/v1/events", "[" + EVENT_ROW + "]");
+        routeBodies.put("/rest/v1/teams", "[" + TEAM_ROW + "]");
+        final Event cancelled = game();
+        cancelled.cancel();
+
+        store.updateEvent(cancelled);
+
+        assertEquals("CANCELLED", new JSONObject(recorded.get(3).body).getString("changeType"));
+    }
+
+    @Test
+    void anEventThatWasSavedButNotRecordedSaysSo() {
+        routeBodies.put("/rest/v1/teams", "[" + TEAM_ROW + "]");
+        routeStatuses.put("/rest/v1/event_notifications", 500);
+
+        final IllegalStateException refused = assertThrows(IllegalStateException.class,
+                () -> store.saveEvent(game()));
+
+        assertTrue(refused.getMessage().startsWith("The event was saved, but its notification"),
+                refused.getMessage());
+        assertEquals("/rest/v1/events", recorded.get(2).path, "the event itself was written first");
+    }
+
+    @Test
+    void aFamilyLinkIsUpsertedOnBothKeyColumns() {
+        store.saveParentPlayerLink(new entity.ParentPlayerLink("parent1", "player1"));
+
+        final Recorded write = only();
+        assertEquals("POST", write.method);
+        assertEquals("/rest/v1/parent_links", write.path);
+        assertEquals("on_conflict=parentUsername,playerUsername", write.query);
+    }
+
+    @Test
+    void aParentSeesOnlyTheirOwnLinkedPlayers() {
+        routeBodies.put("/rest/v1/parent_links", "[{\"parentUsername\":\"parent1\",\"playerUsername\":\"player1\"},"
+                + "{\"parentUsername\":\"parent2\",\"playerUsername\":\"player2\"}]");
+
+        assertEquals(java.util.List.of("player1"), store.getLinkedPlayerUsernames("parent1"));
+        assertEquals(java.util.List.of(), store.getLinkedPlayerUsernames("parent3"));
+    }
+
+    @Test
+    void removingAFamilyLinkDeletesExactlyThatPair() {
+        store.deleteParentPlayerLink("parent1", "player1");
 
         final Recorded call = only();
-        assertEquals("POST", call.method);
-        assertEquals("/rest/v1/events", call.path);
-        assertEquals("on_conflict=eventId", call.query);
-        assertEquals("GAME", new JSONObject(call.body).getString("type"));
+        assertEquals("DELETE", call.method);
+        assertEquals("/rest/v1/parent_links", call.path);
+        assertEquals("parentUsername=eq.parent1&playerUsername=eq.player1", call.query);
+    }
+
+    @Test
+    void anAbsenceNoticeIsRefusedWhenItsIdBelongsToAnotherAbsence() {
+        routeBodies.put("/rest/v1/absence_notices", "[" + NOTICE_ROW + "]");
+
+        final IllegalStateException clash = assertThrows(IllegalStateException.class,
+                () -> store.saveAbsenceNotice(notice("n1", "parent1", "player2", "e1")));
+
+        assertTrue(clash.getMessage().contains("different absence"), clash.getMessage());
+        assertTrue(recorded.stream().noneMatch(call -> call.method.equals("POST")));
+    }
+
+    @Test
+    void aSecondNoticeForTheSameParentChildAndEventIsRefused() {
+        routeBodies.put("/rest/v1/absence_notices", "[" + NOTICE_ROW + "]");
+
+        final IllegalStateException clash = assertThrows(IllegalStateException.class,
+                () -> store.saveAbsenceNotice(notice("n2", "parent1", "player1", "e1")));
+
+        assertTrue(clash.getMessage().contains("already exists"), clash.getMessage());
+        assertTrue(recorded.stream().noneMatch(call -> call.method.equals("POST")));
+    }
+
+    @Test
+    void anUpdatedNoticeIsUpsertedOnItsId() {
+        routeBodies.put("/rest/v1/absence_notices", "[" + NOTICE_ROW + "]");
+
+        store.saveAbsenceNotice(notice("n1", "parent1", "player1", "e1"));
+
+        final Recorded write = recorded.get(recorded.size() - 1);
+        assertEquals("POST", write.method);
+        assertEquals("on_conflict=noticeId", write.query);
+    }
+
+    @Test
+    void notificationsAreReadOldestFirst() {
+        routeBodies.put("/rest/v1/event_notifications", "[{\"notificationId\":\"x\",\"eventId\":\"e1\","
+                + "\"teamId\":\"t1\",\"changeType\":\"CREATED\",\"message\":\"m\","
+                + "\"createdAt\":\"2026-11-23T10:00\"}]");
+
+        assertEquals(1, store.getEventNotifications().size());
+
+        assertEquals("select=*&order=createdAt.asc", only().query);
+    }
+
+    @Test
+    void whatEveryStoreAnswersIsBuiltFromTheStoredAccountsTeamsAndLinks() {
+        routeBodies.put("/rest/v1/users", "[{\"username\":\"parent1\",\"password\":\"x\","
+                + "\"displayName\":\"P\",\"role\":\"PARENT\"}]");
+        routeBodies.put("/rest/v1/parent_links",
+                "[{\"parentUsername\":\"parent1\",\"playerUsername\":\"player1\"}]");
+        routeBodies.put("/rest/v1/teams", "[{\"teamId\":\"t1\",\"name\":\"Falcons\",\"sport\":\"Soccer\","
+                + "\"coachUsername\":\"coach1\",\"playerUsernames\":[\"player1\"]},"
+                + "{\"teamId\":\"t2\",\"name\":\"Bears\",\"sport\":\"Soccer\","
+                + "\"coachUsername\":\"coach1\",\"playerUsernames\":[]}]");
+
+        assertEquals(java.util.List.of("t1"), store.getTeamIdsForMember("parent1"),
+                "a parent sees only the teams their linked child plays for");
     }
 
     @Test

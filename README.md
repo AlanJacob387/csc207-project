@@ -49,6 +49,10 @@ Java API calls succeeded on October 29 and November 23, 2026. The November 23 li
 - **If a store is not usable the app says so.** A database that cannot be reached leaves the app on the sign-in page with the reason instead of switching to the local file, and a `data/app-data.json` that cannot be loaded is kept beside the new file as `app-data.json.corrupt-<timestamp>` while the app starts empty.
 - **Passwords are stored hashed.** Keep real credentials out of this application anyway, and keep runtime JSON files out of commits.
 
+### Demo data only
+
+**Put only demo data in the shared database. Do not enter real people's names or details, or a password used anywhere else.** The app checks each user's role itself, but the database does not yet enforce those permissions. Anyone with the project URL and publishable key can bypass the app to read, add and change stored rows, including password hashes and account roles. The demo administrator `admin1` has a published password, so change it or deactivate the account if other people can reach the project. This restriction stays until the database enforces permissions for signed-in users.
+
 ## Current features and ownership
 
 The L5 features below are implemented on `daniel/l5-completion` and await teammate review. PR #10 supplies the integrated scheduling foundation.

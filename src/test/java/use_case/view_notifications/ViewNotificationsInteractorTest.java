@@ -361,6 +361,13 @@ class ViewNotificationsInteractorTest {
 
     /** Holds identity without coupling these business tests to a session adapter. */
     private static class FakeCurrentUser implements CurrentUserInterface {
+        private entity.Role currentRole;
+
+        @Override
+        public entity.Role getCurrentRole() {
+            return currentRole;
+        }
+
         private String username;
 
         @Override
@@ -370,6 +377,7 @@ class ViewNotificationsInteractorTest {
 
         @Override
         public void setCurrentUser(User user) {
+            currentRole = user.getRole();
             username = user.getUsername();
         }
 

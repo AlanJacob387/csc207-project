@@ -10,7 +10,6 @@ import org.junit.jupiter.api.Test;
 import data_access.InMemoryUserDataAccessObject;
 import entity.Role;
 import entity.User;
-import entity.UserFactory;
 import interface_adapter.Session;
 
 /**
@@ -51,7 +50,7 @@ class ChangePasswordInteractorTest {
 
         presenter = new RecordingPresenter();
         interactor = new ChangePasswordInteractor(
-                dataAccess, presenter, session, new UserFactory());
+                dataAccess, presenter, session);
     }
 
     @Test
@@ -61,7 +60,7 @@ class ChangePasswordInteractorTest {
         assertNull(presenter.error);
         assertEquals("Password changed.", presenter.success.getMessage());
         assertEquals("coach1", presenter.success.getUsername());
-        assertEquals("new", dataAccess.get("coach1").getPassword());
+        assertTrue(dataAccess.get("coach1").matches("new"));
         assertEquals("Coach One", dataAccess.get("coach1").getDisplayName());
         assertEquals(Role.COACH, dataAccess.get("coach1").getRole());
     }
@@ -132,7 +131,7 @@ class ChangePasswordInteractorTest {
                     }
                 };
 
-        new ChangePasswordInteractor(broken, presenter, session, new UserFactory())
+        new ChangePasswordInteractor(broken, presenter, session)
                 .execute(new ChangePasswordInputData("old", "new", "new"));
 
         assertTrue(presenter.error.startsWith("Could not read the account store:"));

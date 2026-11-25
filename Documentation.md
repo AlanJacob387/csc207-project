@@ -12,13 +12,14 @@ Clean Architecture, one package per layer:
 
 | Layer | Package | Holds | Depends on |
 |---|---|---|---|
-| Entity | `entity` | `User`, `Role`, `Team`, `Event`, `AttendanceRecord`, `UserFactory` | nothing |
+| Entity | `entity` | `User`, `Role`, `Team`, `Event`, `AttendanceRecord`, `Announcement`, `UserFactory`, `PasswordHasher` | nothing |
 | Use case | `use_case/<name>` | input/output boundaries and data, the interactor, and the slice data-access interface | entity |
 | Interface adapter | `interface_adapter/<name>` | controller, presenter, view model | use_case, entity |
 | Interface adapter (shared) | `interface_adapter` | `ViewManagerModel` (which page is showing), `Session` (who is signed in) | the `CurrentUserInterface` port |
-| Data access | `data_access` | `FileAppDataAccessObject`, `EntityJsonMapper`, `InMemoryUserDataAccessObject`, `OpenMeteoWeatherGateway` | entity, use-case interfaces |
-| View | `view` | `LoginView`, `SignupView`, `ChangePasswordView`, `AppShell`, `CalendarView`, `CreateEventView`, `ViewManager`, `BackgroundImage` | interface_adapter |
+| Data access | `data_access` | `AppDataStore` (the interface the wiring holds), `SupabaseAppDataAccessObject` (hosted Postgres), `FileAppDataAccessObject` (offline fallback), `DatabaseConfig` (where the connection comes from), `EntityJsonMapper`, `InMemoryUserDataAccessObject`, `OpenMeteoWeatherGateway` | entity, use-case interfaces |
+| View | `view` | `LoginView`, `SignupView`, `DatabaseSettingsView`, `ChangePasswordView`, `AppShell`, `CalendarView`, `CreateEventView`, `AnnouncementsView`, `ViewManager`, `BackgroundImage` | interface_adapter |
 | App | `app` | `AppBuilder` (builds the engine), `Main` (states what the app has) | everything |
+| Database | `db` | `schema.sql` (tables, constraints, row level security), `README.md` (setup), `probe.ps1` (connection check) | nothing |
 
 - **Layer and package diagram** - L1 (task 1.7), below
 - **Entity model diagram and CRC cards** - owed by L4
@@ -236,11 +237,14 @@ Built so far:
 
 | Use case | Slice | View | Tests |
 |---|---|---|---|
-| `login` (UC-A1) | `use_case/login` + `interface_adapter/login` | `LoginView` | `LoginInteractorTest` (8) |
+| `login` (UC-A1) | `use_case/login` + `interface_adapter/login` | `LoginView` | `LoginInteractorTest` (11), `LoginViewTest` (2) |
 | `signup` (UC-A2) | `use_case/signup` + `interface_adapter/signup` | `SignupView` | `SignupInteractorTest` (8) |
 | `logout` (UC-A3) | `use_case/logout` + `interface_adapter/logout` | Log out button in `AppShell` | `LogoutInteractorTest` (2) |
-| `change_password` (UC-A4) | `use_case/change_password` + `interface_adapter/change_password` | `ChangePasswordView` (Account page) | `ChangePasswordInteractorTest` (8) |
+| `change_password` (UC-A4) | `use_case/change_password` + `interface_adapter/change_password` | `ChangePasswordView` (Account page) | `ChangePasswordInteractorTest` (8), `ChangePasswordViewTest` (3) |
 | `create_event` (UC-B1) | `use_case/create_event` + `interface_adapter/create_event` | `CreateEventView` | `CreateEventInteractorTest`, supplied with PR #10 |
+| `manage_users` (UC-A5, UC-A6, UC-A7) | `use_case/manage_users` + `interface_adapter/manage_users` | `ManageUsersView` (Manage Users page, administrators only) | `CreateUserInteractorTest` (11), `ChangeUserRoleInteractorTest` (9), `DeactivateUserInteractorTest` (8), `ReactivateUserInteractorTest` (6), `ListAccountsInteractorTest` (5), `AdminPolicyTest` (11), `ManageUsersViewTest` (14), `ManageUsersFlowTest` (10) |
+| `post_announcement` (UC-E1) | `use_case/post_announcement` + `interface_adapter/post_announcement` | Announcements page | `PostAnnouncementInteractorTest` (17) |
+| `view_announcements` (UC-E2) | `use_case/view_announcements` + `interface_adapter/view_announcements` | Announcements page | `ViewAnnouncementsInteractorTest` (17) |
 
 - **Sequence diagrams** - owed by each lane for its own use cases (task 3.8, coordinated by L5)
 
@@ -758,37 +762,214 @@ The already-cancelled branch cannot be reached from the UI, because the Cancel e
 
 ## 4. Storage
 
-One local JSON file, `data/app-data.json` (git-ignored, created on first write), holds users, teams, events, attendance, announcements, event notifications, parent links, and absence notices. `EntityJsonMapper` is the single place the on-disk shape lives, so a hosted store can replace the file without touching any use case.
+App data lives in a hosted **Supabase Postgres** database, read and written over
+its REST API (PostgREST). `SupabaseAppDataAccessObject` uses one table per entity:
+a read filters on the key (`?username=eq.coach1`), and a save posts to
+`?on_conflict=<key>` with `Prefer: resolution=merge-duplicates`, so one save
+touches one row. Because the tables are shared, two clients can no longer
+overwrite each other's unrelated records - something the single-document file
+store could not avoid.
 
-The signed-in user is deliberately not in the file: it lives in `Session`, behind the `use_case/current_user/CurrentUserInterface` port, so the interactors own the session transitions rather than the views.
+The local fallback is one JSON file, `data/app-data.json` (git-ignored, created on
+first write). It holds the same records - users, teams, events, attendance,
+announcements, event notifications, parent links and absence notices - and
+`EntityJsonMapper` is the single place the on-disk shape lives, which is what lets
+the hosted store reuse it row for row.
 
-**Security note:** passwords are stored in plaintext, matching course scope. This must be revisited before any real deployment.
+`db/schema.sql` holds the schema: eight tables (the five original ones plus
+`parent_links`, `absence_notices` and `event_notifications`) whose camelCase quoted columns match
+the JSON keys `EntityJsonMapper` already produces, check constraints on role and
+status, foreign keys between the tables, row level security, and select/insert/
+update policies for the `anon` role. `EntityJsonMapper` stays the single place the
+record shape lives, so the database and the file store share one format.
+
+**Connecting.** `DatabaseConfig` looks for the project URL and publishable key in
+this order: `TEAMSPORTS_DB_URL` / `TEAMSPORTS_DB_KEY`, then the
+`teamsports.db.url` / `teamsports.db.key` system properties, then
+`%USERPROFILE%\.team-sports\database.properties`, which the in-app **Database
+settings** page writes. With nothing configured the app uses the local JSON file
+`data/app-data.json` (git-ignored), so a clean clone runs with no account and the
+tests stay offline. `AppDataStore` is the interface the wiring holds, so the two
+stores are interchangeable and no use case changes.
+
+**When the store is not usable.** The connection is chosen once, when the app
+starts. If the configured database cannot be reached, the app still opens on the
+sign-in page and shows `Could not reach the account store: …` there; it never
+switches to the local file, because two people who believe they share data must
+not diverge. A local file that cannot be parsed is moved to
+`app-data.json.corrupt-<timestamp>`, the store starts empty and the sign-in page
+names the kept file - the old records stay in that file and are not merged back.
+`AppBuilderTest`, `FileAppDataAccessObjectTest` and
+`FileAnnouncementPersistenceTest` cover both paths against temporary files.
+
+**A failed write changes nothing.** The local store writes the whole document to a
+temporary file and replaces the original only when that succeeds, and it records
+the change in memory only after the write returns. A disk error therefore leaves
+the store exactly as it was, so an action reported as failed cannot reappear on
+the next save of something unrelated. `FileAppDataAccessObjectTest` drives a write
+into a path that cannot be created and asserts that all five sections are still
+empty.
+
+The signed-in user is deliberately not stored: it lives in `Session`, behind the
+`use_case/current_user/CurrentUserInterface` port, so the interactors own the
+session transitions rather than the views.
+
+**Security note.** Passwords are stored as PBKDF2-HMAC-SHA256 hashes
+(`entity/PasswordHasher`: 120 000 iterations, per-user salt, `pbkdf2$…` format).
+A credential written before hashing existed is still accepted, so an older store
+keeps working; that fallback is the only place a plaintext value is compared, and
+the next successful sign-in rewrites the credential as a hash
+(`LoginInteractor.upgradeLegacyCredential`), so a plaintext password cannot stay in
+a readable table simply because its owner never reopened the account.
+The publishable key is meant to ship inside a client and reaches only what row
+level security allows. A **secret** key bypasses row level security, so the app
+refuses one in either format the dashboard offers - the new `sb_secret_…` prefix
+and the legacy `service_role` JWT - and it refuses a URL that would send the key
+over plain HTTP to anything but this machine. Anyone who extracts the publishable
+key still inherits the app's own permissions (what those are is spelled out in
+§6), which is why passwords are hashed rather than stored plainly.
+`PasswordHasherTest` pins the iteration count, the salt length and the derived key
+length, so a weaker hash cannot pass unnoticed.
 
 ## 5. How to build, test and run
 
+Needs JDK 17 or newer; `JAVA_HOME` must point at it, or Gradle refuses to start
+("requires JVM 17 or later").
+
 ```bash
-./gradlew build
-./gradlew test
-./gradlew test -Pnetwork
-./gradlew run
+./gradlew build            # compile
+./gradlew test             # unit tests (network-tagged tests skipped, so this works offline)
+./gradlew test -Pnetwork   # also runs the live checks against Open-Meteo and the database
+./gradlew run              # start the app
 ./gradlew seedDemo -PdemoData=data/demo-data.json
 ./gradlew run -PappData=data/demo-data.json
 ```
 
-Use JDK 21 and the checked-in wrapper. The project targets Java 17 bytecode. Default tests exclude live-network checks. With dependencies cached, `./gradlew --offline build` runs the build without downloads. The seeder refuses an existing destination. A genuinely empty application store is seeded with the dataset described in section 10, and existing stores retain their data.
+On the local file, a genuinely empty store receives the presentation dataset
+described in section 10 (`admin1`, `coach1`-`coach2`, `player1`-`player8`,
+`parent1`-`parent4`, password `pw`), and an existing store keeps its data.
+`seedDemo` refuses an existing destination. A hosted database is shared, so it
+only gets `coach1`, `player1`, `parent1`, `admin1` and a team, inserted where
+missing. The dataset's passwords are plaintext until each account first signs in,
+when login re-hashes them; the four hosted accounts are hashed as they are written.
+
+To use the shared database, start the app, open **Database settings** on the
+sign-in page, paste the project URL and publishable key, test and save
+(`db/README.md` has the project setup). Without that, the app runs on
+`data/app-data.json`. The sign-in page shows which store is active.
 
 ## 6. Known limitations
 
-- Data is **per machine**: the JSON file is local, so nothing is shared between devices yet. A hosted store is a later one-class swap.
-- Attendance, RSVP, stats, and roster management are maintained on the other lanes' branches and remain subject to integration and review.
-- `manage_users` is not built yet, so roles are chosen at sign-up.
+- **One shared credential, no per-user isolation.** Every client uses the same
+  publishable key and therefore the `anon` role, so row level security is
+  table-wide rather than per account. Real per-user isolation needs Supabase Auth
+  with policies keyed on `auth.uid()`, which also replaces our own login backend.
+- **Last write wins.** Two people editing the same row at the same time overwrite
+  each other; there is no versioning or optimistic locking. Different rows are
+  independent.
+- **A free project pauses after 7 days without activity.** The app then opens on
+  the sign-in page and shows `Could not reach the account store: …` there; it does
+  not switch to a local file, because two people who believe they share data must
+  not diverge. Resume the project from the dashboard and signing in works again.
+  Every remote call runs before the page can answer, so a paused project is felt as
+  a wait of up to 15 seconds and then a message, not as a greyed-out button.
+- **A damaged local file is set aside, not repaired.** `data/app-data.json` that
+  cannot be parsed is moved to `app-data.json.corrupt-<timestamp>`, the store starts
+  empty and the sign-in page names the kept file. Nothing is merged back: the old
+  records are in that file. A file that cannot be *read* at all (permissions) still
+  stops startup, because there is no store to open.
+- **An administrator's rights are re-checked against the stored account, not the
+  session.** `AdminPolicy` re-reads the signed-in account on every Manage Users
+  action, so a demoted or deactivated administrator loses those actions immediately,
+  even in an open session. Two gaps remain: the sidebar is rebuilt only when the
+  session changes, and a *promoted* account needs a fresh sign-in before its new
+  role does anything. Outside Manage Users nothing re-checks the account, so a
+  deactivated user keeps working until they log out.
+- **The last active administrator is a backstop, not a lock.** An administrator
+  cannot act on their own account, so the "one active administrator left" check is
+  only reachable when two administrators act at the same moment; the read and the
+  write are separate requests, so two simultaneous demotions can still leave none.
+- **No delete policy** on any table: accounts are deactivated rather than deleted,
+  and demo data is reset from the Supabase SQL editor.
+- **The administrator page's role check runs in the app, not in Postgres.** Every
+  client connects as the same `anon` role, so the database cannot tell an
+  administrator from a player. `AdminPolicy` refuses a non-administrator inside
+  each use case and the sidebar only hides the page, so the guard holds in
+  business logic. Row level security, however, grants `select, insert, update`
+  with `using (true)` on every table, so a client holding the key can also
+  *write*: rewrite any account's credential, give any account `ADMIN`, or change a
+  role without ever signing in. Hashing protects the passwords the app stores; it
+  cannot protect a row someone else replaces. Closing this needs policies that
+  check something the client cannot forge (`auth.uid()` with real Supabase
+  accounts), which is the migration described above.
+- **The demo accounts ship on the shared database.** The first start against a
+  project inserts `coach1`, `player1`, `parent1` and `admin1`, all with password
+  `pw`, because the seed runs for a fresh store and the README needs a way to sign
+  in. That is a default administrative credential on a store anyone with the
+  publishable key can read and write: deactivate or change `admin1` before showing
+  the app outside the course, and remove the demo rows in the SQL editor when the
+  project stops being a demo.
+- **Remote calls run on the Swing event thread**, like every other page. With a
+  slow project or a paused one the window waits for the request (5 s to connect,
+  10 s to read) instead of showing a progress state. Manage Users is the worst
+  case: one action is up to four calls in sequence (read the caller, check the
+  last administrator, write, then re-read the list), so a paused project can hold
+  the window for about a minute. A background worker for the store is the fix we
+  would make next.
+- **Creating an account validates the username and then upserts.** Two
+  administrators submitting the same username in the same moment would have the
+  second write replace the first account's credential, because `save` is an
+  upsert. The window is milliseconds and the username is checked first; an
+  insert-only path for account creation belongs to the 4.3 pass.
+- **Password rules and sign-up are still loose.** Any non-empty password is
+  accepted and sign-up admits `ADMIN`, so the administrator page is not the only
+  route to an administrative account. Nothing caps a username or a display name
+  outside the administrator page (40 and 60 characters there), and nothing
+  restricts which characters a username may contain. That second gap is not only
+  cosmetic: a comma, parenthesis, colon or asterisk is PostgREST filter syntax, so
+  a username containing one would change what a stored lookup means
+  (`SupabaseAppDataAccessObject.selectWhere` builds `column=eq.<value>` from it).
+  One shared password policy, one character rule and a restricted sign-up belong
+  to the 4.3 validation pass, which closes all three.
+- Attendance, RSVP, stats and roster management are maintained on the other
+  lanes' branches and remain subject to integration and review.
+- **A hosted event save is two requests.** Saving or changing an event writes the
+  event and then its notification, and PostgREST has no transaction across the two.
+  If the second fails the event stays saved, the caller is told the feed missed it,
+  and no notification is created for that change later. The local file writes both
+  in one atomic replace.
+- **Absence notices are checked, then written, on the hosted store.** The
+  one-notice-per-parent-child-event rule is enforced by the client and backed by a
+  unique constraint, so two parents racing receive an error from the database
+  instead of a second notice.
+- **`parent_links` is the one table with a delete policy**, because ending a family
+  link removes the row. Anyone holding the publishable key can therefore delete a
+  link, in the same way they can already rewrite one.
+- **Unreadable or inconsistent local data is set aside the same way for every
+  section.** A malformed or duplicated record in the parent-link, absence-notice or
+  notification sections moves the whole file to `app-data.json.corrupt-<timestamp>`
+  and starts empty, like a file that cannot be parsed, instead of stopping startup.
 - One role per user (decision D5).
 - City forecasts can differ from conditions at an exact venue. Events outside the 16-day window and missing provider values show unavailable weather.
 - Parent relationships are currently admin-controlled. The original invite/accept design remains a separate L4 product choice.
 
 ## 7. API notes
 
-Open-Meteo (no key required) is our external API. It was called successfully from Java on 2026-10-29 and is documented in the README API section in the course required format (link, how it is used, whether it was called). Alternatives we considered are listed in `Plan.md` decision D7.
+Open-Meteo (no key required) is our weather channel. It was called successfully from Java on
+2026-10-29 and is documented in the README API section in the course required
+format (link, how it is used, whether it was called). Alternatives we considered
+are listed in `Plan.md` decision D7.
+
+Supabase (Postgres + REST / PostgREST) - the shared store for accounts, teams,
+events, attendance, announcements, event notifications, parent links and absence
+notices. Its routes were first verified against the real project on 2026-11-23
+when it had five tables: all five answered `200 []`, and `/rest/v1/` answered
+`401 Secret API key required`, which is the healthy answer there and proves
+PostgREST is reachable. The three tables added when the L5 features were combined
+with it (`parent_links`, `absence_notices`, `event_notifications`) have **not**
+been run against the live project; apply `db/schema.sql` again and sign in as
+a parent to check them. Decision D6 in `Plan.md`, schema in `db/schema.sql`,
+setup and troubleshooting in `db/README.md`.
 
 ## 8. Communication, parent access, and weather (L5)
 
@@ -804,7 +985,7 @@ All seven L5 use cases are implemented on `daniel/l5-completion`. This includes 
 | `link_parent_to_player` | Let an administrator approve or revoke a parent/player relationship | L4 dependency bridge for the requested L5 parent flows |
 | `view_event_weather`, `flag_rain_risk` | Authorize forecasts, represent unavailable data, and compute the 60% rain threshold | Daniel, L5 |
 | `EventWeatherGateway` | Use-case-owned contract for obtaining a daily forecast | Implemented by `OpenMeteoWeatherGateway` |
-| `FileAppDataAccessObject`, `EntityJsonMapper` | Persist the shared schema and keep event changes in the same transaction as their notifications | Shared data layer |
+| `FileAppDataAccessObject`, `SupabaseAppDataAccessObject`, `EntityJsonMapper` | Persist the shared schema. The file keeps an event change and its notification in one write; the hosted store writes them as two requests | Shared data layer |
 | `AnnouncementsView`, `NotificationsView`, `AbsenceNoticesView`, `ParentLinksView`, `EventWeatherPanel`, `RainRiskPanel` | Forms, selectors, feedback, refresh, and session clearing | L5 UI with L1 page integration |
 
 The new parent and notification interactors read identity through `CurrentUserInterface`. Announcement and weather controllers obtain the current identity from `Session`, and their interactors check current stored roles and membership. Page visibility helps navigation, while business logic enforces access. Failed loads clear previous private results. Session changes clear forms and cancel or invalidate outstanding weather requests.

@@ -31,16 +31,27 @@ The gateway reuses forecasts for 15 minutes and can show clearly labelled stale 
 
 Java API calls succeeded on October 29 and November 23, 2026. The November 23 live test returned Toronto's daily high of 10.0 °C and rain probability of 20%. The actual event-weather panel also resolved Toronto, Ontario, Canada for a November 24 event and displayed a high of 2.7 °C and rain probability of 1%. To repeat a live check, run `./gradlew test -Pnetwork`. The normal test suite excludes network-tagged tests. The educational, noncommercial app uses the public service without an API key or a paid service configuration. Weather data is attributed to Open-Meteo under CC BY 4.0. [Forecast documentation](https://open-meteo.com/en/docs), [geocoding documentation](https://open-meteo.com/en/docs/geocoding-api), [terms and attribution](https://open-meteo.com/en/terms).
 
+### Supabase (Postgres + REST) — the shared database (in use)
+- **Documentation:** https://supabase.com/docs/guides/api
+- **How it is used:** accounts, teams, events, attendance and announcements live in a Supabase Postgres database and are read and written through its REST API (PostgREST): a read filters on the key, and a save posts to `?on_conflict=<key>` with `Prefer: resolution=merge-duplicates`. Code: `data_access/SupabaseAppDataAccessObject`; schema in `db/schema.sql`; setup in `db/README.md`. The connection comes from the in-app **Database settings** page (stored in `%USERPROFILE%\.team-sports\database.properties`) or from `TEAMSPORTS_DB_URL` / `TEAMSPORTS_DB_KEY`. Only the **publishable** key is used - a secret key bypasses row level security and the app refuses one.
+- **Called successfully?** **Yes.** First verified against the project on 2026-11-23: all five tables answered `200 []`, and `/rest/v1/` answered `401 Secret API key required`, which is the healthy answer for that route and proves PostgREST is reachable. Live check: `gradlew test -Pnetwork`.
+
 ### Ideas we have not called yet
 - **TheSportsDB** — https://www.thesportsdb.com/free_sports_api — link a team to a real pro team and import names or photos (free test key).
 - **Nominatim (OpenStreetMap)** — https://nominatim.org/release-docs/latest/api/Overview/ — turn a typed venue address into coordinates.
 - **Nager.Date** — https://date.nager.at/swagger/index.html — warn when a practice lands on a holiday or long weekend.
 - **API-Ninjas (Exercises)** — https://api-ninjas.com/api/exercises — drill suggestions for practice plans (free key in a header).
-- **Firebase Realtime Database REST** — https://firebase.google.com/docs/reference/rest/database — a shared JSON store instead of the local file.
 
 ### Where data lives
-- The local JSON file keeps accounts, teams, events, attendance, announcements, event-change notifications, parent links, and absence notices. The default is `data/app-data.json`. Each machine has its own store.
-- Account passwords are plaintext demo data. Keep real credentials out of this application and keep runtime JSON files out of commits.
+- **Shared:** accounts, teams, events, attendance, announcements, event-change notifications, parent links and absence notices live in the Supabase database above, so every device that connects with the same project sees the same data.
+- **Local fallback:** with no database configured the app uses `data/app-data.json` (git-ignored), which is also what the unit tests use. Each machine has its own copy. The sign-in page always shows which store is active.
+- **Connection settings are per user and per machine**, outside the repository: `%USERPROFILE%\.team-sports\database.properties` on Windows, `~/.team-sports/database.properties` on macOS and Linux.
+- **If a store is not usable the app says so.** A database that cannot be reached leaves the app on the sign-in page with the reason instead of switching to the local file, and a `data/app-data.json` that cannot be loaded is kept beside the new file as `app-data.json.corrupt-<timestamp>` while the app starts empty.
+- **Passwords are stored hashed.** Keep real credentials out of this application anyway, and keep runtime JSON files out of commits.
+
+### Demo data only
+
+**Put only demo data in the shared database. Do not enter real people's names or details, or a password used anywhere else.** The app checks each user's role itself, but the database does not yet enforce those permissions. Anyone with the project URL and publishable key can bypass the app to read, add and change stored rows, including password hashes and account roles. The demo administrator `admin1` has a published password, so change it or deactivate the account if other people can reach the project. This restriction stays until the database enforces permissions for signed-in users.
 
 ## Current features and ownership
 
@@ -48,7 +59,7 @@ The L5 features below are implemented on `daniel/l5-completion` and await teamma
 
 | Feature | Owner | Current behavior |
 |---|---|---|
-| Accounts | Andy (L3) | Signup, login, logout, and password changes |
+| Accounts | Andy (L3) | Signup, login, logout, password changes, and the administrator's **Manage Users** page: create, re-role, deactivate and reactivate accounts |
 | Scheduling | Alan (L1) | Stored calendar and event list, event details, coach edits/cancellations, and `.ics` export |
 | Announcements | Daniel (L5) | Coaches post to assigned teams. Players, coaches, admins, and linked parents read authorized team posts |
 | Event notifications | Daniel (L5) | Created, changed, and cancelled event history persists with the event transaction and is filtered to authorized teams |
@@ -60,30 +71,33 @@ The L5 features below are implemented on `daniel/l5-completion` and await teamma
 
 ## Delivery checks — November 23, 2026
 
-`./gradlew --offline build installDist` passed all 297 offline tests and built the runnable distribution. `./gradlew --offline test -Pnetwork` passed all 298 tests including the live weather check. The actual `Main.configure` application path was exercised through the forms, and the screenshots below were captured from Swing pages with a live event forecast. Teammate review remains pending for `daniel/l5-completion`.
+On `daniel/l5-completion`, before it was combined with the hosted store and Manage Users, `./gradlew --offline build installDist` passed all 297 offline tests and built the runnable distribution, and `./gradlew --offline test -Pnetwork` passed all 298 tests including the live weather check. The actual `Main.configure` application path was exercised through the forms, and the screenshots below were captured from Swing pages with a live event forecast. Teammate review remains pending for `daniel/l5-completion`.
 
-The installed application is in `build/install/team-sports-platform`, and the ZIP distribution is `build/distributions/team-sports-platform-0.1.0.zip`. These are local build outputs. Detailed evidence and independent branch findings are in `Documentation.md`.
+After combining it with the hosted store and Manage Users, `./gradlew --offline build` passes 449 tests in 58 classes. The installed application is in `build/install/team-sports-platform`, and the ZIP distribution is `build/distributions/team-sports-platform-0.1.0.zip`. These are local build outputs. Detailed evidence and independent branch findings are in `Documentation.md`.
 
 ## How to run
 
-Use JDK 21 and the checked-in Gradle wrapper. The project targets Java 17 bytecode. The first build downloads dependencies when they are absent from the local cache.
+Use JDK 21 and the checked-in Gradle wrapper (JDK 17 or newer works; `JAVA_HOME` must point at it). The project targets Java 17 bytecode. The first build downloads dependencies when they are absent from the local cache.
 
 ```bash
 ./gradlew build
-./gradlew test
+./gradlew test              # unit tests (network tests are skipped, so this works offline)
+./gradlew test -Pnetwork    # also runs the live Open-Meteo and database checks
 ./gradlew run
 ```
 
-On Windows, use `gradlew.bat`. With cached dependencies, `./gradlew --offline build` verifies the application without dependency downloads. `./gradlew test -Pnetwork` opts into the live weather check.
+On Windows, use `gradlew.bat`. With cached dependencies, `./gradlew --offline build` verifies the application without dependency downloads.
 
-A genuinely empty store receives the presentation dataset on startup. Existing stores keep their data. To create a separate demo, choose a destination that does not already exist and use the same path to run it.
+To use the shared database, open **Database settings** on the sign-in page and paste the project URL and publishable key (see `db/README.md`) - nothing is needed in a terminal. Without it the app keeps its data in `data/app-data.json`, which is git-ignored.
+
+A genuinely empty local store receives the presentation dataset on startup, and existing stores keep their data. A shared database is only given the four demo accounts `coach1`, `player1`, `parent1` and `admin1` plus a team, because it is shared with other people. To create a separate local demo, choose a destination that does not already exist and use the same path to run it.
 
 ```bash
 ./gradlew seedDemo -PdemoData=data/demo-data.json
 ./gradlew run -PappData=data/demo-data.json
 ```
 
-`seedDemo` refuses an existing destination. The dataset contains `admin1`, `coach1`–`coach2`, `player1`–`player8`, and `parent1`–`parent4`, all with password `pw`. It includes three teams, 42 events over the next 14 days, eight parent/player links, announcements, notification history, and an absence notice. Keep the demo file local. The five-minute presentation script and verification instructions are in [Documentation.md](Documentation.md#10-five-minute-demo).
+`seedDemo` refuses an existing destination. The dataset contains `admin1`, `coach1`–`coach2`, `player1`–`player8`, and `parent1`–`parent4`, all with password `pw`; their passwords are re-hashed the first time each account signs in. It includes three teams, 42 events over the next 14 days, eight parent/player links, announcements, notification history, and an absence notice. Keep the demo file local. The five-minute presentation script and verification instructions are in [Documentation.md](Documentation.md#10-five-minute-demo).
 
 ## Screenshots
 

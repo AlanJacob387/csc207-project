@@ -25,6 +25,7 @@ public class Main {
         return appBuilder
                     .addLoginView()
                     .addSignupView()
+                    .addDatabaseSettingsView()
                     .addAppShell()
                     .addLoginUseCase()
                     .addSignupUseCase()
@@ -36,6 +37,7 @@ public class Main {
                     .addCancelEventUseCase()
                     .addBrowseEventsUseCase()
                     .addExportScheduleUseCase()
+                    .addManageUsersUseCase()
                     .addChangePasswordView()
                     .addChangePasswordUseCase()
                     .addAnnouncementUseCases()

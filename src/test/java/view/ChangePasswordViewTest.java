@@ -2,6 +2,7 @@ package view;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.file.Path;
 
@@ -57,7 +58,7 @@ public class ChangePasswordViewTest {
         final ChangePasswordView view = new ChangePasswordView(viewModel, session);
         view.setChangePasswordController(new ChangePasswordController(
                 new ChangePasswordInteractor(store, new ChangePasswordPresenter(viewModel),
-                        session, userFactory)));
+                        session)));
 
         session.setCurrentUser(userFactory.create("alice", PASSWORD, "Alice", Role.COACH));
         view.typePasswords(PASSWORD, DRAFT, DRAFT);
@@ -67,7 +68,7 @@ public class ChangePasswordViewTest {
 
         view.onChange();
 
-        assertEquals(PASSWORD, store.get("bob").getPassword());
+        assertTrue(store.get("bob").matches(PASSWORD));
         assertEquals("Fill in all three password fields.", viewModel.getErrorMessage());
     }
 

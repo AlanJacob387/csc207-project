@@ -2,9 +2,14 @@ package data_access;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
@@ -98,6 +103,7 @@ class FileAppDataAccessObjectTest {
         assertEquals(1, dao.getAttendanceFor("e1").size());
         assertEquals(AttendanceRecord.Status.PRESENT,
                 dao.getAttendanceFor("e1").get(0).getStatus());
+
     }
 
     @Test
@@ -121,5 +127,103 @@ class FileAppDataAccessObjectTest {
 
         assertEquals(2, dao.getAllTeams().size());
         assertEquals(1, dao.getAllEvents().size());
+    }
+
+    @Test
+    void everyAccountIsListedWithItsRoleAndStatus() {
+        final FileAppDataAccessObject dao = new FileAppDataAccessObject(
+                tempDir.resolve("app-data.json"));
+        dao.save(new User("c1", "pw", "Coach One", Role.COACH));
+        dao.save(new User("p1", "pw", "Pat", Role.PLAYER, false));
+
+        assertEquals(2, dao.getAllUsers().size());
+        assertFalse(dao.get("p1").isActive());
+        assertTrue(dao.get("c1").isActive());
+    }
+
+    @Test
+    void savingAProfileKeepsTheCredentialAndTheStatus() {
+        final Path file = tempDir.resolve("app-data.json");
+        final FileAppDataAccessObject dao = new FileAppDataAccessObject(file);
+        dao.save(new User("p1", "pbkdf2$1000$c2FsdA==$aGFzaA==", "Pat", Role.PLAYER, false));
+
+        dao.saveProfile("p1", "Patricia", Role.COACH);
+
+        assertEquals("Patricia", dao.get("p1").getDisplayName());
+        assertEquals(Role.COACH, dao.get("p1").getRole());
+        assertEquals("pbkdf2$1000$c2FsdA==$aGFzaA==", dao.get("p1").getPassword());
+        assertFalse(dao.get("p1").isActive());
+
+        final FileAppDataAccessObject reloaded = new FileAppDataAccessObject(file);
+        assertEquals("Patricia", reloaded.get("p1").getDisplayName());
+        assertFalse(reloaded.get("p1").isActive());
+    }
+
+    @Test
+    void aCorruptFileIsKeptAsideAndTheStoreStartsEmpty() throws IOException {
+        final Path file = tempDir.resolve("app-data.json");
+        Files.writeString(file, "{\"users\":[{\"username\":\"p1\"");
+
+        final FileAppDataAccessObject dao = new FileAppDataAccessObject(file);
+
+        assertNull(dao.get("p1"), "a damaged file must not be guessed at");
+        assertFalse(Files.exists(file), "the damaged file is moved beside the store");
+        assertNotNull(dao.quarantinedFile());
+        assertEquals("{\"users\":[{\"username\":\"p1\"", Files.readString(dao.quarantinedFile()),
+                "the original bytes are kept for inspection");
+        assertTrue(dao.describe().contains(".corrupt-"), dao.describe());
+    }
+
+    @Test
+    void aSecondCorruptStartKeepsBothFiles() throws IOException {
+        final Path file = tempDir.resolve("app-data.json");
+        Files.writeString(file, "not json at all");
+        final FileAppDataAccessObject first = new FileAppDataAccessObject(file);
+        Files.writeString(file, "still not json");
+
+        final FileAppDataAccessObject second = new FileAppDataAccessObject(file);
+
+        assertNotNull(first.quarantinedFile());
+        assertNotNull(second.quarantinedFile());
+        assertNotEquals(first.quarantinedFile(), second.quarantinedFile(),
+                "a second rescue must not overwrite the first");
+        assertEquals("not json at all", Files.readString(first.quarantinedFile()));
+        assertEquals("still not json", Files.readString(second.quarantinedFile()));
+        assertNull(second.get("anyone"));
+    }
+
+    /**
+     * A write that fails has to change nothing. The caller reports the failure,
+     * and the change must not reappear on the next write that succeeds - and
+     * does succeed - for some unrelated record.
+     */
+    @Test
+    void aFailedWriteLeavesEverySectionAsItWas() throws IOException {
+        final Path blocker = tempDir.resolve("blocker");
+        Files.writeString(blocker, "a file, not a folder");
+        final FileAppDataAccessObject dao =
+                new FileAppDataAccessObject(blocker.resolve("app-data.json"));
+
+        assertThrows(UncheckedIOException.class,
+                () -> dao.save(new User("p1", "pw", "Pat", Role.PLAYER)));
+        assertThrows(UncheckedIOException.class,
+                () -> dao.saveProfile("p1", "Pat", Role.COACH));
+        assertThrows(UncheckedIOException.class,
+                () -> dao.saveTeam(new Team("t1", "Raptors", "Basketball", "p1")));
+        assertThrows(UncheckedIOException.class,
+                () -> dao.saveEvent(new Event("e1", "t1", Event.EventType.GAME,
+                        LocalDateTime.of(2026, 11, 1, 18, 0), "Gym A", "Bears")));
+        assertThrows(UncheckedIOException.class,
+                () -> dao.saveAttendance(new AttendanceRecord("e1", "p1",
+                        AttendanceRecord.Status.PRESENT)));
+
+        assertNull(dao.get("p1"), "an account that could not be written must not be readable");
+        assertFalse(dao.existsByName("p1"));
+        assertTrue(dao.getAllUsers().isEmpty());
+        assertNull(dao.getTeam("t1"));
+        assertTrue(dao.getAllTeams().isEmpty());
+        assertNull(dao.getEvent("e1"));
+        assertTrue(dao.getAllEvents().isEmpty());
+        assertTrue(dao.getAttendanceFor("e1").isEmpty());
     }
 }

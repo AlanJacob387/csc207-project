@@ -2,6 +2,7 @@ package data_access;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -282,14 +283,13 @@ class FileCommunicationsPersistenceTest {
     }
 
     @Test
-    void malformedCommunicationSectionsAndRecordsAreRejectedWithoutChangingTheirSource() throws IOException {
+    void malformedCommunicationSectionsAndRecordsAreSetAsideWithoutChangingTheirContents() throws IOException {
         for (String section : List.of("parentLinks", "absenceNotices", "eventNotifications")) {
             final JSONObject original = legacyDocument().put(section, new JSONObject().put("wrong", true));
             Files.writeString(file(), original.toString(2));
             final String before = Files.readString(file());
 
-            assertThrows(IllegalStateException.class, () -> new FileAppDataAccessObject(file()), section);
-            assertEquals(before, Files.readString(file()));
+            assertSetAsideWithoutLoading(before, section);
         }
         final JSONObject invalidNotification = new JSONObject().put("notificationId", "bad").put("eventId", "event-1")
                 .put("teamId", "team-1").put("changeType", "UNKNOWN").put("message", "Invalid change")
@@ -298,20 +298,31 @@ class FileCommunicationsPersistenceTest {
                 .put(invalidNotification)).toString(2));
         final String before = Files.readString(file());
 
-        assertThrows(IllegalStateException.class, () -> new FileAppDataAccessObject(file()));
-        assertEquals(before, Files.readString(file()));
+        assertSetAsideWithoutLoading(before, "invalid notification");
     }
 
     @Test
-    void duplicateAbsenceTuplesInTheStoredFileAreRejectedRatherThanChoosingAnArbitraryNotice() throws IOException {
+    void duplicateAbsenceTuplesInTheStoredFileAreSetAsideRatherThanChoosingAnArbitraryNotice() throws IOException {
         final JSONObject original = legacyDocument().put("absenceNotices", new JSONArray()
                 .put(EntityJsonMapper.toJson(notice("notice-a", "parent-a", "child-a", "event-1", "First")))
                 .put(EntityJsonMapper.toJson(notice("notice-b", "parent-a", "child-a", "event-1", "Second"))));
         Files.writeString(file(), original.toString(2));
         final String before = Files.readString(file());
 
-        assertThrows(IllegalStateException.class, () -> new FileAppDataAccessObject(file()));
-        assertEquals(before, Files.readString(file()));
+        assertSetAsideWithoutLoading(before, "duplicate absence tuple");
+    }
+
+    /**
+     * A file the store cannot trust is never half-loaded and never rewritten: its exact
+     * bytes are kept beside it, and the store starts empty so the app can still open.
+     */
+    private void assertSetAsideWithoutLoading(String before, String why) throws IOException {
+        final FileAppDataAccessObject reopened = new FileAppDataAccessObject(file());
+
+        assertTrue(reopened.isEmpty(), why + ": nothing from the rejected file is loaded");
+        assertNotNull(reopened.quarantinedFile(), why + ": the file is kept");
+        assertEquals(before, Files.readString(reopened.quarantinedFile()), why + ": byte for byte");
+        assertFalse(Files.exists(file()), why + ": the rejected file is not left in place to be overwritten");
     }
 
     private FileAppDataAccessObject initialStore(Path file) {

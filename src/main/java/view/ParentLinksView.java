@@ -105,7 +105,7 @@ public class ParentLinksView extends JPanel {
     }
 
     private void refresh() {
-        if (session.isLoggedIn() && session.getRole() == Role.ADMIN) {
+        if (session.isLoggedIn() && session.getCurrentRole() == Role.ADMIN) {
             controller.execute("load", null, null);
         }
     }

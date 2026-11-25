@@ -1,6 +1,7 @@
 package data_access;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -85,6 +86,7 @@ class EntityJsonMapperTest {
         final AttendanceRecord copy = EntityJsonMapper.attendanceFromJson(
                 EntityJsonMapper.toJson(record));
 
+
         assertEquals("e1", copy.getEventId());
         assertEquals("p1", copy.getPlayerUsername());
         assertEquals(AttendanceRecord.Status.EXCUSED, copy.getStatus());
@@ -108,5 +110,25 @@ class EntityJsonMapperTest {
         json.put("futureField", "ignored");
 
         assertEquals(Role.ADMIN, EntityJsonMapper.userFromJson(json).getRole());
+    }
+
+    @Test
+    void userRoundTripKeepsTheActiveFlag() {
+        final User user = new User("p1", "pw", "Pat", Role.PLAYER, false);
+
+        final User copy = EntityJsonMapper.userFromJson(EntityJsonMapper.toJson(user));
+
+        assertFalse(copy.isActive());
+        assertEquals("p1", copy.getUsername());
+    }
+
+    @Test
+    void aUserRecordWithoutAnActiveFlagIsActive() {
+        // toJson leaves the flag out for an active account, which is exactly the
+        // shape an older store has, so this reads the legacy case directly.
+        final JSONObject json = EntityJsonMapper.toJson(new User("p1", "pw", "Pat", Role.PLAYER));
+
+        assertFalse(json.has("active"));
+        assertTrue(EntityJsonMapper.userFromJson(json).isActive());
     }
 }

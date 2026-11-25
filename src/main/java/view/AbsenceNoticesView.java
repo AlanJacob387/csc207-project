@@ -142,7 +142,7 @@ public class AbsenceNoticesView extends JPanel {
     }
 
     private void refresh() {
-        if (session.isLoggedIn() && (session.getRole() == Role.PARENT || session.getRole() == Role.COACH)) {
+        if (session.isLoggedIn() && (session.getCurrentRole() == Role.PARENT || session.getCurrentRole() == Role.COACH)) {
             viewController.execute(selectedChild());
         }
     }
@@ -156,8 +156,8 @@ public class AbsenceNoticesView extends JPanel {
         reason.setText("");
         submitViewModel.clear();
         viewModel.clear();
-        childControls.setVisible(session.getRole() == Role.PARENT);
-        composer.setVisible(session.getRole() == Role.PARENT);
+        childControls.setVisible(session.getCurrentRole() == Role.PARENT);
+        composer.setVisible(session.getCurrentRole() == Role.PARENT);
         refresh();
     }
 

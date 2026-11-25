@@ -2,6 +2,7 @@ package use_case.login;
 
 import java.io.UncheckedIOException;
 
+import entity.PasswordHasher;
 import entity.User;
 import use_case.current_user.CurrentUserInterface;
 
@@ -58,12 +59,47 @@ public class LoginInteractor implements LoginInputBoundary {
             presenter.prepareFailView("No account found for " + username + ".");
             return;
         }
-        if (!user.getPassword().equals(password)) {
+        if (!user.matches(password)) {
             presenter.prepareFailView("Incorrect password.");
             return;
         }
+        // The password is checked first, so this message cannot be used to find
+        // out which accounts an administrator deactivated.
+        if (!user.isActive()) {
+            presenter.prepareFailView("This account has been deactivated.");
+            return;
+        }
 
-        currentUser.setCurrentUser(user);
+        currentUser.setCurrentUser(upgradeLegacyCredential(user, password));
         presenter.prepareSuccessView(new LoginOutputData(user.getUsername()));
+    }
+
+    /**
+     * Rewrites a credential that was stored before passwords were hashed, now
+     * that the typed password has proved it is the right one.
+     *
+     * The rewrite is best effort: a store that cannot be written keeps the old
+     * credential, which still verifies next time, so a sign-in never fails
+     * because an upgrade could not be saved.
+     *
+     * @param user     the account that just signed in
+     * @param password the password that matched
+     * @return the account to record as the current user
+     */
+    private User upgradeLegacyCredential(User user, String password) {
+        if (PasswordHasher.isHashed(user.getPassword())) {
+            return user;
+        }
+        final User hashed = user.withNewPassword(password);
+        try {
+            dataAccess.save(hashed);
+            return hashed;
+        }
+        catch (IllegalStateException | UncheckedIOException ex) {
+            // Signing in succeeded; the plaintext credential simply survives until
+            // the next attempt. Nothing is shown, because nothing is broken from
+            // the user's point of view.
+            return user;
+        }
     }
 }

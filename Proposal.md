@@ -10,7 +10,7 @@ Each feature is one **Clean Architecture vertical slice**: `use_case/<name>/` �
 
 ## 1. Accounts — sign up and log in
 **What it is.** A user creates an account and logs in; the app remembers who they are for the rest of the session. **Status: built** (Sprint 1).
-**How we'll implement it.** Four use cases, each its own Clean Architecture slice with input/output boundaries, an interactor, a controller, a presenter and (where the page holds state) a view model: `login`, `signup`, `logout` and `change_password`. The signed-in user sits behind a `CurrentUserInterface` port implemented by `Session`, so the interactors own every session transition. Accounts are stored through `FileAppDataAccessObject`, and sign-up takes a username, display name, password and role from a dropdown. *(Plan.md → 1.2, 1.3, 2.10, 3.10, UC-A1 to UC-A4, lane L3 - done; storage decision D6.)*
+**How we'll implement it.** Four use cases, each its own Clean Architecture slice with input/output boundaries, an interactor, a controller, a presenter and (where the page holds state) a view model: `login`, `signup`, `logout` and `change_password`. The signed-in user sits behind a `CurrentUserInterface` port implemented by `Session`, so the interactors own every session transition. Accounts are stored through the shared store - a hosted Supabase Postgres database when a project is configured, the local JSON file otherwise - and passwords are kept as PBKDF2 hashes. Sign-up takes a username, display name, password and role from a dropdown. *(Plan.md → 1.2, 1.3, 2.10, 3.10, 4.8, UC-A1 to UC-A4, lane L3 - done; storage decision D6, revised 2026-11-23.)*
 
 ## 2. Roles and role-based navigation
 **What it is.** Four roles — coach, player, parent, admin — and each one sees only the pages that make sense for them. **Status: built** (Sprint 1).
@@ -61,14 +61,14 @@ Each feature is one **Clean Architecture vertical slice**: `use_case/<name>/` �
 **How we'll implement it.** `OpenMeteoWeatherGateway` (already written and proven to work from Java) is surfaced through a controller and presenter on the event details page, and a second use case, `flag_rain_risk`, flags at-risk events on the calendar and the events list. *(Plan.md → 3.7 and 3.12, UC-F1 and UC-F2, lane L5, Sprint 3.)*
 
 ## 14. Admin — managing user accounts
-**What it is.** An admin creates or deactivates accounts and changes a user's role.
-**How we'll implement it.** A `manage_users` use case on an admin-only page, reading and writing the same local store that login uses. *(Plan.md → 3.5, lane L3, Sprint 3; user story 8.)*
+**What it is.** An admin creates, deactivates or reactivates accounts and changes a user's role.
+**How we'll implement it.** A `manage_users` use case on an admin-only page, reading and writing the same store that login uses - the hosted database, so an admin sees every account rather than one device's file. *(Plan.md → 3.5, lane L3, Sprint 3; user story 8.)*
 
 ---
 
 ## Cross-cutting pieces
 
-**Persistence.** One local JSON file (`data/app-data.json`) holds users, teams, events and attendance, hidden behind per-use-case data-access interfaces so the store can be swapped for a hosted service later without touching the use cases. *(Plan.md → 1.2, decision D6, lane L3.)*
+**Persistence.** A hosted **Supabase Postgres** database holds users, teams, events, attendance and announcements, reached over its REST API through the per-use-case data-access interfaces, so no use case knows which store it is talking to and one save touches one row. The local JSON file remains the offline default when no project is configured, and the connection settings are saved per user from inside the app, so no key enters the repository and nobody needs a terminal. *(Plan.md → 1.2, 4.8, decision D6 revised 2026-11-23, lane L3.)*
 
 **External API.** Open-Meteo (no key required) is our documented external API: it was called successfully from Java on 2026-10-29 and is written up in the README's API section in the course's required format (link, how it's used, whether it was called). *(Plan.md → 1.9, decision D7.)*
 

@@ -1,0 +1,150 @@
+# Hosted database (Supabase)
+
+The app keeps accounts, teams, events, attendance, announcements, event
+notifications, parent links and absence notices in a
+Supabase Postgres database, reached over its REST API (PostgREST). The local
+JSON file is still used when no database is configured, so a fresh clone runs
+without any setup.
+
+## 1. Create the project
+
+1. Sign in at <https://supabase.com/dashboard> (GitHub or Google; the free plan
+   needs no card).
+2. **New project**: pick your organization, name it `team-sports`, choose a
+   region close to you, and set a database password. Save that password in your
+   password manager - it is for direct SQL access only, the app never uses it.
+3. Wait until provisioning finishes (a minute or two).
+
+## 2. Copy the two values the app needs
+
+| Value | Where | Looks like |
+|---|---|---|
+| Data API URL | Dashboard -> **Integrations -> Data API** | `https://<project-ref>.supabase.co` |
+| Publishable key | Dashboard -> **Settings -> API Keys** | `sb_publishable_...` |
+
+The Data API panel prints the REST URL with `/rest/v1` on the end. Either form
+works in `TEAMSPORTS_DB_URL`: the client and `probe.ps1` both drop a trailing
+`/rest/v1` (and any trailing slash), so nobody has to trim it by hand. The suffix
+only matters if you build a request yourself, for example with
+`Invoke-RestMethod`; `.../rest/v1/rest/v1/users` then answers 404 for every table.
+
+Use the **publishable** key, never the secret key. Supabase is retiring the old
+`anon` / `service_role` keys, and a secret key bypasses Row Level Security, so it
+must never be shipped in a desktop application.
+
+## 3. Create the tables
+
+Open the **SQL Editor**, paste the whole of [`schema.sql`](schema.sql), and run
+it. It is safe to re-run.
+
+A `404 Not Found` on every table means one of two things, and [`probe.ps1`](probe.ps1)
+tells them apart:
+
+```powershell
+./db/probe.ps1
+```
+
+| Probe output | Meaning | Fix |
+|---|---|---|
+| `auth health 200`, `rest root 401`, tables `404` | The project is fine, the schema is missing from it | Run `schema.sql` in **this** project's SQL Editor, then `notify pgrst, 'reload schema';` |
+| `auth health 200`, `rest root 404` | The Data API is switched off | **Integrations -> Data API -> Enable** |
+| `auth health` fails | Wrong URL, or the free project is paused | Check the project ref; resume the project |
+
+On a working project the probe prints a 200 with `[]` for each table it
+probes. Two lines look like errors but are healthy:
+
+- `rest root -> HTTP 401 {"message":"Secret API key required"}`: that route only
+  accepts a secret key, so a 401 proves PostgREST is running and the project ref
+  is right.
+- `auth health -> HTTP 401 {"message":"No API key found in request"}` from an
+  older copy of the script: the gateway wants the `apikey` header there too. The
+  current script sends it.
+
+Check that the tables exist independently of the REST layer:
+
+```sql
+select table_schema, table_name
+from information_schema.tables
+where table_name in ('users', 'teams', 'events', 'attendance', 'announcements',
+                     'parent_links', 'absence_notices', 'event_notifications')
+order by table_name;
+```
+
+Eight rows in `public` means the schema is there and only the REST cache or the
+Data API setting is behind. Add `and table_schema = 'public'` if you want to be
+strict: an unfiltered search also matches `auth.users`, which every Supabase
+project has, so nine rows is the healthy answer rather than a stray table.
+
+
+Check that it worked:
+
+```sql
+select tablename, rowsecurity from pg_tables where schemaname = 'public';
+select tablename, policyname from pg_policies where schemaname = 'public';
+```
+
+Every table must show `rowsecurity = true` and three policies.
+
+## 4. Connect the app (no terminal needed)
+
+Start the app (`./gradlew run`, or a packaged build), click **Database settings**
+on the sign-in page, paste the project URL and the publishable key, press **Test
+connection**, then **Save**. The settings are written to
+
+```text
+Windows       %USERPROFILE%\.team-sports\database.properties
+macOS / Linux ~/.team-sports/database.properties
+```
+
+and are used on every later start. They live outside the repository, so the key
+never reaches git. Restart the app after saving: the store is chosen once, when
+the app starts.
+
+With no settings at all the app uses `data/app-data.json`, which is what the unit
+tests and an offline demo use. The sign-in page always shows which store is live,
+so nobody has to guess.
+
+### Overriding from a terminal (CI, or a one-off run)
+
+The environment wins over the saved file:
+
+```powershell
+$env:TEAMSPORTS_DB_URL = 'https://<project-ref>.supabase.co'
+$env:TEAMSPORTS_DB_KEY = 'sb_publishable_...'
+./gradlew run
+```
+
+`-Dteamsports.db.url=...` and `-Dteamsports.db.key=...` work the same way, one
+step lower in the order.
+
+### Checking the database itself (optional)
+
+```powershell
+Invoke-RestMethod -Uri "https://<project-ref>.supabase.co/rest/v1/users?select=username" -Headers @{ apikey = 'sb_publishable_...' }
+```
+
+An empty array means the table exists, the key works and the policies allow the
+read. Demo accounts appear after the first app run.
+
+## 5. Keep it awake
+
+A free-plan project is **paused after 7 days without activity**, and a paused
+project cannot answer the REST API. A few requests a day are enough; visiting
+the dashboard also counts. If it does pause, the dashboard shows a **Resume
+project** button, and the data is kept for a year.
+
+A paused project does **not** silently switch the app to its local file: the app
+still opens on the sign-in page and shows `Could not reach the account store: …`
+there, because two people who believe they share data should not quietly diverge.
+Resume the project and the app works again.
+
+## Security notes
+
+- Row Level Security is on for every table, and the policies grant only select,
+  insert and update. There is no delete policy: accounts are deactivated, not
+  deleted.
+- Anyone who extracts the publishable key has the same access the app has. That
+  is acceptable only because accounts store a PBKDF2 hash rather than a
+  password, and because the data is a course project's demo data.
+- Only edit `schema.sql`; the REST API is generated from the schema, so a column
+  added here is reachable immediately.

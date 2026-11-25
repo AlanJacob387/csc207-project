@@ -2,7 +2,9 @@ package app;
 
 import java.awt.BorderLayout;
 import java.awt.Dimension;
+import java.io.UncheckedIOException;
 import java.nio.file.Path;
+import java.time.Clock;
 import java.util.Objects;
 
 import javax.swing.BorderFactory;
@@ -11,12 +13,14 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.SwingConstants;
 
+import data_access.AppDataStore;
+import data_access.DatabaseConfig;
 import data_access.FileAppDataAccessObject;
 import data_access.FileScheduleWriter;
 import data_access.OpenMeteoWeatherGateway;
+import data_access.SupabaseAppDataAccessObject;
 import entity.Role;
 import entity.Team;
-import entity.User;
 import entity.UserFactory;
 import interface_adapter.Session;
 import interface_adapter.ViewManagerModel;
@@ -59,6 +63,9 @@ import interface_adapter.login.LoginPresenter;
 import interface_adapter.login.LoginViewModel;
 import interface_adapter.logout.LogoutController;
 import interface_adapter.logout.LogoutPresenter;
+import interface_adapter.manage_users.ManageUsersController;
+import interface_adapter.manage_users.ManageUsersPresenter;
+import interface_adapter.manage_users.ManageUsersViewModel;
 import interface_adapter.post_announcement.PostAnnouncementController;
 import interface_adapter.post_announcement.PostAnnouncementPresenter;
 import interface_adapter.post_announcement.PostAnnouncementViewModel;
@@ -82,6 +89,11 @@ import use_case.edit_event.EditEventInteractor;
 import use_case.export_schedule.ExportScheduleInteractor;
 import use_case.login.LoginInteractor;
 import use_case.logout.LogoutInteractor;
+import use_case.manage_users.ChangeUserRoleInteractor;
+import use_case.manage_users.CreateUserInteractor;
+import use_case.manage_users.DeactivateUserInteractor;
+import use_case.manage_users.ListAccountsInteractor;
+import use_case.manage_users.ReactivateUserInteractor;
 import use_case.post_announcement.PostAnnouncementInteractor;
 import use_case.signup.SignupInteractor;
 import use_case.view_announcements.ViewAnnouncementsInteractor;
@@ -96,9 +108,11 @@ import view.AppShell;
 import view.ChangePasswordView;
 import view.CalendarView;
 import view.CreateEventView;
+import view.DatabaseSettingsView;
 import view.EventDetailsView;
 import view.EventsListView;
 import view.LoginView;
+import view.ManageUsersView;
 import view.SignupView;
 import view.ViewManager;
 import view.NotificationsView;
@@ -125,8 +139,15 @@ import view.RainRiskPanel;
  */
 public class AppBuilder {
 
+    /** Password given to the demo accounts seeded on first run in a hosted store. */
+    private static final String DEMO_PASSWORD = "pw";
+
+    /** Id of the demo team seeded on first run in a hosted store. */
+    private static final String DEMO_TEAM_ID = "demo-team";
+
     // Shared collaborators, created once and handed to whatever needs them.
-    private final FileAppDataAccessObject dataAccess;
+    private final DatabaseConfig databaseConfig;
+    private final AppDataStore dataAccess;
     private final ViewManagerModel viewManagerModel = new ViewManagerModel();
     private final Session session = new Session();
     private final UserFactory userFactory = new UserFactory();
@@ -144,15 +165,27 @@ public class AppBuilder {
     private ChangePasswordView changePasswordView;
     private ChangePasswordViewModel changePasswordViewModel;
 
-    /** Sets up the collaborators and makes sure a fresh install is usable. */
+    /** What went wrong before any page could open, such as an unreachable store. */
+    private String startupNotice = "";
+
+    /** Builds against the store the user's settings choose: the hosted database or the local file. */
     public AppBuilder() {
-        this(new FileAppDataAccessObject(Path.of(System.getProperty("teamsports.data", "data/app-data.json"))));
+        this(resolveDatabaseConfig());
+    }
+
+    private AppBuilder(DatabaseConfig config) {
+        this(config, createStore(config));
     }
 
     /** Builds against an explicit store so demonstrations and tests can use isolated data. */
-    public AppBuilder(FileAppDataAccessObject dataAccess) {
+    public AppBuilder(AppDataStore dataAccess) {
+        this(null, dataAccess);
+    }
+
+    private AppBuilder(DatabaseConfig config, AppDataStore dataAccess) {
+        this.databaseConfig = config;
         this.dataAccess = Objects.requireNonNull(dataAccess);
-        DemoDataSeeder.seedIfEmpty(dataAccess, java.time.Clock.systemDefaultZone());
+        startupNotice = seedDemoData(this.dataAccess, userFactory);
     }
 
     /**
@@ -163,7 +196,36 @@ public class AppBuilder {
     public AppBuilder addLoginView() {
         loginViewModel = new LoginViewModel();
         loginView = new LoginView(loginViewModel);
+        loginView.setStoreDescription(dataAccess.describe());
+        if (!startupNotice.isEmpty()) {
+            loginView.setStartupProblem(startupNotice);
+        }
+        loginView.setOnOpenDatabaseSettings(() -> navigate(ViewManagerModel.DATABASE));
         viewManager.register(ViewManager.LOGIN, loginView);
+        return this;
+    }
+
+    /**
+     * Adds the page where a user connects the app to the shared database.
+     *
+     * Saving writes the settings into the user's home folder, so the next start
+     * connects without a terminal. The store is built once at startup, so the page
+     * tells the user to restart after saving.
+     *
+     * @return this builder, so the calls can be chained
+     */
+    public AppBuilder addDatabaseSettingsView() {
+        final DatabaseSettingsView view = new DatabaseSettingsView(
+                databaseConfig == null ? "" : databaseConfig.getUrl(),
+                DatabaseConfig.userFile().toString());
+        view.setOnBackToLogin(() -> navigate(ViewManagerModel.LOGIN));
+        view.setOnTestConnection((url, key) -> {
+            final SupabaseAppDataAccessObject.ConnectionCheck check =
+                    SupabaseAppDataAccessObject.testConnection(url, key);
+            return new DatabaseSettingsView.TestResult(check.isOk(), check.getMessage());
+        });
+        view.setOnSave(DatabaseConfig::save);
+        viewManager.register(ViewManager.DATABASE, view);
         return this;
     }
 
@@ -187,7 +249,7 @@ public class AppBuilder {
      */
     public AppBuilder addAppShell() {
         appShell = new AppShell();
-        session.addPropertyChangeListener(evt -> appShell.applyRole(session.getRole()));
+        session.addPropertyChangeListener(evt -> appShell.applyRole(session.getCurrentRole()));
 
         calendarView = new CalendarView();
         appShell.addPage("Calendar", calendarView);
@@ -435,6 +497,28 @@ public class AppBuilder {
     }
 
     /**
+     * Adds the administrator page and wires the read and the four
+     * account-management use cases. Call it after addAppShell(): the page is only
+     * visible to administrators.
+     *
+     * @return this builder, so the calls can be chained
+     */
+    public AppBuilder addManageUsersUseCase() {
+        final ManageUsersViewModel viewModel = new ManageUsersViewModel();
+        final ManageUsersPresenter presenter = new ManageUsersPresenter(viewModel);
+        final ManageUsersController controller = new ManageUsersController(
+                new CreateUserInteractor(dataAccess, presenter, session, userFactory),
+                new ChangeUserRoleInteractor(dataAccess, presenter, session),
+                new DeactivateUserInteractor(dataAccess, presenter, session),
+                new ReactivateUserInteractor(dataAccess, presenter, session),
+                new ListAccountsInteractor(dataAccess, presenter, session));
+
+        appShell.addPage("Manage Users", new ManageUsersView(controller, viewModel, session),
+                Role.ADMIN);
+        return this;
+    }
+
+    /**
      * Wires the Log Out use case into the shell Log out button.
      *
      * @return this builder, so the calls can be chained
@@ -471,7 +555,7 @@ public class AppBuilder {
         final ChangePasswordPresenter presenter =
                 new ChangePasswordPresenter(changePasswordViewModel);
         final ChangePasswordController controller = new ChangePasswordController(
-                new ChangePasswordInteractor(dataAccess, presenter, session, userFactory));
+                new ChangePasswordInteractor(dataAccess, presenter, session));
 
         changePasswordView.setChangePasswordController(controller);
         return this;
@@ -512,6 +596,127 @@ public class AppBuilder {
     private void navigate(String page) {
         viewManagerModel.setState(page);
         viewManagerModel.firePropertyChanged();
+    }
+
+    /**
+     * Makes a fresh install usable straight away, without ever replacing data.
+     *
+     * The local file gets the full presentation dataset ({@link DemoDataSeeder}),
+     * but only while it is empty. A hosted store is shared, so it only gets the
+     * four demo accounts and a team, each inserted where it is missing. Either
+     * way a store that cannot be reached becomes a message for the sign-in page.
+     *
+     * @param dataAccess  the store the whole app will use
+     * @param userFactory builds and hashes the hosted demo accounts
+     * @return an empty string on success, or what the sign-in page should say
+     */
+    static String seedDemoData(AppDataStore dataAccess, UserFactory userFactory) {
+        if (dataAccess instanceof FileAppDataAccessObject) {
+            try {
+                DemoDataSeeder.seedIfEmpty((FileAppDataAccessObject) dataAccess, Clock.systemDefaultZone());
+            }
+            catch (IllegalStateException | UncheckedIOException ex) {
+                return "Could not write the demo data: " + ex.getMessage();
+            }
+            return "";
+        }
+        return seedDemoDataIfEmpty(dataAccess, userFactory);
+    }
+
+    /**
+     * Creates one demo account per role (password "pw") and a demo team, but
+     * only where they are missing, so the app can be tried straight away.
+     *
+     * Reports a failure instead of throwing: a store that cannot be reached while
+     * the app is starting must still leave the user on the sign-in page, where the
+     * reason is shown and the database settings can be corrected. Nothing is
+     * swapped for a local file - the caller keeps the store it chose.
+     *
+     * Every account is checked separately: a store that already holds a
+     * customised player1 keeps it, instead of being overwritten because only
+     * coach1 had been deleted. The factory hashes each demo password, so a fresh
+     * store never holds plaintext credentials. Replace this with the team's real
+     * seed data (task 4.4).
+     *
+     * @param dataAccess  the store the whole app will use
+     * @param userFactory builds and hashes the demo accounts
+     * @return an empty string on success, or what the sign-in page should say
+     */
+    static String seedDemoDataIfEmpty(AppDataStore dataAccess, UserFactory userFactory) {
+        try {
+            seedUser(dataAccess, userFactory, "coach1", "Coach One", Role.COACH);
+            seedUser(dataAccess, userFactory, "player1", "Pat Player", Role.PLAYER);
+            seedUser(dataAccess, userFactory, "parent1", "Sam Parent", Role.PARENT);
+            seedUser(dataAccess, userFactory, "admin1", "Ada Admin", Role.ADMIN);
+
+            if (dataAccess.getTeam(DEMO_TEAM_ID) == null) {
+                final Team team = new Team(DEMO_TEAM_ID, "Demo Team", "Basketball", "coach1");
+                team.addPlayer("player1");
+                dataAccess.saveTeam(team);
+            }
+        }
+        catch (IllegalStateException | UncheckedIOException ex) {
+            return "Could not reach the account store: " + ex.getMessage()
+                    + " Sign-in will fail until it is back.";
+        }
+        return "";
+    }
+
+    /**
+     * Chooses the store: the hosted database when settings are configured, the
+     * local JSON file otherwise.
+     *
+     * The connection is chosen once, when the app starts, from the user's saved
+     * settings, the environment or the system properties (see DatabaseConfig).
+     * With nothing configured the local file is used, so a clean clone runs with
+     * no account and the unit tests stay offline.
+     *
+     * There is deliberately no fallback at request time: if the database is
+     * configured but unreachable, the failure is reported instead of quietly
+     * switching to a local file, because two people who think they share data
+     * would then silently diverge.
+     *
+     * @param config the resolved settings, or null when nothing is configured
+     * @return the store the whole app should use
+     */
+    private static AppDataStore createStore(DatabaseConfig config) {
+        return config == null
+                ? new FileAppDataAccessObject(
+                        Path.of(System.getProperty("teamsports.data", "data/app-data.json")))
+                : new SupabaseAppDataAccessObject(config.getUrl(), config.getKey());
+    }
+
+    /**
+     * Reads the database settings without letting a broken file stop startup: the
+     * sign-in page then shows the local store and still offers the settings page
+     * where the mistake can be corrected.
+     *
+     * @return the settings, or null when nothing usable is configured
+     */
+    private static DatabaseConfig resolveDatabaseConfig() {
+        try {
+            return DatabaseConfig.resolve();
+        }
+        catch (RuntimeException ex) {
+            System.err.println("Database settings could not be read: " + ex.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Inserts one demo account only when that username is still free.
+     *
+     * @param dataAccess  the store to check and write
+     * @param userFactory builds and hashes the account
+     * @param username    the demo username
+     * @param displayName the name to show in the app
+     * @param role        the role to give the account
+     */
+    private static void seedUser(AppDataStore dataAccess, UserFactory userFactory,
+                                 String username, String displayName, Role role) {
+        if (!dataAccess.existsByName(username)) {
+            dataAccess.save(userFactory.create(username, DEMO_PASSWORD, displayName, role));
+        }
     }
 
     /** Wraps a form view with breathing room so it doesn''t stretch edge to edge. */

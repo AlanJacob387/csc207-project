@@ -73,6 +73,13 @@ class EditEventInteractorTest {
 
     /** Stands in for the session; only the username matters here. */
     private static class FakeCurrentUser implements CurrentUserInterface {
+        private entity.Role currentRole;
+
+        @Override
+        public entity.Role getCurrentRole() {
+            return currentRole;
+        }
+
 
         private String username = "";
 
@@ -83,6 +90,7 @@ class EditEventInteractorTest {
 
         @Override
         public void setCurrentUser(User user) {
+            currentRole = user.getRole();
             this.username = user.getUsername();
         }
 

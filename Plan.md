@@ -37,7 +37,7 @@ Attendance, RSVP, stats, and roster work remain on their respective lanes' branc
 
 | Sprint | Dates (inclusive) | Theme | Exit criterion (must be demoable) |
 |--------|-------------------|-------|-----------------------------------|
-| 1 | Thu 2026-10-29 → Wed 2026-11-04 | Foundation: build, persistence, login, wiring | A clean clone runs, a user logs in (accounts come from the local JSON store, not a server), sees only their role's pages, and a created event survives a restart |
+| 1 | Thu 2026-10-29 → Wed 2026-11-04 | Foundation: build, persistence, login, wiring | A clean clone runs, a user logs in (in Sprint 1 accounts came from the local JSON store; decision D6 was revised on 2026-11-23 to a hosted database, with the file kept as the offline default), sees only their role's pages, and a created event survives a restart |
 | 2 | Thu 2026-11-05 → Wed 2026-11-11 | Scheduling, RSVP, attendance | Coach sees real events in the calendar and marks attendance; player RSVPs |
 | 3 | Thu 2026-11-12 → Wed 2026-11-18 | Stats, rosters, communications | Player stats page works, admin manages a roster, announcements + notifications appear |
 | 4 | Thu 2026-11-19 → Wed 2026-11-25 | Parents, export, weather, polish | Parent flows work, `.ics` export runs as a use case, weather shows on event details |
@@ -53,7 +53,7 @@ Every interaction a user can trigger is its own Clean Architecture slice: its ow
 |------|-------|-----------|-------|------|
 | L1 | Alan | UC-B1 to UC-B7 | 7 | 7 |
 | L2 | Aidan | UC-C1 to UC-C6 | 6 | 0 |
-| L3 | Andy | UC-A1 to UC-A7 | 7 | 4 |
+| L3 | Andy | UC-A1 to UC-A7 | 7 | 7 |
 | L4 | Aarav | UC-D1 to UC-D6 | 6 | 0 |
 | L5 | Daniel | UC-E1 to UC-E5, UC-F1 and UC-F2 | 7 | 0 |
 
@@ -65,9 +65,9 @@ Every interaction a user can trigger is its own Clean Architecture slice: its ow
 | UC-A2 | `signup` | Login page - Create an Account | L3 | 1 | P0 | done |
 | UC-A3 | `logout` | App shell - Log out | L3 | 2 | P0 | done |
 | UC-A4 | `change_password` | Account page | L3 | 3 | P1 | done |
-| UC-A5 | `create_user` | Admin - Manage Users | L3 | 3 | P2 | |
-| UC-A6 | `change_user_role` | Admin - Manage Users | L3 | 3 | P2 | |
-| UC-A7 | `deactivate_user` | Admin - Manage Users | L3 | 4 | P2 | |
+| UC-A5 | `create_user` | Admin - Manage Users | L3 | 3 | P2 | done |
+| UC-A6 | `change_user_role` | Admin - Manage Users | L3 | 3 | P2 | done |
+| UC-A7 | `deactivate_user` | Admin - Manage Users | L3 | 4 | P2 | done |
 | UC-B1 | `create_event` | New Event page (coach) | L1 | 1 | P0 | done |
 | UC-B2 | `view_schedule` | Calendar - month and week views | L1 | 2 | P0 | done |
 | UC-B3 | `view_event_details` | Calendar - open an event | L1 | 2 | P0 | done |
@@ -110,7 +110,7 @@ Nothing can be built in parallel until persistence, navigation and roles are rea
 |----|----------------------|------|-------|------------|-------------|-----|------|
 | 1.0 | Add the Gradle build (`build.gradle`, `settings.gradle`) with OkHttp, `org.json`, JUnit; document `gradle run` / `gradle test` in the README |  | L3 | — | app builds from a clean clone | Fri 10-30 | ✅ |
 | 1.1 | **Decision gate:** freeze the entity model (`User`, `Team`, `Event`, `AttendanceRecord`, plus any new `Announcement` / parent-link / stats entity) — majority vote per TeamContract |  | All (L4 leads) | — | frozen entities on `main`, recorded in Documentation.md | Sat 10-31 | |
-| 1.2 | Storage layer: local JSON store (`FileAppDataAccessObject`) plus in-memory fakes for tests |  | L3 | 1.0 | accounts, teams, events and attendance persist locally | Mon 11-02 | ✅ |
+| 1.2 | Storage layer: local JSON store (`FileAppDataAccessObject`) plus in-memory fakes for tests |  | L3 | 1.0 | accounts, teams, events and attendance persist locally (shared storage arrives in 4.8) | Mon 11-02 | ✅ |
 | 1.3 | `login` + `signup` use cases; replace the TODOs in `LoginView` (login button + "go to signup") | UC-A1, UC-A2 | L3 (reviewer: L2) | 1.2 | real login, logged-in role available to the shell | Tue 11-03 | ✅ |
 | 1.4 | `AppBuilder` refactor + `ViewManagerModel` so presenters can trigger navigation |  | L3 (taken over from L1) | 1.0 | `Main` slimmed to one `add...UseCase()` per feature | Tue 11-03 | ✅ |
 | 1.5 | Role-based nav filtering in `AppShell` (existing TODO in that file) |  | L3 (done) - review: L4 | 1.3 | sidebar shows only the pages the role may use | Wed 11-04 | ✅ |
@@ -142,7 +142,7 @@ Nothing can be built in parallel until persistence, navigation and roles are rea
 
 ## Sprint 3 — Stats, rosters and communications (Thu 2026-11-12 → Wed 2026-11-18)
 
-**Progress (2026-11-02):** 1 of 12 done - 3.10 (`change_password`, built ahead of schedule as part of the account refactor). The rest not started.
+**Progress (2026-11-23):** 2 of 12 done - 3.10 (`change_password`) and 3.5 (`manage_users`). The rest not started.
 
 | ID | Task | Use cases | Owner | Depends on | Deliverable | Due | Done |
 |----|------|------|-------|------------|-------------|-----|------|
@@ -150,7 +150,7 @@ Nothing can be built in parallel until persistence, navigation and roles are rea
 | 3.2 | Implement the stats decision from 1.1 (structured per-sport stats if voted in) | UC-C6 | L2 | 1.1, 3.1 | stats captured and displayed | Tue 11-17 | |
 | 3.3 | Parent↔child linking (invite/accept flow) + parent view of a child's schedule | UC-D5, UC-D6 | L4 | 2.6, 1.3 | parent sees their child's events | Tue 11-17 | |
 | 3.4 | `submit_absence_notice` use case: parent submits, coach sees it | UC-E4, UC-E5 | L5 | 3.3 | coach sees absence notices | Wed 11-18 | |
-| 3.5 | `manage_users` use case: admin creates/deactivates accounts and changes roles | UC-A5, UC-A6, UC-A7 | L3 | 1.3 | admin page works and roles are enforced | Wed 11-18 | |
+| 3.5 | `manage_users` use case: admin creates, deactivates or reactivates accounts and changes roles | UC-A5, UC-A6, UC-A7 | L3 | 1.3 | admin page works and roles are enforced | Wed 11-18 | ✅ 2026-11-23 |
 | 3.6 | `export_schedule` use case: promote `IcsExporter` behind a data-access gateway | UC-B7 | L1 | 2.1 | export runs from the calendar UI | Wed 11-18 | done |
 | 3.7 | `view_event_weather` use case: forecast for an event (Open-Meteo gateway + controller/presenter) | UC-F1 | L5 | 2.3 | forecast shown on event details | Wed 11-18 | |
 | 3.8 | `Documentation.md`: sequence diagrams, one per lane for their own use cases |  | All (L5 coordinates) | 1.3, 2.4 | diagrams committed | Wed 11-18 | done for L1's share; other lanes' sequence diagrams are separate |
@@ -161,7 +161,7 @@ Nothing can be built in parallel until persistence, navigation and roles are rea
 
 ## Sprint 4 — Integration, polish and demo data (Thu 2026-11-19 → Wed 2026-11-25)
 
-**Progress (2026-10-29):** not started.
+**Progress (2026-11-23):** 4.8 is partly done - the hosted store, its schema and the in-app connection settings have landed; validation (4.3) is the remaining work.
 
 | ID | Task | Use cases | Owner | Depends on | Deliverable | Due | Done |
 |----|------|------|-------|------------|-------------|-----|------|
@@ -172,6 +172,7 @@ Nothing can be built in parallel until persistence, navigation and roles are rea
 | 4.5 | `Documentation.md` final pass: class diagram, CRC cards, API descriptions |  | L5 | 4.1 | docs complete | Tue 11-24 | |
 | 4.6 | README: screenshots/GIFs, API section, user-story ownership table, run instructions |  | L5 | 4.1 | README current | Tue 11-24 | |
 | 4.7 | Demo dry run #1 with timings |  | All | 4.4 | script + timing notes | Wed 11-25 | |
+| 4.8 | **Hosted database store** (revision of D6): Supabase Postgres behind the same data-access interfaces, `db/schema.sql`, in-app connection settings, live check |  | L3 | 1.2 | data is shared between devices; `gradlew test -Pnetwork` reads the real project | Wed 11-25 | ⚠️ store, schema and settings done; validation open |
 
 ## Sprint 5 — Hardening and presentation (Thu 2026-11-26 → Sun 2026-11-29)
 
@@ -231,7 +232,7 @@ These feed the existing tasks: 1.7 (skeleton), 3.8 (sequence diagrams, one per l
 | Risk | Impact | Mitigation |
 |------|--------|-----------|
 | No build file exists yet, so nothing can be run or tested | Everything blocks | Task 1.0 lands on day one (Fri 10-30) |
-| Course DB API retired (dead host and port) | Login would have been blocked | Resolved 2026-10-29: accounts use the local JSON store, no server needed |
+| Hosted database unavailable (free project paused after 7 days idle, or no network) | Nobody can log in or save | Resume the project from the Supabase dashboard (data is kept for a year); the app reports the failure instead of quietly switching to a local file, and `db/probe.ps1` names the cause |
 | Entity churn after Sprint 1 | Simultaneous rework in several lanes | Decision gate 1.1, then two-lane sign-off |
 | Merge conflicts in `Main.java` / `AppShell` | Weekly friction and lost work | AppBuilder refactor (1.4) plus one page owner per file |
 | External API unavailable during the demo | Demo failure | Cache the last response and show a graceful "unavailable" state |
@@ -252,7 +253,7 @@ These feed the existing tasks: 1.7 (skeleton), 3.8 (sequence diagrams, one per l
 | D3 | Parent↔child link | invite code, admin-assigned, or parent enters the player's username | L4 |
 | D4 | Children per parent | one child vs many | L4 |
 | D5 | Roles per user | one role (`User.role`, current) vs multi-role | L3 |
-| D6 | Persistence | **Decided 2026-10-29:** local JSON file only (`data/app-data.json`) for accounts, teams, events and attendance. The 2025F course API is retired and not required; a hosted store is a later one-class swap | L3 |
+| D6 | Persistence | **Revised 2026-11-23:** a hosted **Supabase Postgres** database, reached over its REST API (PostgREST), holds accounts, teams, events, attendance and announcements, so data is shared between devices instead of living on one laptop. The local JSON file stays as the offline default when no project is configured, and a new in-app **Database settings** page stores the URL and publishable key per user (`%USERPROFILE%\.team-sports\database.properties`), so nobody needs a terminal and no key enters git. The 2025F course API remains retired. Schema: `db/schema.sql`; setup: `db/README.md` | L3 |
 | D7 | External API | **Decided 2026-10-29:** Open-Meteo - called successfully from Java and documented in the README. The other ideas stay in the README list | L1 |
 
 ## Unclaimed backlog (pull when a lane finishes early)

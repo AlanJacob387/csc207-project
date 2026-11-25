@@ -10,6 +10,7 @@ import java.nio.file.StandardCopyOption;
 import java.time.DateTimeException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
@@ -31,24 +32,6 @@ import entity.ParentPlayerLink;
 import entity.Role;
 import entity.Team;
 import entity.User;
-import use_case.browse_events.BrowseEventsDataAccessInterface;
-import use_case.cancel_event.CancelEventDataAccessInterface;
-import use_case.change_password.ChangePasswordUserDataAccessInterface;
-import use_case.create_event.CreateEventDataAccessInterface;
-import use_case.edit_event.EditEventDataAccessInterface;
-import use_case.export_schedule.ExportScheduleDataAccessInterface;
-import use_case.login.LoginUserDataAccessInterface;
-import use_case.link_parent_to_player.LinkParentToPlayerDataAccessInterface;
-import use_case.submit_absence_notice.SubmitAbsenceNoticeDataAccessInterface;
-import use_case.view_absence_notices.ViewAbsenceNoticesDataAccessInterface;
-import use_case.view_notifications.ViewNotificationsDataAccessInterface;
-import use_case.view_event_weather.ViewEventWeatherDataAccessInterface;
-import use_case.flag_rain_risk.FlagRainRiskDataAccessInterface;
-import use_case.post_announcement.PostAnnouncementDataAccessInterface;
-import use_case.signup.SignupUserDataAccessInterface;
-import use_case.view_announcements.ViewAnnouncementsDataAccessInterface;
-import use_case.view_event_details.ViewEventDetailsDataAccessInterface;
-import use_case.view_schedule.ViewScheduleDataAccessInterface;
 
 /**
  * Local JSON store for users, teams, events, attendance and announcements.
@@ -58,28 +41,18 @@ import use_case.view_schedule.ViewScheduleDataAccessInterface;
  * The file (and its folder) are created on the first write, so a fresh clone
  * runs with no setup. Pass a temporary path in tests.
  *
+ * A save writes the document first and only then records the change in memory,
+ * so a write that fails changes nothing: the caller can report the failure
+ * truthfully, and the change cannot reappear on the next successful write.
+ *
+ * A file that cannot be parsed is set aside as {@code <name>.corrupt-<timestamp>}
+ * and the store starts empty, so a damaged file costs the user a screen rather
+ * than the whole application; {@link #describe()} says what happened.
+ *
  * Default location: {@code data/app-data.json} relative to the working
  * directory (git-ignored).
  */
-public class FileAppDataAccessObject implements
-        LoginUserDataAccessInterface,
-        SignupUserDataAccessInterface,
-        CreateEventDataAccessInterface,
-        ChangePasswordUserDataAccessInterface,
-        ViewScheduleDataAccessInterface,
-        ViewEventDetailsDataAccessInterface,
-        EditEventDataAccessInterface,
-        CancelEventDataAccessInterface,
-        BrowseEventsDataAccessInterface,
-        ExportScheduleDataAccessInterface,
-        PostAnnouncementDataAccessInterface,
-        ViewAnnouncementsDataAccessInterface,
-        LinkParentToPlayerDataAccessInterface,
-        SubmitAbsenceNoticeDataAccessInterface,
-        ViewAbsenceNoticesDataAccessInterface,
-        ViewNotificationsDataAccessInterface,
-        ViewEventWeatherDataAccessInterface,
-        FlagRainRiskDataAccessInterface {
+public class FileAppDataAccessObject implements AppDataStore {
 
     /** Default store location, relative to the working directory. */
     public static final Path DEFAULT_PATH = Path.of("data", "app-data.json");
@@ -93,7 +66,12 @@ public class FileAppDataAccessObject implements
     private static final String ABSENCE_NOTICES = "absenceNotices";
     private static final String EVENT_NOTIFICATIONS = "eventNotifications";
 
+    /** Suffix added to a store file that had to be set aside, then the timestamp. */
+    private static final String CORRUPT_SUFFIX = ".corrupt-";
+
     private final Path file;
+    private String loadNote = "";
+    private Path quarantined;
     private final Map<String, User> users = new LinkedHashMap<>();
     private final Map<String, Team> teams = new LinkedHashMap<>();
     private final Map<String, Event> events = new LinkedHashMap<>();
@@ -107,6 +85,20 @@ public class FileAppDataAccessObject implements
     /** Creates a store at {@link #DEFAULT_PATH}. */
     public FileAppDataAccessObject() {
         this(DEFAULT_PATH);
+    }
+
+    @Override
+    public String describe() {
+        return "Local file: " + file + loadNote;
+    }
+
+    /**
+     * The file a damaged store was moved to, or null when the store loaded.
+     *
+     * @return the set-aside file, so a test or a support note can point at it
+     */
+    Path quarantinedFile() {
+        return quarantined;
     }
 
     /**
@@ -156,8 +148,12 @@ public class FileAppDataAccessObject implements
     }
 
     /**
-     * Updates only the profile fields of a user, leaving the stored password
-     * untouched.
+     * Updates only the profile fields of a user, leaving the stored credential
+     * and the active flag untouched.
+     *
+     * The credential is copied as stored - it is already hashed - and an account
+     * that was deactivated stays deactivated. A username that is not stored yet
+     * becomes an active account.
      *
      * @param username    the user's username
      * @param displayName the name to display
@@ -166,7 +162,8 @@ public class FileAppDataAccessObject implements
     public synchronized void saveProfile(String username, String displayName, Role role) {
         final User existing = users.get(username);
         final String password = existing == null ? "" : existing.getPassword();
-        save(new User(username, password, displayName, role));
+        final boolean active = existing == null || existing.isActive();
+        save(new User(username, password, displayName, role, active));
     }
 
     // ------------------------------------------------------------------
@@ -413,10 +410,14 @@ public class FileAppDataAccessObject implements
         if (announcements.containsKey(announcementId)) {
             throw new IllegalStateException("An announcement already exists with id " + announcementId);
         }
-        final Map<String, Announcement> updated = new LinkedHashMap<>(announcements);
-        updated.put(announcementId, announcement);
-        persist(updated);
         announcements.put(announcementId, announcement);
+        try {
+            persist();
+        }
+        catch (RuntimeException ex) {
+            announcements.remove(announcementId);
+            throw ex;
+        }
     }
 
     /** Returns a separate list containing only the requested team's announcements. */
@@ -581,24 +582,9 @@ public class FileAppDataAccessObject implements
     }
 
     private EventNotification notificationFor(Event previous, Event current) {
-        if (previous != null && previous.getTeamId().equals(current.getTeamId())
-                && previous.getType() == current.getType()
-                && Objects.equals(previous.getDateTime(), current.getDateTime())
-                && Objects.equals(previous.getLocation(), current.getLocation())
-                && Objects.equals(previous.getOpponent(), current.getOpponent())
-                && previous.isCancelled() == current.isCancelled()) {
-            return null;
-        }
-        final String change = previous == null ? "CREATED"
-                : !previous.isCancelled() && current.isCancelled() ? "CANCELLED" : "CHANGED";
-        final String verb = previous == null ? "scheduled"
-                : "CANCELLED".equals(change) ? "cancelled" : "updated";
         final Team team = teams.get(current.getTeamId());
-        final String teamName = team == null ? current.getTeamId() : team.getName();
-        final String message = teamName + " " + current.getType().name().toLowerCase(java.util.Locale.ROOT)
-                + " " + verb + " for " + current.getDateTime() + " at " + current.getLocation() + ".";
-        return new EventNotification(UUID.randomUUID().toString(), current.getEventId(), current.getTeamId(),
-                change, message, LocalDateTime.now());
+        return EventChangeNotifications.between(previous, current,
+                team == null ? current.getTeamId() : team.getName());
     }
 
     /** Restores the original entry when a durable write fails. */
@@ -656,7 +642,7 @@ public class FileAppDataAccessObject implements
                 final Announcement announcement = EntityJsonMapper.announcementFromJson(
                         announcementsJson.getJSONObject(i));
                 if (announcements.putIfAbsent(announcement.getAnnouncementId(), announcement) != null) {
-                    throw new IllegalStateException("Duplicate announcement id in " + file);
+                    throw new InvalidStoreException("Duplicate announcement id in " + file);
                 }
             }
             final JSONArray linksJson = arrayOrEmpty(root, PARENT_LINKS);
@@ -664,17 +650,17 @@ public class FileAppDataAccessObject implements
                 final ParentPlayerLink link = EntityJsonMapper.parentPlayerLinkFromJson(linksJson.getJSONObject(i));
                 final List<String> key = List.of(link.getParentUsername(), link.getPlayerUsername());
                 if (parentLinks.putIfAbsent(key, link) != null) {
-                    throw new IllegalStateException("Duplicate parent-player link in " + file);
+                    throw new InvalidStoreException("Duplicate parent-player link in " + file);
                 }
             }
             final JSONArray noticesJson = arrayOrEmpty(root, ABSENCE_NOTICES);
             for (int i = 0; i < noticesJson.length(); i++) {
                 final AbsenceNotice notice = EntityJsonMapper.absenceNoticeFromJson(noticesJson.getJSONObject(i));
                 if (absenceNotices.values().stream().anyMatch(existing -> sameNotice(existing, notice))) {
-                    throw new IllegalStateException("Duplicate absence for the same parent, child and event in " + file);
+                    throw new InvalidStoreException("Duplicate absence for the same parent, child and event in " + file);
                 }
                 if (absenceNotices.putIfAbsent(notice.getNoticeId(), notice) != null) {
-                    throw new IllegalStateException("Duplicate absence notice in " + file);
+                    throw new InvalidStoreException("Duplicate absence notice in " + file);
                 }
             }
             final JSONArray notificationsJson = arrayOrEmpty(root, EVENT_NOTIFICATIONS);
@@ -682,7 +668,7 @@ public class FileAppDataAccessObject implements
                 final EventNotification notification = EntityJsonMapper.eventNotificationFromJson(
                         notificationsJson.getJSONObject(i));
                 if (eventNotifications.putIfAbsent(notification.getNotificationId(), notification) != null) {
-                    throw new IllegalStateException("Duplicate notification in " + file);
+                    throw new InvalidStoreException("Duplicate notification in " + file);
                 }
             }
             storedDocument = root;
@@ -690,18 +676,73 @@ public class FileAppDataAccessObject implements
         catch (IOException ex) {
             throw new UncheckedIOException("Could not read app data from " + file, ex);
         }
-        catch (JSONException | IllegalArgumentException | DateTimeException ex) {
-            throw new IllegalStateException("App data file has an invalid format: " + file, ex);
+        catch (JSONException | IllegalArgumentException | DateTimeException
+                | InvalidStoreException ex) {
+            // A file the app cannot load must not stop it starting: keep the file,
+            // begin empty and say what happened on the sign-in page.
+            quarantine();
         }
     }
 
-    /** Writes the whole store back to disk, creating folders if needed. */
-    private void persist() {
-        persist(announcements);
+    /** Marks a store file the app cannot load, so the whole file is set aside. */
+    private static final class InvalidStoreException extends IllegalStateException {
+
+        private static final long serialVersionUID = 1L;
+
+        InvalidStoreException(String message) {
+            super(message);
+        }
     }
 
-    /** Writes a staged announcement collection alongside the current legacy data. */
-    private void persist(Map<String, Announcement> announcementsToPersist) {
+    /**
+     * Moves a store file that cannot be parsed beside itself, so the original bytes
+     * survive and the app can start with an empty store. The name carries a
+     * timestamp, so a second rescue never overwrites the first.
+     */
+    private void quarantine() {
+        // Nothing may survive a failed load: a half-filled store would let the next
+        // save rewrite the file without the sections that failed to parse.
+        users.clear();
+        teams.clear();
+        events.clear();
+        attendance.clear();
+        announcements.clear();
+        parentLinks.clear();
+        absenceNotices.clear();
+        eventNotifications.clear();
+        storedDocument = new JSONObject();
+
+        final Path target = file.toAbsolutePath();
+        final String stamp = LocalDateTime.now()
+                .format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"));
+        Path kept = target.resolveSibling(target.getFileName() + CORRUPT_SUFFIX + stamp);
+        int attempt = 1;
+        while (Files.exists(kept)) {
+            kept = target.resolveSibling(target.getFileName() + CORRUPT_SUFFIX + stamp
+                    + "-" + attempt++);
+        }
+        try {
+            Files.move(target, kept);
+            quarantined = kept;
+            loadNote = " (previous file was unreadable; kept as " + kept.getFileName() + ")";
+        }
+        catch (IOException ex) {
+            loadNote = " (previous file was unreadable and could not be kept: "
+                    + ex.getMessage() + ")";
+            System.err.println(loadNote.trim());
+        }
+    }
+
+    /**
+     * Writes the whole store back to disk, creating folders if needed, and only
+     * then records it as what the next write starts from.
+     *
+     * Every saver puts its change into memory first and puts the previous state
+     * back if this throws, so a write that fails leaves the store exactly as it
+     * was: nothing is readable that could not be saved, and the next save cannot
+     * write a change the user was told had failed. Callers are synchronized.
+     */
+    private void persist() {
         final JSONObject root = new JSONObject(storedDocument.toString());
 
         final JSONArray usersJson = new JSONArray();
@@ -730,7 +771,7 @@ public class FileAppDataAccessObject implements
         root.put(ATTENDANCE, attendanceJson);
 
         final JSONArray announcementsJson = new JSONArray();
-        for (Announcement announcement : announcementsToPersist.values()) {
+        for (Announcement announcement : announcements.values()) {
             announcementsJson.put(withStoredFields(ANNOUNCEMENTS, EntityJsonMapper.toJson(announcement),
                     "announcementId"));
         }

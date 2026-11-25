@@ -5,6 +5,8 @@ import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
+import java.beans.PropertyChangeEvent;
+import java.beans.PropertyChangeListener;
 
 import javax.swing.BorderFactory;
 import javax.swing.Box;
@@ -15,71 +17,19 @@ import javax.swing.JPanel;
 import javax.swing.JPasswordField;
 import javax.swing.JTextField;
 
+import interface_adapter.database_settings.DatabaseSettingsController;
+import interface_adapter.database_settings.DatabaseSettingsViewModel;
+
 /**
  * Page where the user connects the app to the shared database, without a
  * terminal.
  *
- * The URL and the publishable key are typed once, tested against the database,
- * and saved into the user's home folder by whatever the caller supplies. This
- * page only collects text and shows messages; the saving and the connection
- * check are callbacks, so the page has no dependency on the data layer and can
- * be tested without a window.
+ * It only collects text and shows what the view model carries: the URL to start
+ * from and the sentence that explains the last check or save. What counts as
+ * acceptable settings, and how a failure is worded, live in the use case, so this
+ * page cannot disagree with the store about either.
  */
-public class DatabaseSettingsView extends JPanel {
-
-    /** Checks settings against the database without saving them. */
-    @FunctionalInterface
-    public interface ConnectionTester {
-
-        /**
-         * Checks two values.
-         *
-         * @param url the project URL
-         * @param key the publishable key
-         * @return whether they work, with a message to show
-         */
-        TestResult test(String url, String key);
-    }
-
-    /** Saves settings for this user. */
-    @FunctionalInterface
-    public interface SettingsSaver {
-
-        /**
-         * Saves two values.
-         *
-         * @param url the project URL
-         * @param key the publishable key
-         * @throws Exception when the values cannot be saved
-         */
-        void save(String url, String key) throws Exception;
-    }
-
-    /** The outcome of a check, as this page needs it. */
-    public static final class TestResult {
-
-        private final boolean ok;
-        private final String message;
-
-        /**
-         * Creates the result.
-         *
-         * @param ok      whether the settings worked
-         * @param message what to show
-         */
-        public TestResult(boolean ok, String message) {
-            this.ok = ok;
-            this.message = message;
-        }
-
-        public boolean isOk() {
-            return ok;
-        }
-
-        public String getMessage() {
-            return message;
-        }
-    }
+public class DatabaseSettingsView extends JPanel implements PropertyChangeListener {
 
     private static final Color PROBLEM = new Color(180, 30, 30);
     private static final Color OK = new Color(22, 101, 52);
@@ -89,21 +39,19 @@ public class DatabaseSettingsView extends JPanel {
     private final JTextField urlField = new JTextField(30);
     private final JPasswordField keyField = new JPasswordField(30);
     private final JLabel statusLabel = new JLabel(" ");
-    private final String settingsFile;
+    private final DatabaseSettingsViewModel viewModel;
 
-    private ConnectionTester tester;
-    private SettingsSaver saver;
+    private DatabaseSettingsController controller;
     private Runnable onBackToLogin;
 
     /**
      * Creates the page.
      *
-     * @param currentUrl   the URL already configured, or an empty string
-     * @param settingsFile where saving will put the settings, for the hint text
+     * @param viewModel the page state: what to start with and what happened last
      */
-    public DatabaseSettingsView(String currentUrl, String settingsFile) {
-        this.settingsFile = settingsFile;
-        urlField.setText(currentUrl == null ? "" : currentUrl);
+    public DatabaseSettingsView(DatabaseSettingsViewModel viewModel) {
+        this.viewModel = viewModel;
+        this.viewModel.addPropertyChangeListener(this);
 
         setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
         setBackground(Color.WHITE);
@@ -118,21 +66,12 @@ public class DatabaseSettingsView extends JPanel {
     }
 
     /**
-     * Gives the page the check to run when Test connection is pressed.
+     * Gives the page the controller its two buttons call.
      *
-     * @param tester the connection check
+     * @param controller the Database Settings controller
      */
-    public void setOnTestConnection(ConnectionTester tester) {
-        this.tester = tester;
-    }
-
-    /**
-     * Gives the page the save to run when Save is pressed.
-     *
-     * @param saver the settings saver
-     */
-    public void setOnSave(SettingsSaver saver) {
-        this.saver = saver;
+    public void setController(DatabaseSettingsController controller) {
+        this.controller = controller;
     }
 
     /**
@@ -142,6 +81,24 @@ public class DatabaseSettingsView extends JPanel {
      */
     public void setOnBackToLogin(Runnable onBackToLogin) {
         this.onBackToLogin = onBackToLogin;
+    }
+
+    /**
+     * Fills in the settings the use case reports, and shows its outcome.
+     *
+     * The URL is only written when the use case has settings to show, so a result
+     * arriving while the user is typing cannot overwrite what they typed.
+     *
+     * @param evt the change
+     */
+    @Override
+    public void propertyChange(PropertyChangeEvent evt) {
+        if ("settings".equals(evt.getPropertyName())) {
+            urlField.setText(viewModel.getCurrentUrl());
+        }
+        else if ("result".equals(evt.getPropertyName())) {
+            show(viewModel.getMessage(), viewModel.isSuccess() ? OK : PROBLEM);
+        }
     }
 
     // ------------------------------------------------------------------
@@ -203,11 +160,7 @@ public class DatabaseSettingsView extends JPanel {
         buttons.add(Box.createHorizontalStrut(10));
         buttons.add(saveButton);
         buttons.add(Box.createHorizontalStrut(20));
-        buttons.add(link("Back to log in", () -> {
-            if (onBackToLogin != null) {
-                onBackToLogin.run();
-            }
-        }));
+        buttons.add(link("Back to log in", this::clickBackToLogin));
         return buttons;
     }
 
@@ -236,40 +189,21 @@ public class DatabaseSettingsView extends JPanel {
 
     /** Presses Test connection: checks the typed values without saving them. */
     void onTest() {
-        if (tester == null) {
+        if (controller == null) {
             show("Connection testing is not wired up in this preview.", PROBLEM);
             return;
         }
-        final String url = urlField.getText().trim();
-        final String key = new String(keyField.getPassword()).trim();
-        if (url.isEmpty() || key.isEmpty()) {
-            show("Enter both a project URL and a publishable key.", PROBLEM);
-            return;
-        }
         show("Testing...", INK);
-        final TestResult result = tester.test(url, key);
-        show(result.getMessage(), result.isOk() ? OK : PROBLEM);
+        controller.test(urlField.getText().trim(), new String(keyField.getPassword()).trim());
     }
 
     /** Presses Save: stores the typed values for this user. */
     void onSave() {
-        if (saver == null) {
+        if (controller == null) {
             show("Saving is not wired up in this preview.", PROBLEM);
             return;
         }
-        final String url = urlField.getText().trim();
-        final String key = new String(keyField.getPassword()).trim();
-        if (url.isEmpty() || key.isEmpty()) {
-            show("Enter both a project URL and a publishable key.", PROBLEM);
-            return;
-        }
-        try {
-            saver.save(url, key);
-            show("Saved to " + settingsFile + " - restart the app to connect.", OK);
-        }
-        catch (Exception ex) {
-            show(ex.getMessage() == null ? ex.toString() : ex.getMessage(), PROBLEM);
-        }
+        controller.save(urlField.getText().trim(), new String(keyField.getPassword()).trim());
     }
 
     // ------------------------------------------------------------------
@@ -314,6 +248,13 @@ public class DatabaseSettingsView extends JPanel {
     /** Presses Test connection the way a test would. */
     void clickTest() {
         onTest();
+    }
+
+    /** Presses Back to log in the way a test would. */
+    void clickBackToLogin() {
+        if (onBackToLogin != null) {
+            onBackToLogin.run();
+        }
     }
 
     private void show(String message, Color colour) {

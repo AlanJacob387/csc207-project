@@ -2,7 +2,9 @@ package use_case.change_password;
 
 import java.io.UncheckedIOException;
 
+import entity.InvalidAccountException;
 import entity.User;
+import use_case.accounts.AccountRefusalText;
 import use_case.current_user.CurrentUserInterface;
 
 /**
@@ -82,6 +84,10 @@ public class ChangePasswordInteractor implements ChangePasswordInputBoundary {
             // The entity hashes the new password, so the stored credential is
             // never the plaintext the user typed.
             dataAccess.save(user.withNewPassword(newPassword));
+        }
+        catch (InvalidAccountException ex) {
+            presenter.prepareFailView(AccountRefusalText.forRefusal(ex.getRefusal()));
+            return;
         }
         catch (IllegalStateException | UncheckedIOException ex) {
             presenter.prepareFailView("Could not save the new password: " + ex.getMessage());

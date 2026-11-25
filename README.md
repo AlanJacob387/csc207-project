@@ -73,7 +73,7 @@ The L5 features below are implemented on `daniel/l5-completion` and await teamma
 
 On `daniel/l5-completion`, before it was combined with the hosted store and Manage Users, `./gradlew --offline build installDist` passed all 297 offline tests and built the runnable distribution, and `./gradlew --offline test -Pnetwork` passed all 298 tests including the live weather check. The actual `Main.configure` application path was exercised through the forms, and the screenshots below were captured from Swing pages with a live event forecast. Teammate review remains pending for `daniel/l5-completion`.
 
-After combining it with the hosted store and Manage Users, `./gradlew --offline build` passes 449 tests in 58 classes. The installed application is in `build/install/team-sports-platform`, and the ZIP distribution is `build/distributions/team-sports-platform-0.1.0.zip`. These are local build outputs. Detailed evidence and independent branch findings are in `Documentation.md`.
+After combining it with the hosted store and Manage Users, `./gradlew --offline build` passes 528 tests in 65 classes. The installed application is in `build/install/team-sports-platform`, and the ZIP distribution is `build/distributions/team-sports-platform-0.1.0.zip`. These are local build outputs. Detailed evidence and independent branch findings are in `Documentation.md`.
 
 ## How to run
 
@@ -88,16 +88,18 @@ Use JDK 21 and the checked-in Gradle wrapper (JDK 17 or newer works; `JAVA_HOME`
 
 On Windows, use `gradlew.bat`. With cached dependencies, `./gradlew --offline build` verifies the application without dependency downloads.
 
+Each role sees only the pages it may use, an administrator creates, re-roles, deactivates and reactivates accounts on **Manage Users**, and **Create an Account** makes a new one - a username of 3 to 40 characters and a password of 8 to 128, the same rule on every page that writes a credential.
+
 To use the shared database, open **Database settings** on the sign-in page and paste the project URL and publishable key (see `db/README.md`) - nothing is needed in a terminal. Without it the app keeps its data in `data/app-data.json`, which is git-ignored.
 
-A genuinely empty local store receives the presentation dataset on startup, and existing stores keep their data. A shared database is only given the four demo accounts `coach1`, `player1`, `parent1` and `admin1` plus a team, because it is shared with other people. To create a separate local demo, choose a destination that does not already exist and use the same path to run it.
+A genuinely empty local store receives the presentation dataset on startup, and existing stores keep their data. A shared database is only given the four demo accounts `coach1` (coach), `player1` (player), `parent1` (parent) and `admin1` (admin), password `teampass`, stored hashed, plus a team, because it is shared with other people. They are created only while the store has no account of its own, so a demo account an administrator deleted stays deleted. To create a separate local demo, choose a destination that does not already exist and use the same path to run it.
 
 ```bash
 ./gradlew seedDemo -PdemoData=data/demo-data.json
 ./gradlew run -PappData=data/demo-data.json
 ```
 
-`seedDemo` refuses an existing destination. The dataset contains `admin1`, `coach1`–`coach2`, `player1`–`player8`, and `parent1`–`parent4`, all with password `pw`; their passwords are re-hashed the first time each account signs in. It includes three teams, 42 events over the next 14 days, eight parent/player links, announcements, notification history, and an absence notice. Keep the demo file local. The five-minute presentation script and verification instructions are in [Documentation.md](Documentation.md#10-five-minute-demo).
+`seedDemo` refuses an existing destination. The dataset contains `admin1`, `coach1`–`coach2`, `player1`–`player8`, and `parent1`–`parent4`, all with password `pw`. That is shorter than the password rule allows, so these accounts are stored and checked as given and sign-in does not re-hash them; keep the file local. It includes three teams, 42 events over the next 14 days, eight parent/player links, announcements, notification history, and an absence notice. Keep the demo file local. The five-minute presentation script and verification instructions are in [Documentation.md](Documentation.md#10-five-minute-demo).
 
 ## Screenshots
 

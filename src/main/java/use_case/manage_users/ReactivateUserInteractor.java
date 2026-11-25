@@ -59,12 +59,14 @@ public class ReactivateUserInteractor implements ReactivateUserInputBoundary {
                 presenter.prepareFailView(username + " is already active.");
                 return;
             }
-            dataAccess.save(target.withActive(true));
-            presenter.prepareSuccessView(ManageUsersOutputData.of(
-                    "Account reactivated: " + username + ".", dataAccess.getAllUsers()));
+            dataAccess.updateActive(username, true);
         }
         catch (IllegalStateException | UncheckedIOException ex) {
             presenter.prepareFailView("Could not update the account: " + ex.getMessage());
+            return;
         }
+
+        AccountListReport.show(presenter, "Account reactivated: " + username + ".",
+                dataAccess::getAllUsers);
     }
 }

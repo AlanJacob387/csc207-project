@@ -1,7 +1,9 @@
 package use_case.manage_users;
 
 import java.io.UncheckedIOException;
+import java.util.List;
 
+import entity.Role;
 import entity.User;
 import use_case.current_user.CurrentUserInterface;
 
@@ -49,8 +51,9 @@ public class DeactivateUserInteractor implements DeactivateUserInputBoundary {
             return;
         }
 
+        final User target;
         try {
-            final User target = dataAccess.get(username);
+            target = dataAccess.get(username);
             if (target == null) {
                 presenter.prepareFailView("No account found for " + username + ".");
                 return;
@@ -67,12 +70,36 @@ public class DeactivateUserInteractor implements DeactivateUserInputBoundary {
                 presenter.prepareFailView(AdminPolicy.LAST_ADMIN);
                 return;
             }
-            dataAccess.save(target.withActive(false));
-            presenter.prepareSuccessView(ManageUsersOutputData.of(
-                    "Account deactivated: " + username + ".", dataAccess.getAllUsers()));
+            dataAccess.updateActive(username, false);
         }
         catch (IllegalStateException | UncheckedIOException ex) {
             presenter.prepareFailView("Could not update the account: " + ex.getMessage());
+            return;
         }
+
+        final String done = "Account deactivated: " + username + ".";
+        final List<User> accounts;
+        try {
+            accounts = dataAccess.getAllUsers();
+        }
+        catch (IllegalStateException | UncheckedIOException ex) {
+            presenter.prepareFailView(AccountListReport.unrefreshed(done, ex));
+            return;
+        }
+        if (target.getRole() == Role.ADMIN && !AdminPolicy.hasActiveAdmin(accounts)) {
+            // Another administrator removed the last other one between our check and our
+            // write. The check cannot be made atomic from here, so the write is taken
+            // back instead of leaving nobody able to administer.
+            try {
+                dataAccess.updateActive(username, true);
+                presenter.prepareFailView(AdminPolicy.LAST_ADMIN);
+            }
+            catch (IllegalStateException | UncheckedIOException ex) {
+                presenter.prepareFailView(AdminPolicy.LAST_ADMIN + " " + username
+                        + " is deactivated and could not be restored: " + ex.getMessage());
+            }
+            return;
+        }
+        presenter.prepareSuccessView(ManageUsersOutputData.of(done, accounts));
     }
 }

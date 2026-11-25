@@ -5,6 +5,7 @@ import java.util.List;
 
 import entity.Role;
 import entity.User;
+import use_case.accounts.GetAccountDataAccessInterface;
 import use_case.current_user.CurrentUserInterface;
 
 /**
@@ -42,7 +43,7 @@ final class AdminPolicy {
      * @return the message to show, or null when the caller may manage users
      */
     static String refusalFor(CurrentUserInterface currentUser,
-                             ManageUsersDataAccessInterface dataAccess) {
+                             GetAccountDataAccessInterface dataAccess) {
         if (currentUser.getCurrentRole() != Role.ADMIN) {
             return NOT_ADMIN;
         }
@@ -83,5 +84,24 @@ final class AdminPolicy {
             }
         }
         return activeAdmins <= 1;
+    }
+
+    /**
+     * Says whether at least one account is an active administrator.
+     *
+     * Run after a write that removed an administrator, to catch what the check
+     * before the write cannot: two administrators removing each other in the same
+     * moment each saw the other still active.
+     *
+     * @param accounts every stored account
+     * @return true when someone can still administer
+     */
+    static boolean hasActiveAdmin(List<User> accounts) {
+        for (User account : accounts) {
+            if (account.isActive() && account.getRole() == Role.ADMIN) {
+                return true;
+            }
+        }
+        return false;
     }
 }

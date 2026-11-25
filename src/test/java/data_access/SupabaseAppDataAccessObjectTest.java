@@ -27,6 +27,7 @@ import entity.AttendanceRecord;
 import entity.Event;
 import entity.Role;
 import entity.User;
+import use_case.accounts.DuplicateUsernameException;
 
 /**
  * Tests the hosted store against a local stub server, so every request shape is
@@ -42,6 +43,7 @@ class SupabaseAppDataAccessObjectTest {
         private String method;
         private String path;
         private String query;
+        private String rawQuery;
         private String apikey;
         private String prefer;
         private String body;
@@ -81,6 +83,7 @@ class SupabaseAppDataAccessObjectTest {
         call.method = exchange.getRequestMethod();
         call.path = exchange.getRequestURI().getPath();
         call.query = exchange.getRequestURI().getQuery();
+        call.rawQuery = exchange.getRequestURI().getRawQuery();
         call.apikey = exchange.getRequestHeaders().getFirst("apikey");
         call.prefer = exchange.getRequestHeaders().getFirst("Prefer");
         call.body = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
@@ -140,6 +143,24 @@ class SupabaseAppDataAccessObjectTest {
     }
 
     @Test
+    void aDottedUsernameIsSentAsItIsNotQuoted() {
+        assertNull(store.get("pat.smith"));
+
+        assertEquals("select=*&username=eq.pat.smith&limit=1", only().rawQuery,
+                "an eq filter takes everything after the operator, so a dot needs no quotes; "
+                        + "quotes would be compared as part of the value");
+    }
+
+    @Test
+    void aValueThatIsQueryStringSyntaxStaysOneParameter() {
+        assertNull(store.get("a b&c=d,e\"f"));
+
+        assertEquals("select=*&username=eq.a%20b%26c%3Dd%2Ce%22f&limit=1", only().rawQuery,
+                "an ampersand or equals sign in a value must not start another parameter");
+        assertEquals("select=*&username=eq.a b&c=d,e\"f&limit=1", only().query);
+    }
+
+    @Test
     void savingAUserUpsertsOnTheUsername() {
         store.save(new User("p1", "hash", "Pat", Role.PLAYER, false));
 
@@ -153,6 +174,44 @@ class SupabaseAppDataAccessObjectTest {
         assertEquals("p1", sent.getString("username"));
         assertEquals("hash", sent.getString("password"));
         assertFalse(sent.getBoolean("active"));
+    }
+
+    @Test
+    void changingARolePatchesOnlyThatColumnOfThatRow() {
+        respond(200, "[{\"username\":\"p1\"}]");
+
+        store.updateRole("p1", Role.COACH);
+
+        final Recorded call = only();
+        assertEquals("PATCH", call.method);
+        assertEquals("/rest/v1/users", call.path);
+        assertEquals("select=username&username=eq.p1", call.query);
+        assertEquals("return=representation", call.prefer);
+        final JSONObject sent = new JSONObject(call.body);
+        assertEquals(1, sent.length(), "no credential or name may travel with a role change");
+        assertEquals("COACH", sent.getString("role"));
+    }
+
+    @Test
+    void changingTheStatusPatchesOnlyTheActiveColumn() {
+        respond(200, "[{\"username\":\"p1\"}]");
+
+        store.updateActive("p1", false);
+
+        final JSONObject sent = new JSONObject(only().body);
+        assertEquals(1, sent.length());
+        assertFalse(sent.getBoolean("active"));
+    }
+
+    @Test
+    void aPatchThatMatchedNoRowIsReportedBecausePostgrestCallsItASuccess() {
+        respond(200, "[]");
+
+        final IllegalStateException thrown = assertThrows(IllegalStateException.class,
+                () -> store.updateRole("ghost", Role.COACH));
+
+        assertTrue(thrown.getMessage().contains("No account found for ghost"),
+                thrown.getMessage());
     }
 
     @Test
@@ -170,23 +229,6 @@ class SupabaseAppDataAccessObjectTest {
 
         assertEquals(2, store.getAllUsers().size());
         assertEquals(1, recorded.size(), "getAllUsers reads the table in one request");
-    }
-
-    @Test
-    void savingAProfileOnlyPatchesTheProfileColumns() {
-        store.saveProfile("p1", "Patricia", Role.COACH);
-
-        final Recorded call = only();
-        assertEquals("PATCH", call.method);
-        assertEquals("/rest/v1/users", call.path);
-        assertEquals("username=eq.p1", call.query);
-        assertEquals("return=minimal", call.prefer);
-
-        final JSONObject sent = new JSONObject(call.body);
-        assertEquals("Patricia", sent.getString("displayName"));
-        assertEquals("COACH", sent.getString("role"));
-        assertFalse(sent.has("password"), "a profile change must not touch the credential");
-        assertFalse(sent.has("active"), "a profile change must not reactivate the account");
     }
 
     // ------------------------------------------------------------------
@@ -209,6 +251,29 @@ class SupabaseAppDataAccessObjectTest {
     private static entity.AbsenceNotice notice(String id, String parent, String player, String eventId) {
         return new entity.AbsenceNotice(id, parent, player, eventId, "Appointment",
                 LocalDateTime.of(2026, 11, 23, 9, 0));
+    }
+
+    @Test
+    void creatingAnAccountInsertsInsteadOfUpserting() {
+        store.createUser(new User("p1", "hash", "Pat", Role.PLAYER));
+
+        final Recorded call = only();
+        assertEquals("POST", call.method);
+        assertEquals("/rest/v1/users", call.path);
+        assertNull(call.query, "a strict insert must not ask for merge-duplicates");
+        assertEquals("return=minimal", call.prefer);
+        assertEquals("p1", new JSONObject(call.body).getString("username"));
+        assertTrue(new JSONObject(call.body).getBoolean("active"));
+    }
+
+    @Test
+    void aDuplicateAccountIsReportedInsteadOfReplacingTheStoredOne() {
+        respond(409, "{\"code\":\"23505\",\"message\":\"duplicate key value\"}");
+
+        final DuplicateUsernameException thrown = assertThrows(DuplicateUsernameException.class,
+                () -> store.createUser(new User("p1", "hash", "Pat", Role.PLAYER)));
+
+        assertEquals("p1", thrown.getUsername());
     }
 
     @Test
@@ -411,6 +476,15 @@ class SupabaseAppDataAccessObjectTest {
         assertEquals("select=*&teamId=eq.t1&order=createdAt.asc", only().query);
     }
 
+    @Test
+    void theAnnouncementFilterSendsATeamIdTheSameWayAsAnAccountLookup() {
+        store.getAnnouncementsForTeam("demo.team");
+
+        assertEquals("select=*&teamId=eq.demo.team&order=createdAt.asc", only().rawQuery,
+                "every filtered read goes through PostgrestClient.where, so a dotted id is "
+                        + "sent unquoted exactly like a dotted username");
+    }
+
     // ------------------------------------------------------------------
     // Failures and configuration
     // ------------------------------------------------------------------
@@ -427,6 +501,31 @@ class SupabaseAppDataAccessObjectTest {
     }
 
     @Test
+    void aTwoHundredThatIsNotJsonIsExplainedInsteadOfThrown() {
+        respond(200, "<html><body>This project is paused</body></html>");
+
+        final IllegalStateException thrown = assertThrows(IllegalStateException.class,
+                () -> store.get("coach1"));
+
+        assertTrue(thrown.getMessage().contains("not JSON"), thrown.getMessage());
+        assertTrue(thrown.getMessage().contains("This project is paused"),
+                "the message shows what came back: " + thrown.getMessage());
+    }
+
+    @Test
+    void aRowThatCannotBeReadNamesTheRecord() {
+        respond(200, "[{\"username\":\"x\",\"password\":\"hash\",\"displayName\":\"X\","
+                + "\"role\":\"SUPERADMIN\"}]");
+
+        final IllegalStateException thrown = assertThrows(IllegalStateException.class,
+                () -> store.getAllUsers());
+
+        assertTrue(thrown.getMessage().contains("holds an account that cannot be read"),
+                thrown.getMessage());
+        assertTrue(thrown.getMessage().contains("SUPERADMIN"), thrown.getMessage());
+    }
+
+    @Test
     void theStoreIsOnlyBuiltWhenBothValuesArePresent() {
         assertNull(SupabaseAppDataAccessObject.fromValues(null, "key"));
         assertNull(SupabaseAppDataAccessObject.fromValues("", "key"));
@@ -440,40 +539,6 @@ class SupabaseAppDataAccessObjectTest {
     void theStoreNamesItsProjectSoTheSignInPageCanShowIt() {
         assertTrue(store.describe().startsWith("Hosted database"));
         assertTrue(store.describe().contains(baseUrl()));
-    }
-
-    @Test
-    void aConnectionTestReportsHowManyAccountsAreStored() {
-        respond(200, "[" + USER_ROW + "]");
-
-        final SupabaseAppDataAccessObject.ConnectionCheck check =
-                SupabaseAppDataAccessObject.testConnection(baseUrl(), "sb_publishable_test");
-
-        assertTrue(check.isOk());
-        assertTrue(check.getMessage().contains("1 account"));
-    }
-
-    @Test
-    void aConnectionTestExplainsARejection() {
-        respond(401, "{\"message\":\"Invalid API key\"}");
-
-        final SupabaseAppDataAccessObject.ConnectionCheck check =
-                SupabaseAppDataAccessObject.testConnection(baseUrl(), "sb_publishable_test");
-
-        assertFalse(check.isOk());
-        assertTrue(check.getMessage().contains("401"));
-        assertTrue(check.getMessage().contains("Invalid API key"));
-    }
-
-    @Test
-    void aConnectionTestRefusesBlankOrSecretValues() {
-        assertFalse(SupabaseAppDataAccessObject.testConnection("", "").isOk());
-        assertTrue(SupabaseAppDataAccessObject.testConnection("", "").getMessage().contains("both"));
-
-        final SupabaseAppDataAccessObject.ConnectionCheck secret =
-                SupabaseAppDataAccessObject.testConnection(baseUrl(), "sb_secret_abc123");
-        assertFalse(secret.isOk());
-        assertTrue(secret.getMessage().contains("publishable"));
     }
 
     private String baseUrl() {

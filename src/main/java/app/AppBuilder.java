@@ -6,6 +6,7 @@ import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.time.Clock;
 import java.util.Objects;
+import java.util.Set;
 
 import javax.swing.BorderFactory;
 import javax.swing.JFrame;
@@ -15,12 +16,14 @@ import javax.swing.SwingConstants;
 
 import data_access.AppDataStore;
 import data_access.DatabaseConfig;
+import data_access.DatabaseSettingsGateway;
 import data_access.FileAppDataAccessObject;
 import data_access.FileScheduleWriter;
 import data_access.OpenMeteoWeatherGateway;
 import data_access.SupabaseAppDataAccessObject;
 import entity.Role;
 import entity.Team;
+import entity.User;
 import entity.UserFactory;
 import interface_adapter.Session;
 import interface_adapter.ViewManagerModel;
@@ -50,6 +53,9 @@ import interface_adapter.change_password.ChangePasswordController;
 import interface_adapter.change_password.ChangePasswordPresenter;
 import interface_adapter.change_password.ChangePasswordViewModel;
 import interface_adapter.create_event.CreateEventController;
+import interface_adapter.database_settings.DatabaseSettingsController;
+import interface_adapter.database_settings.DatabaseSettingsPresenter;
+import interface_adapter.database_settings.DatabaseSettingsViewModel;
 import interface_adapter.create_event.CreateEventPresenter;
 import interface_adapter.create_event.CreateEventViewModel;
 import interface_adapter.edit_event.EditEventController;
@@ -63,9 +69,13 @@ import interface_adapter.login.LoginPresenter;
 import interface_adapter.login.LoginViewModel;
 import interface_adapter.logout.LogoutController;
 import interface_adapter.logout.LogoutPresenter;
-import interface_adapter.manage_users.ManageUsersController;
+import interface_adapter.manage_users.ChangeUserRoleController;
+import interface_adapter.manage_users.CreateUserController;
+import interface_adapter.manage_users.DeactivateUserController;
+import interface_adapter.manage_users.ListAccountsController;
 import interface_adapter.manage_users.ManageUsersPresenter;
 import interface_adapter.manage_users.ManageUsersViewModel;
+import interface_adapter.manage_users.ReactivateUserController;
 import interface_adapter.post_announcement.PostAnnouncementController;
 import interface_adapter.post_announcement.PostAnnouncementPresenter;
 import interface_adapter.post_announcement.PostAnnouncementViewModel;
@@ -75,6 +85,7 @@ import interface_adapter.signup.SignupViewModel;
 import interface_adapter.view_announcements.ViewAnnouncementsController;
 import interface_adapter.view_announcements.ViewAnnouncementsPresenter;
 import interface_adapter.view_announcements.ViewAnnouncementsViewModel;
+import use_case.accounts.DuplicateUsernameException;
 import interface_adapter.view_event_details.ViewEventDetailsController;
 import interface_adapter.view_event_details.ViewEventDetailsPresenter;
 import interface_adapter.view_event_details.ViewEventDetailsViewModel;
@@ -87,6 +98,7 @@ import use_case.change_password.ChangePasswordInteractor;
 import use_case.create_event.CreateEventInteractor;
 import use_case.edit_event.EditEventInteractor;
 import use_case.export_schedule.ExportScheduleInteractor;
+import use_case.database_settings.DatabaseSettingsInteractor;
 import use_case.login.LoginInteractor;
 import use_case.logout.LogoutInteractor;
 import use_case.manage_users.ChangeUserRoleInteractor;
@@ -140,10 +152,14 @@ import view.RainRiskPanel;
 public class AppBuilder {
 
     /** Password given to the demo accounts seeded on first run in a hosted store. */
-    private static final String DEMO_PASSWORD = "pw";
+    private static final String DEMO_PASSWORD = "teampass";
 
     /** Id of the demo team seeded on first run in a hosted store. */
     private static final String DEMO_TEAM_ID = "demo-team";
+
+    /** The usernames the demo seed owns; any other account means the store is in real use. */
+    private static final Set<String> DEMO_USERNAMES =
+            Set.of("coach1", "player1", "parent1", "admin1");
 
     // Shared collaborators, created once and handed to whatever needs them.
     private final DatabaseConfig databaseConfig;
@@ -215,16 +231,15 @@ public class AppBuilder {
      * @return this builder, so the calls can be chained
      */
     public AppBuilder addDatabaseSettingsView() {
-        final DatabaseSettingsView view = new DatabaseSettingsView(
-                databaseConfig == null ? "" : databaseConfig.getUrl(),
-                DatabaseConfig.userFile().toString());
+        final DatabaseSettingsViewModel viewModel = new DatabaseSettingsViewModel();
+        final DatabaseSettingsPresenter presenter = new DatabaseSettingsPresenter(viewModel);
+        final DatabaseSettingsController controller = new DatabaseSettingsController(
+                new DatabaseSettingsInteractor(new DatabaseSettingsGateway(), presenter));
+
+        final DatabaseSettingsView view = new DatabaseSettingsView(viewModel);
+        view.setController(controller);
         view.setOnBackToLogin(() -> navigate(ViewManagerModel.LOGIN));
-        view.setOnTestConnection((url, key) -> {
-            final SupabaseAppDataAccessObject.ConnectionCheck check =
-                    SupabaseAppDataAccessObject.testConnection(url, key);
-            return new DatabaseSettingsView.TestResult(check.isOk(), check.getMessage());
-        });
-        view.setOnSave(DatabaseConfig::save);
+        controller.prepareView();
         viewManager.register(ViewManager.DATABASE, view);
         return this;
     }
@@ -506,14 +521,20 @@ public class AppBuilder {
     public AppBuilder addManageUsersUseCase() {
         final ManageUsersViewModel viewModel = new ManageUsersViewModel();
         final ManageUsersPresenter presenter = new ManageUsersPresenter(viewModel);
-        final ManageUsersController controller = new ManageUsersController(
-                new CreateUserInteractor(dataAccess, presenter, session, userFactory),
-                new ChangeUserRoleInteractor(dataAccess, presenter, session),
-                new DeactivateUserInteractor(dataAccess, presenter, session),
-                new ReactivateUserInteractor(dataAccess, presenter, session),
-                new ListAccountsInteractor(dataAccess, presenter, session));
 
-        appShell.addPage("Manage Users", new ManageUsersView(controller, viewModel, session),
+        appShell.addPage("Manage Users", new ManageUsersView(
+                        new ListAccountsController(
+                                new ListAccountsInteractor(dataAccess, presenter, session)),
+                        new CreateUserController(
+                                new CreateUserInteractor(dataAccess, presenter, session,
+                                        userFactory)),
+                        new ChangeUserRoleController(
+                                new ChangeUserRoleInteractor(dataAccess, presenter, session)),
+                        new DeactivateUserController(
+                                new DeactivateUserInteractor(dataAccess, presenter, session)),
+                        new ReactivateUserController(
+                                new ReactivateUserInteractor(dataAccess, presenter, session)),
+                        viewModel, session),
                 Role.ADMIN);
         return this;
     }
@@ -624,19 +645,26 @@ public class AppBuilder {
     }
 
     /**
-     * Creates one demo account per role (password "pw") and a demo team, but
-     * only where they are missing, so the app can be tried straight away.
+     * Creates one demo account per role (password "teampass") and a demo team, but
+     * only while the store holds no account of its own.
+     *
+     * "Of its own" means any account whose username is not one of the four demo
+     * names. Once a real account exists the seed does nothing, so a demo account
+     * an administrator deleted (above all {@code admin1}, which has a published
+     * password) stays deleted instead of coming back on the next start of any
+     * client. A store that holds only demo accounts - a first run, or one that
+     * stopped halfway - is completed, and an account that is already there is
+     * kept as it is.
      *
      * Reports a failure instead of throwing: a store that cannot be reached while
      * the app is starting must still leave the user on the sign-in page, where the
      * reason is shown and the database settings can be corrected. Nothing is
      * swapped for a local file - the caller keeps the store it chose.
      *
-     * Every account is checked separately: a store that already holds a
-     * customised player1 keeps it, instead of being overwritten because only
-     * coach1 had been deleted. The factory hashes each demo password, so a fresh
-     * store never holds plaintext credentials. Replace this with the team's real
-     * seed data (task 4.4).
+     * Each account is inserted, never upserted, so a name another client created
+     * a moment earlier is not overwritten. The factory hashes each demo password,
+     * so a fresh store never holds plaintext credentials. Replace this with the
+     * team's real seed data (task 4.4).
      *
      * @param dataAccess  the store the whole app will use
      * @param userFactory builds and hashes the demo accounts
@@ -644,6 +672,9 @@ public class AppBuilder {
      */
     static String seedDemoDataIfEmpty(AppDataStore dataAccess, UserFactory userFactory) {
         try {
+            if (holdsAnAccountOfItsOwn(dataAccess)) {
+                return "";
+            }
             seedUser(dataAccess, userFactory, "coach1", "Coach One", Role.COACH);
             seedUser(dataAccess, userFactory, "player1", "Pat Player", Role.PLAYER);
             seedUser(dataAccess, userFactory, "parent1", "Sam Parent", Role.PARENT);
@@ -660,6 +691,21 @@ public class AppBuilder {
                     + " Sign-in will fail until it is back.";
         }
         return "";
+    }
+
+    /**
+     * Says whether any stored account is not one of the demo accounts.
+     *
+     * @param dataAccess the store to read
+     * @return true when the store is already in real use
+     */
+    private static boolean holdsAnAccountOfItsOwn(AppDataStore dataAccess) {
+        for (User user : dataAccess.getAllUsers()) {
+            if (!DEMO_USERNAMES.contains(user.getUsername())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -704,9 +750,9 @@ public class AppBuilder {
     }
 
     /**
-     * Inserts one demo account only when that username is still free.
+     * Inserts one demo account, leaving one that is already stored untouched.
      *
-     * @param dataAccess  the store to check and write
+     * @param dataAccess  the store to write
      * @param userFactory builds and hashes the account
      * @param username    the demo username
      * @param displayName the name to show in the app
@@ -714,8 +760,12 @@ public class AppBuilder {
      */
     private static void seedUser(AppDataStore dataAccess, UserFactory userFactory,
                                  String username, String displayName, Role role) {
-        if (!dataAccess.existsByName(username)) {
-            dataAccess.save(userFactory.create(username, DEMO_PASSWORD, displayName, role));
+        try {
+            dataAccess.createUser(userFactory.create(username, DEMO_PASSWORD, displayName, role));
+        }
+        catch (DuplicateUsernameException ex) {
+            // Already there, from an earlier start or another client: keep it as it is.
+            return;
         }
     }
 

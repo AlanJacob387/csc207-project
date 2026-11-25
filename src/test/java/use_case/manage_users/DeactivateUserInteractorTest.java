@@ -148,7 +148,12 @@ class DeactivateUserInteractorTest {
             }
 
             @Override
-            public void save(User user) {
+            public void updateRole(String username, Role role) {
+                throw new AssertionError("nothing should be saved");
+            }
+
+            @Override
+            public void updateActive(String username, boolean active) {
                 throw new AssertionError("nothing should be saved");
             }
         };
@@ -157,5 +162,84 @@ class DeactivateUserInteractorTest {
                 .execute(new DeactivateUserInputData("player1"));
 
         assertEquals("Could not update the account: the store is unreadable", presenter.error);
+    }
+
+
+    @Test
+    void aListThatCannotBeReadBackDoesNotMakeASavedChangeLookFailed() {
+        final RacingStore store = seeded();
+        store.failTheListAfterAWrite();
+
+        new DeactivateUserInteractor(store, presenter, session)
+                .execute(new DeactivateUserInputData("player1"));
+
+        assertFalse(store.get("player1").isActive(), "the change was written");
+        assertNull(presenter.success);
+        assertTrue(presenter.error.startsWith("Account deactivated: player1."), presenter.error);
+        assertTrue(presenter.error.contains("It was saved"), presenter.error);
+        assertFalse(presenter.error.startsWith("Could not update"), presenter.error);
+    }
+
+    @Test
+    void aDeactivationThatRacesAnotherOneIsTakenBackSoSomeoneCanStillAdminister() {
+        final RacingStore store = seeded();
+        // admin2 deactivates admin1 in the same moment admin1 deactivates admin2.
+        store.runAfterTheFirstWrite(() -> store.save(
+                new User("admin1", "pw", "Ada Admin", Role.ADMIN, false)));
+
+        new DeactivateUserInteractor(store, presenter, session)
+                .execute(new DeactivateUserInputData("admin2"));
+
+        assertEquals(AdminPolicy.LAST_ADMIN, presenter.error);
+        assertNull(presenter.success);
+        assertTrue(store.get("admin2").isActive(), "the write that left nobody is undone");
+    }
+
+    @Test
+    void ifTheUndoFailsTheAdministratorIsToldWhoIsStillDeactivated() {
+        final RacingStore store = seeded();
+        store.runAfterTheFirstWrite(() -> store.save(
+                new User("admin1", "pw", "Ada Admin", Role.ADMIN, false)));
+        store.failWritesFrom(2);
+
+        new DeactivateUserInteractor(store, presenter, session)
+                .execute(new DeactivateUserInputData("admin2"));
+
+        assertTrue(presenter.error.startsWith(AdminPolicy.LAST_ADMIN), presenter.error);
+        assertTrue(presenter.error.contains("admin2 is deactivated and could not be restored"),
+                presenter.error);
+    }
+
+    @Test
+    void aCredentialChangedAfterTheReadIsNotWrittenBack() {
+        final InMemoryUserDataAccessObject store = new InMemoryUserDataAccessObject() {
+            @Override
+            public User get(String username) {
+                // What the administrator read a moment before player1 changed password.
+                return "player1".equals(username)
+                        ? new User("player1", "old-hash", "Pat Player", Role.PLAYER)
+                        : super.get(username);
+            }
+        };
+        store.save(new User("admin1", "pw", "Ada Admin", Role.ADMIN));
+        store.save(new User("admin2", "pw", "Ada Two", Role.ADMIN));
+        store.save(new User("player1", "new-hash", "Pat Player", Role.PLAYER));
+
+        new DeactivateUserInteractor(store, presenter, session)
+                .execute(new DeactivateUserInputData("player1"));
+
+        assertNull(presenter.error);
+        assertEquals("new-hash", store.getAllUsers().stream()
+                        .filter(user -> "player1".equals(user.getUsername()))
+                        .findFirst().orElseThrow().getPassword(),
+                "only the status is written, so the newer credential survives");
+    }
+
+    private RacingStore seeded() {
+        final RacingStore store = new RacingStore();
+        store.save(new User("admin1", "pw", "Ada Admin", Role.ADMIN));
+        store.save(new User("player1", "pw", "Pat Player", Role.PLAYER));
+        store.save(new User("admin2", "pw", "Ada Two", Role.ADMIN));
+        return store;
     }
 }

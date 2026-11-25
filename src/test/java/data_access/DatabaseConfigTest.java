@@ -6,10 +6,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
@@ -113,7 +111,7 @@ class DatabaseConfigTest {
     void aLegacyServiceRoleKeyIsRefusedToo() {
         final IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
                 () -> DatabaseConfig.fromValues("https://x.example",
-                        legacyKey("service_role"), "test"));
+                        LegacyKeys.of("service_role"), "test"));
 
         assertTrue(thrown.getMessage().contains("row level security"),
                 "the old service_role JWT is as powerful as the new secret key");
@@ -121,7 +119,7 @@ class DatabaseConfigTest {
 
     @Test
     void aLegacyAnonKeyIsAccepted() {
-        final String key = legacyKey("anon");
+        final String key = LegacyKeys.of("anon");
 
         final DatabaseConfig config = DatabaseConfig.fromValues("https://x.example", key, "test");
 
@@ -178,21 +176,5 @@ class DatabaseConfigTest {
 
         assertEquals(DatabaseConfig.FILE_NAME, file.getFileName().toString());
         assertTrue(file.toString().contains(DatabaseConfig.FOLDER));
-    }
-
-    /**
-     * Builds a legacy Supabase key: a JWT with the given role in its payload. The
-     * signature is not checked by anything here, so a placeholder is enough.
-     *
-     * @param role the role the key would run as
-     * @return a three-part base64url key, the shape the dashboard shows
-     */
-    private static String legacyKey(String role) {
-        final Base64.Encoder encoder = Base64.getUrlEncoder().withoutPadding();
-        final String header = encoder.encodeToString(
-                "{\"alg\":\"HS256\",\"typ\":\"JWT\"}".getBytes(StandardCharsets.UTF_8));
-        final String payload = encoder.encodeToString(
-                ("{\"role\":\"" + role + "\"}").getBytes(StandardCharsets.UTF_8));
-        return header + "." + payload + ".c2lnbmF0dXJl";
     }
 }

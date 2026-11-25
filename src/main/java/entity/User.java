@@ -83,10 +83,19 @@ public class User {
     /**
      * Returns this user with a new, hashed password.
      *
+     * The password has to satisfy {@link AccountRules}: the change-password use
+     * case asks the rule first so the user sees the sentence, and this refuses as
+     * a backstop, so no slice can store a credential the rule would reject.
+     *
      * @param newPassword the new plaintext password
      * @return a copy carrying the hash, with the same role and status
+     * @throws InvalidAccountException when {@link AccountRules} refuses the password
      */
     public User withNewPassword(String newPassword) {
+        final AccountRules.Refusal refusal = AccountRules.passwordRefusalFor(newPassword);
+        if (refusal != null) {
+            throw new InvalidAccountException(refusal);
+        }
         return new User(username, PasswordHasher.hash(newPassword), displayName, role, active);
     }
 

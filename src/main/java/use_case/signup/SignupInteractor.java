@@ -2,9 +2,12 @@ package use_case.signup;
 
 import java.io.UncheckedIOException;
 
+import entity.InvalidAccountException;
 import entity.Role;
 import entity.User;
 import entity.UserFactory;
+import use_case.accounts.AccountRefusalText;
+import use_case.accounts.DuplicateUsernameException;
 
 /**
  * Interactor for the Sign Up use case.
@@ -52,6 +55,8 @@ public class SignupInteractor implements SignupInputBoundary {
             return;
         }
 
+        final String displayName = typedName.isEmpty() ? username : typedName;
+
         final Role role;
         try {
             role = Role.valueOf(inputData.getRoleName());
@@ -60,14 +65,33 @@ public class SignupInteractor implements SignupInputBoundary {
             presenter.prepareFailView("Choose a role from the list.");
             return;
         }
+        if (!role.isSelfAssignable()) {
+            // The page does not offer it, so this only happens if something calls
+            // the use case directly. The refusal stays in business logic anyway, the
+            // same way AdminPolicy does not trust the sidebar.
+            presenter.prepareFailView(
+                    "Administrator accounts are created by an administrator.");
+            return;
+        }
 
         try {
             if (dataAccess.existsByName(username)) {
                 presenter.prepareFailView("That username is already taken.");
                 return;
             }
-            final String displayName = typedName.isEmpty() ? username : typedName;
-            dataAccess.save(userFactory.create(username, password, displayName, role));
+            dataAccess.createUser(userFactory.create(username, password, displayName, role));
+        }
+        catch (DuplicateUsernameException ex) {
+            // The store refuses the write itself; the pre-check above is only the
+            // fast path, and both report the same thing.
+            presenter.prepareFailView("That username is already taken.");
+            return;
+        }
+        catch (InvalidAccountException ex) {
+            // The factory applies the rule, so this is the only place the refusal
+            // is turned into a sentence.
+            presenter.prepareFailView(AccountRefusalText.forRefusal(ex.getRefusal()));
+            return;
         }
         catch (IllegalStateException | UncheckedIOException ex) {
             presenter.prepareFailView("Could not save the account: " + ex.getMessage());

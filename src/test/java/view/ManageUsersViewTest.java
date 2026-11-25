@@ -12,8 +12,12 @@ import org.junit.jupiter.api.Test;
 import entity.Role;
 import entity.User;
 import interface_adapter.Session;
-import interface_adapter.manage_users.ManageUsersController;
+import interface_adapter.manage_users.ChangeUserRoleController;
+import interface_adapter.manage_users.CreateUserController;
+import interface_adapter.manage_users.DeactivateUserController;
+import interface_adapter.manage_users.ListAccountsController;
 import interface_adapter.manage_users.ManageUsersViewModel;
+import interface_adapter.manage_users.ReactivateUserController;
 import use_case.manage_users.ChangeUserRoleInputBoundary;
 import use_case.manage_users.CreateUserInputBoundary;
 import use_case.manage_users.DeactivateUserInputBoundary;
@@ -49,7 +53,11 @@ class ManageUsersViewTest {
         session = new Session();
         viewModel = new ManageUsersViewModel();
         view = new ManageUsersView(
-                new ManageUsersController(create, change, deactivate, reactivate, list),
+                new ListAccountsController(list),
+                new CreateUserController(create),
+                new ChangeUserRoleController(change),
+                new DeactivateUserController(deactivate),
+                new ReactivateUserController(reactivate),
                 viewModel, session);
     }
 
@@ -68,12 +76,14 @@ class ManageUsersViewTest {
     }
 
     @Test
-    void signingInAsAnyoneElseEmptiesThePageWithoutAsking() {
+    void signingInAsAnyoneElseEmptiesThePageAndLeavesTheDecisionToTheUseCase() {
         showAccounts(new User("admin1", "pw", "Ada Admin", Role.ADMIN));
 
         session.setCurrentUser(new User("player1", "pw", "Pat Player", Role.PLAYER));
 
-        assertTrue(calls.isEmpty(), "a non-administrator should not trigger a read");
+        assertEquals(List.of("list"), calls,
+                "the page asks for the list; whether this caller may read it is the "
+                        + "use case's decision, not the view's");
         assertTrue(view.listedAccounts().contains("No accounts"), view.listedAccounts());
     }
 

@@ -57,9 +57,9 @@ class PasswordHasherTest {
     void changingAPasswordRehashesItAndKeepsTheOtherFields() {
         final User user = new User("p1", "legacy", "Pat", Role.PLAYER).withActive(false);
 
-        final User updated = user.withNewPassword("secret");
+        final User updated = user.withNewPassword("secretpass");
 
-        assertTrue(updated.matches("secret"));
+        assertTrue(updated.matches("secretpass"));
         assertFalse(updated.matches("legacy"));
         assertTrue(PasswordHasher.isHashed(updated.getPassword()));
         assertEquals("p1", updated.getUsername());
@@ -70,17 +70,27 @@ class PasswordHasherTest {
 
     @Test
     void aNewHashCarriesTheChosenWorkFactorAndLengths() {
-        final String stored = PasswordHasher.hash("pw");
+        final String stored = PasswordHasher.hash("teampass");
         final String[] parts = stored.split("\\$");
 
         assertEquals(4, parts.length, stored);
         assertEquals("pbkdf2", parts[0]);
-        assertEquals("120000", parts[1],
+        assertEquals("600000", parts[1],
                 "the work factor is part of the contract; raise it here on purpose");
         assertEquals(16, java.util.Base64.getDecoder().decode(parts[2]).length,
                 "a 16-byte per-user salt");
         assertEquals(32, java.util.Base64.getDecoder().decode(parts[3]).length,
                 "a 256-bit derived key");
+    }
+
+    @Test
+    void aHashWrittenWithTheOldWorkFactorStillVerifies() {
+        final String older = PasswordHasher.hash("teampass", 120_000);
+
+        assertTrue(older.startsWith("pbkdf2$120000$"), older);
+        assertTrue(PasswordHasher.matches("teampass", older),
+                "raising the work factor must not lock out a stored account");
+        assertFalse(PasswordHasher.matches("wrongpass", older));
     }
 
     @Test

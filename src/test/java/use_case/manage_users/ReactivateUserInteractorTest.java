@@ -121,7 +121,12 @@ class ReactivateUserInteractorTest {
             }
 
             @Override
-            public void save(User user) {
+            public void updateRole(String username, Role role) {
+                throw new IllegalStateException("the store is unwritable");
+            }
+
+            @Override
+            public void updateActive(String username, boolean active) {
                 throw new IllegalStateException("the store is unwritable");
             }
         };
@@ -130,5 +135,22 @@ class ReactivateUserInteractorTest {
                 .execute(new ReactivateUserInputData("player1"));
 
         assertEquals("Could not update the account: the store is unwritable", presenter.error);
+    }
+
+
+    @Test
+    void aListThatCannotBeReadBackDoesNotMakeASavedChangeLookFailed() {
+        final RacingStore store = new RacingStore();
+        store.save(new User("admin1", "pw", "Ada Admin", Role.ADMIN));
+        store.save(new User("player1", "hashed-secret", "Pat Player", Role.PLAYER, false));
+        store.failTheListAfterAWrite();
+
+        new ReactivateUserInteractor(store, presenter, session)
+                .execute(new ReactivateUserInputData("player1"));
+
+        assertTrue(store.get("player1").isActive(), "the change was written");
+        assertNull(presenter.success);
+        assertTrue(presenter.error.startsWith("Account reactivated: player1."), presenter.error);
+        assertTrue(presenter.error.contains("It was saved"), presenter.error);
     }
 }

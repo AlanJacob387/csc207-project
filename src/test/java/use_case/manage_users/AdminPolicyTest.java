@@ -143,7 +143,12 @@ class AdminPolicyTest {
             }
 
             @Override
-            public void save(User user) {
+            public void updateRole(String username, Role role) {
+                throw new AssertionError("nothing may be written");
+            }
+
+            @Override
+            public void updateActive(String username, boolean active) {
                 throw new AssertionError("nothing may be written");
             }
         };

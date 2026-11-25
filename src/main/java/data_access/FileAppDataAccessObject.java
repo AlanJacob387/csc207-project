@@ -32,6 +32,7 @@ import entity.ParentPlayerLink;
 import entity.Role;
 import entity.Team;
 import entity.User;
+import use_case.accounts.DuplicateUsernameException;
 
 /**
  * Local JSON store for users, teams, events, attendance and announcements.
@@ -126,6 +127,47 @@ public class FileAppDataAccessObject implements AppDataStore {
     }
 
     /**
+     * Stores a new account, refusing a username that is already taken.
+     *
+     * @param user the account to create
+     * @throws DuplicateUsernameException when that username is already stored
+     * @throws UncheckedIOException       if the account could not be written
+     */
+    @Override
+    public synchronized void createUser(User user) {
+        final String username = user.getUsername();
+        if (users.containsKey(username)) {
+            throw new DuplicateUsernameException(username);
+        }
+        users.put(username, user);
+        try {
+            persist();
+        }
+        catch (RuntimeException ex) {
+            users.remove(username);
+            throw ex;
+        }
+    }
+
+    @Override
+    public synchronized void updateRole(String username, Role role) {
+        save(existing(username).withRole(role));
+    }
+
+    @Override
+    public synchronized void updateActive(String username, boolean active) {
+        save(existing(username).withActive(active));
+    }
+
+    private User existing(String username) {
+        final User user = users.get(username);
+        if (user == null) {
+            throw new IllegalStateException("No account found for " + username + ".");
+        }
+        return user;
+    }
+
+    /**
      * Saves a user, replacing any stored user with the same username. Like
      * saveEvent, the user goes into the map before persist() and the previous
      * state is put back if the write fails, so a failed password change never
@@ -145,25 +187,6 @@ public class FileAppDataAccessObject implements AppDataStore {
             restore(users, username, previous);
             throw ex;
         }
-    }
-
-    /**
-     * Updates only the profile fields of a user, leaving the stored credential
-     * and the active flag untouched.
-     *
-     * The credential is copied as stored - it is already hashed - and an account
-     * that was deactivated stays deactivated. A username that is not stored yet
-     * becomes an active account.
-     *
-     * @param username    the user's username
-     * @param displayName the name to display
-     * @param role        the user's role
-     */
-    public synchronized void saveProfile(String username, String displayName, Role role) {
-        final User existing = users.get(username);
-        final String password = existing == null ? "" : existing.getPassword();
-        final boolean active = existing == null || existing.isActive();
-        save(new User(username, password, displayName, role, active));
     }
 
     // ------------------------------------------------------------------

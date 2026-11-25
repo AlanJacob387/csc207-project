@@ -22,6 +22,7 @@ import entity.Event;
 import entity.Role;
 import entity.Team;
 import entity.User;
+import use_case.accounts.DuplicateUsernameException;
 
 /**
  * Tests the local JSON store: writing, reading, persistence across instances,
@@ -142,21 +143,29 @@ class FileAppDataAccessObjectTest {
     }
 
     @Test
-    void savingAProfileKeepsTheCredentialAndTheStatus() {
+    void creatingAnAccountRefusesAUsernameThatIsAlreadyStored() {
         final Path file = tempDir.resolve("app-data.json");
         final FileAppDataAccessObject dao = new FileAppDataAccessObject(file);
-        dao.save(new User("p1", "pbkdf2$1000$c2FsdA==$aGFzaA==", "Pat", Role.PLAYER, false));
+        dao.save(new User("p1", "pbkdf2$1000$c2FsdA==$aGFzaA==", "Pat", Role.PLAYER));
 
-        dao.saveProfile("p1", "Patricia", Role.COACH);
+        final DuplicateUsernameException thrown = assertThrows(DuplicateUsernameException.class,
+                () -> dao.createUser(new User("p1", "pbkdf2$1000$c2FsdA==$b3RoZXI=",
+                        "Impostor", Role.COACH)));
 
-        assertEquals("Patricia", dao.get("p1").getDisplayName());
-        assertEquals(Role.COACH, dao.get("p1").getRole());
-        assertEquals("pbkdf2$1000$c2FsdA==$aGFzaA==", dao.get("p1").getPassword());
-        assertFalse(dao.get("p1").isActive());
+        assertEquals("p1", thrown.getUsername());
+        assertEquals("Pat", dao.get("p1").getDisplayName(),
+                "a second create must not replace the first account");
+        assertEquals(Role.PLAYER, dao.get("p1").getRole());
+    }
 
-        final FileAppDataAccessObject reloaded = new FileAppDataAccessObject(file);
-        assertEquals("Patricia", reloaded.get("p1").getDisplayName());
-        assertFalse(reloaded.get("p1").isActive());
+    @Test
+    void aNewAccountIsCreatedAndSurvivesAReopen() {
+        final Path file = tempDir.resolve("app-data.json");
+        new FileAppDataAccessObject(file)
+                .createUser(new User("p9", "pbkdf2$1000$c2FsdA==$aGFzaA==", "Pat Nine",
+                        Role.PLAYER));
+
+        assertEquals("Pat Nine", new FileAppDataAccessObject(file).get("p9").getDisplayName());
     }
 
     @Test
@@ -207,7 +216,7 @@ class FileAppDataAccessObjectTest {
         assertThrows(UncheckedIOException.class,
                 () -> dao.save(new User("p1", "pw", "Pat", Role.PLAYER)));
         assertThrows(UncheckedIOException.class,
-                () -> dao.saveProfile("p1", "Pat", Role.COACH));
+                () -> dao.createUser(new User("p2", "pw", "Pat Two", Role.PLAYER)));
         assertThrows(UncheckedIOException.class,
                 () -> dao.saveTeam(new Team("t1", "Raptors", "Basketball", "p1")));
         assertThrows(UncheckedIOException.class,
@@ -218,7 +227,7 @@ class FileAppDataAccessObjectTest {
                         AttendanceRecord.Status.PRESENT)));
 
         assertNull(dao.get("p1"), "an account that could not be written must not be readable");
-        assertFalse(dao.existsByName("p1"));
+        assertFalse(dao.existsByName("p2"), "neither may an account that could not be added");
         assertTrue(dao.getAllUsers().isEmpty());
         assertNull(dao.getTeam("t1"));
         assertTrue(dao.getAllTeams().isEmpty());

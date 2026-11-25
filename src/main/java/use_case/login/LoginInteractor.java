@@ -2,6 +2,8 @@ package use_case.login;
 
 import java.io.UncheckedIOException;
 
+import entity.AccountRules;
+import entity.InvalidAccountException;
 import entity.PasswordHasher;
 import entity.User;
 import use_case.current_user.CurrentUserInterface;
@@ -78,6 +80,12 @@ public class LoginInteractor implements LoginInputBoundary {
      * Rewrites a credential that was stored before passwords were hashed, now
      * that the typed password has proved it is the right one.
      *
+     * A password that the current rule would refuse - an old account whose
+     * password is shorter than the minimum, say - is left exactly as it is:
+     * rewriting it would either fail or impose today's rule on a sign-in that
+     * should keep working, and the owner will meet the rule when they next change
+     * it.
+     *
      * The rewrite is best effort: a store that cannot be written keeps the old
      * credential, which still verifies next time, so a sign-in never fails
      * because an upgrade could not be saved.
@@ -87,15 +95,16 @@ public class LoginInteractor implements LoginInputBoundary {
      * @return the account to record as the current user
      */
     private User upgradeLegacyCredential(User user, String password) {
-        if (PasswordHasher.isHashed(user.getPassword())) {
+        if (PasswordHasher.isHashed(user.getPassword())
+                || AccountRules.passwordRefusalFor(password) != null) {
             return user;
         }
-        final User hashed = user.withNewPassword(password);
         try {
+            final User hashed = user.withNewPassword(password);
             dataAccess.save(hashed);
             return hashed;
         }
-        catch (IllegalStateException | UncheckedIOException ex) {
+        catch (InvalidAccountException | IllegalStateException | UncheckedIOException ex) {
             // Signing in succeeded; the plaintext credential simply survives until
             // the next attempt. Nothing is shown, because nothing is broken from
             // the user's point of view.

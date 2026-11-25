@@ -2,8 +2,11 @@ package use_case.manage_users;
 
 import java.io.UncheckedIOException;
 
+import entity.InvalidAccountException;
 import entity.Role;
 import entity.UserFactory;
+import use_case.accounts.AccountRefusalText;
+import use_case.accounts.DuplicateUsernameException;
 import use_case.current_user.CurrentUserInterface;
 
 /**
@@ -16,13 +19,7 @@ import use_case.current_user.CurrentUserInterface;
  */
 public class CreateUserInteractor implements CreateUserInputBoundary {
 
-    /** Longest accepted username, to keep a row readable and a URL sane. */
-    private static final int USERNAME_LIMIT = 40;
-
-    /** Longest accepted display name. */
-    private static final int DISPLAY_NAME_LIMIT = 60;
-
-    private final ManageUsersDataAccessInterface dataAccess;
+    private final CreateUserDataAccessInterface dataAccess;
     private final ManageUsersOutputBoundary presenter;
     private final CurrentUserInterface currentUser;
     private final UserFactory userFactory;
@@ -30,12 +27,12 @@ public class CreateUserInteractor implements CreateUserInputBoundary {
     /**
      * Creates the interactor.
      *
-     * @param dataAccess  where accounts are read and written
+     * @param dataAccess  where accounts are confirmed and written
      * @param presenter   where the result is sent
      * @param currentUser the port that says who is signed in
      * @param userFactory builds the new account
      */
-    public CreateUserInteractor(ManageUsersDataAccessInterface dataAccess,
+    public CreateUserInteractor(CreateUserDataAccessInterface dataAccess,
                                 ManageUsersOutputBoundary presenter,
                                 CurrentUserInterface currentUser,
                                 UserFactory userFactory) {
@@ -65,15 +62,6 @@ public class CreateUserInteractor implements CreateUserInputBoundary {
             presenter.prepareFailView("Choose a username and a password.");
             return;
         }
-        if (username.length() > USERNAME_LIMIT) {
-            presenter.prepareFailView("Usernames are at most " + USERNAME_LIMIT + " characters.");
-            return;
-        }
-        if (displayName.length() > DISPLAY_NAME_LIMIT) {
-            presenter.prepareFailView("Display names are at most " + DISPLAY_NAME_LIMIT
-                    + " characters.");
-            return;
-        }
         if (!password.equals(repeatPassword)) {
             presenter.prepareFailView("The two passwords do not match.");
             return;
@@ -93,13 +81,25 @@ public class CreateUserInteractor implements CreateUserInputBoundary {
                 presenter.prepareFailView("That username is already taken.");
                 return;
             }
-            dataAccess.save(userFactory.create(username, password,
+            dataAccess.createUser(userFactory.create(username, password,
                     displayName.isEmpty() ? username : displayName, role));
-            presenter.prepareSuccessView(ManageUsersOutputData.of(
-                    "Account created for " + username + ".", dataAccess.getAllUsers()));
+        }
+        catch (DuplicateUsernameException ex) {
+            presenter.prepareFailView("That username is already taken.");
+            return;
+        }
+        catch (InvalidAccountException ex) {
+            presenter.prepareFailView(AccountRefusalText.forRefusal(ex.getRefusal()));
+            return;
         }
         catch (IllegalStateException | UncheckedIOException ex) {
             presenter.prepareFailView("Could not save the account: " + ex.getMessage());
+            return;
         }
+
+        // Outside the try above: the account is stored by now, so a failure to read the
+        // list back must not be reported as a failure to save it.
+        AccountListReport.show(presenter, "Account created for " + username + ".",
+                dataAccess::getAllUsers);
     }
 }

@@ -19,6 +19,7 @@ import use_case.export_schedule.ExportScheduleDataAccessInterface;
 import use_case.flag_rain_risk.FlagRainRiskDataAccessInterface;
 import use_case.link_parent_to_player.LinkParentToPlayerDataAccessInterface;
 import use_case.login.LoginUserDataAccessInterface;
+import use_case.manage_users.CreateUserDataAccessInterface;
 import use_case.manage_users.ManageUsersDataAccessInterface;
 import use_case.post_announcement.PostAnnouncementDataAccessInterface;
 import use_case.signup.SignupUserDataAccessInterface;
@@ -51,6 +52,7 @@ public interface AppDataStore extends
         PostAnnouncementDataAccessInterface,
         ViewAnnouncementsDataAccessInterface,
         ManageUsersDataAccessInterface,
+        CreateUserDataAccessInterface,
         ViewScheduleDataAccessInterface,
         ViewEventDetailsDataAccessInterface,
         EditEventDataAccessInterface,
@@ -63,16 +65,6 @@ public interface AppDataStore extends
         ViewNotificationsDataAccessInterface,
         ViewEventWeatherDataAccessInterface,
         FlagRainRiskDataAccessInterface {
-
-    /**
-     * Updates a user's display name and role, leaving the credential and the
-     * active flag as they are.
-     *
-     * @param username    the user's username
-     * @param displayName the name to display
-     * @param role        the user's role
-     */
-    void saveProfile(String username, String displayName, Role role);
 
     /**
      * Saves a team, replacing the stored one with the same id.

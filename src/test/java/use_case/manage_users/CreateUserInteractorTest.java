@@ -1,5 +1,7 @@
 package use_case.manage_users;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -15,6 +17,7 @@ import entity.Role;
 import entity.User;
 import entity.UserFactory;
 import interface_adapter.Session;
+import use_case.accounts.DuplicateUsernameException;
 
 /**
  * Tests the Create User use case: an administrator creates an account, and every
@@ -62,7 +65,7 @@ class CreateUserInteractorTest {
 
     @Test
     void anAdministratorCreatesAnAccountWithTheChosenRole() {
-        interactor.execute(input("player9", "Pat Nine", "secret", "secret", Role.PLAYER));
+        interactor.execute(input("player9", "Pat Nine", "secretpass", "secretpass", Role.PLAYER));
 
         assertNull(presenter.error);
         assertEquals(Role.PLAYER, dataAccess.get("player9").getRole());
@@ -75,15 +78,15 @@ class CreateUserInteractorTest {
 
     @Test
     void theChosenPasswordIsStoredHashed() {
-        interactor.execute(input("player9", "", "secret", "secret", Role.PLAYER));
+        interactor.execute(input("player9", "", "secretpass", "secretpass", Role.PLAYER));
 
-        assertTrue(dataAccess.get("player9").matches("secret"));
-        assertNotEquals("secret", dataAccess.get("player9").getPassword());
+        assertTrue(dataAccess.get("player9").matches("secretpass"));
+        assertNotEquals("secretpass", dataAccess.get("player9").getPassword());
     }
 
     @Test
     void aBlankDisplayNameFallsBackToTheUsername() {
-        interactor.execute(input("player9", "   ", "secret", "secret", Role.PLAYER));
+        interactor.execute(input("player9", "   ", "secretpass", "secretpass", Role.PLAYER));
 
         assertEquals("player9", dataAccess.get("player9").getDisplayName());
     }
@@ -92,7 +95,7 @@ class CreateUserInteractorTest {
     void onlyAnAdministratorMayCreateAccounts() {
         session.setCurrentUser(new User("coach1", "pw", "Coach One", Role.COACH));
 
-        interactor.execute(input("player9", "", "secret", "secret", Role.PLAYER));
+        interactor.execute(input("player9", "", "secretpass", "secretpass", Role.PLAYER));
 
         assertEquals(AdminPolicy.NOT_ADMIN, presenter.error);
         assertNull(presenter.success);
@@ -103,7 +106,7 @@ class CreateUserInteractorTest {
     void aSignedOutCallerIsRefused() {
         session.clearCurrentUser();
 
-        interactor.execute(input("player9", "", "secret", "secret", Role.PLAYER));
+        interactor.execute(input("player9", "", "secretpass", "secretpass", Role.PLAYER));
 
         assertEquals(AdminPolicy.NOT_ADMIN, presenter.error);
     }
@@ -112,7 +115,7 @@ class CreateUserInteractorTest {
     void aTakenUsernameIsRefused() {
         dataAccess.save(new User("player9", "pw", "Existing Player", Role.PLAYER));
 
-        interactor.execute(input("player9", "Someone Else", "secret", "secret", Role.PLAYER));
+        interactor.execute(input("player9", "Someone Else", "secretpass", "secretpass", Role.PLAYER));
 
         assertEquals("That username is already taken.", presenter.error);
         assertEquals("Existing Player", dataAccess.get("player9").getDisplayName(),
@@ -121,7 +124,7 @@ class CreateUserInteractorTest {
 
     @Test
     void aBlankUsernameOrPasswordIsRefused() {
-        interactor.execute(input("", "", "secret", "secret", Role.PLAYER));
+        interactor.execute(input("", "", "secretpass", "secretpass", Role.PLAYER));
         assertEquals("Choose a username and a password.", presenter.error);
 
         interactor.execute(input("player9", "", "", "", Role.PLAYER));
@@ -131,7 +134,7 @@ class CreateUserInteractorTest {
 
     @Test
     void mismatchedPasswordsAreRefused() {
-        interactor.execute(input("player9", "", "secret", "secret2", Role.PLAYER));
+        interactor.execute(input("player9", "", "secretpass", "secret2", Role.PLAYER));
 
         assertEquals("The two passwords do not match.", presenter.error);
         assertNull(dataAccess.get("player9"));
@@ -139,7 +142,7 @@ class CreateUserInteractorTest {
 
     @Test
     void anUnknownRoleIsRefused() {
-        interactor.execute(new CreateUserInputData("player9", "", "secret", "secret", "CAPTAIN"));
+        interactor.execute(new CreateUserInputData("player9", "", "secretpass", "secretpass", "CAPTAIN"));
 
         assertEquals("Choose a role from the list.", presenter.error);
         assertNull(dataAccess.get("player9"));
@@ -147,24 +150,32 @@ class CreateUserInteractorTest {
 
     @Test
     void anOverlongUsernameIsRefused() {
-        interactor.execute(input("x".repeat(41), "", "secret", "secret", Role.PLAYER));
+        interactor.execute(input("x".repeat(41), "", "secretpass", "secretpass", Role.PLAYER));
 
-        assertTrue(presenter.error.contains("at most 40"));
+        assertTrue(presenter.error.contains("3 to 40"));
         assertNull(dataAccess.get("x".repeat(41)));
     }
 
     @Test
-    void aBrokenStoreIsReportedInsteadOfThrown() {
-        final ManageUsersDataAccessInterface broken = new ManageUsersDataAccessInterface() {
+    void aPasswordShorterThanTheRuleIsRefused() {
+        interactor.execute(input("player9", "Pat Nine", "pw", "pw", Role.PLAYER));
+
+        assertEquals("Passwords are 8 to 128 characters.", presenter.error);
+        assertNull(dataAccess.get("player9"));
+    }
+
+    @Test
+    void aUsernameClaimedBeforeTheWriteIsReported() {
+        final User admin = new User("admin1", "pw", "Ada Admin", Role.ADMIN);
+        final CreateUserDataAccessInterface racy = new CreateUserDataAccessInterface() {
             @Override
-            public List<User> getAllUsers() {
-                return List.of();
+            public User get(String username) {
+                return admin;
             }
 
             @Override
-            public User get(String username) {
-                return "admin1".equals(username)
-                        ? new User("admin1", "pw", "Ada Admin", Role.ADMIN) : null;
+            public List<User> getAllUsers() {
+                return List.of(admin);
             }
 
             @Override
@@ -173,15 +184,64 @@ class CreateUserInteractorTest {
             }
 
             @Override
-            public void save(User user) {
+            public void createUser(User user) {
+                throw new DuplicateUsernameException(user.getUsername());
+            }
+        };
+
+        new CreateUserInteractor(racy, presenter, session, new UserFactory())
+                .execute(input("player9", "Pat Nine", "secretpass", "secretpass", Role.PLAYER));
+
+        assertEquals("That username is already taken.", presenter.error);
+        assertNull(presenter.success);
+    }
+
+    @Test
+    void aBrokenStoreIsReportedInsteadOfThrown() {
+        final CreateUserDataAccessInterface broken = new CreateUserDataAccessInterface() {
+            @Override
+            public User get(String username) {
+                return "admin1".equals(username)
+                        ? new User("admin1", "pw", "Ada Admin", Role.ADMIN) : null;
+            }
+
+            @Override
+            public List<User> getAllUsers() {
+                return List.of();
+            }
+
+            @Override
+            public boolean existsByName(String username) {
+                return false;
+            }
+
+            @Override
+            public void createUser(User user) {
                 throw new IllegalStateException("the store is unwritable");
             }
         };
 
         new CreateUserInteractor(broken, presenter, session, new UserFactory())
-                .execute(input("player9", "", "secret", "secret", Role.PLAYER));
+                .execute(input("player9", "", "secretpass", "secretpass", Role.PLAYER));
 
         assertEquals("Could not save the account: the store is unwritable", presenter.error);
         assertNull(presenter.success);
+    }
+
+
+    @Test
+    void aListThatCannotBeReadBackDoesNotMakeASavedAccountLookUnsaved() {
+        final RacingStore store = new RacingStore();
+        store.save(new User("admin1", "pw", "Ada Admin", Role.ADMIN));
+        store.failTheListAfterAWrite();
+
+        new CreateUserInteractor(store, presenter, session, new UserFactory())
+                .execute(input("player9", "Pat Nine", "secretpass", "secretpass", Role.PLAYER));
+
+        assertNotNull(store.get("player9"), "the account was stored");
+        assertNull(presenter.success);
+        assertTrue(presenter.error.startsWith("Account created for player9."), presenter.error);
+        assertTrue(presenter.error.contains("It was saved"), presenter.error);
+        assertFalse(presenter.error.startsWith("Could not save"), presenter.error);
     }
 }

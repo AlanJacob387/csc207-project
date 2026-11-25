@@ -59,8 +59,9 @@ public class ChangeUserRoleInteractor implements ChangeUserRoleInputBoundary {
             return;
         }
 
+        final User target;
         try {
-            final User target = dataAccess.get(username);
+            target = dataAccess.get(username);
             if (target == null) {
                 presenter.prepareFailView("No account found for " + username + ".");
                 return;
@@ -73,18 +74,42 @@ public class ChangeUserRoleInteractor implements ChangeUserRoleInputBoundary {
                 presenter.prepareFailView(username + " already has the " + role + " role.");
                 return;
             }
-            final List<User> accounts = dataAccess.getAllUsers();
-            if (role != Role.ADMIN && AdminPolicy.isLastActiveAdmin(accounts, target)) {
+            if (role != Role.ADMIN
+                    && AdminPolicy.isLastActiveAdmin(dataAccess.getAllUsers(), target)) {
                 presenter.prepareFailView(AdminPolicy.LAST_ADMIN);
                 return;
             }
-            dataAccess.save(target.withRole(role));
-            presenter.prepareSuccessView(ManageUsersOutputData.of(
-                    "Role changed: " + username + " is now " + role + ".",
-                    dataAccess.getAllUsers()));
+            dataAccess.updateRole(username, role);
         }
         catch (IllegalStateException | UncheckedIOException ex) {
             presenter.prepareFailView("Could not update the account: " + ex.getMessage());
+            return;
         }
+
+        final String done = "Role changed: " + username + " is now " + role + ".";
+        final List<User> accounts;
+        try {
+            accounts = dataAccess.getAllUsers();
+        }
+        catch (IllegalStateException | UncheckedIOException ex) {
+            presenter.prepareFailView(AccountListReport.unrefreshed(done, ex));
+            return;
+        }
+        if (target.getRole() == Role.ADMIN && target.isActive() && role != Role.ADMIN
+                && !AdminPolicy.hasActiveAdmin(accounts)) {
+            // See DeactivateUserInteractor: the check before the write can be raced, so
+            // the write is taken back when it left no active administrator.
+            try {
+                dataAccess.updateRole(username, Role.ADMIN);
+                presenter.prepareFailView(AdminPolicy.LAST_ADMIN);
+            }
+            catch (IllegalStateException | UncheckedIOException ex) {
+                presenter.prepareFailView(AdminPolicy.LAST_ADMIN + " " + username
+                        + " is no longer an administrator and could not be restored: "
+                        + ex.getMessage());
+            }
+            return;
+        }
+        presenter.prepareSuccessView(ManageUsersOutputData.of(done, accounts));
     }
 }

@@ -243,10 +243,14 @@ public final class DatabaseConfig {
      * treated as a secret: the database will refuse it, and refusing to save it
      * would hide the real reason from the person typing it.
      *
+     * Public because the Database settings page asks this question through its
+     * own port and its tests must ask the same one; a use case reaches the answer
+     * that way, not by calling in here.
+     *
      * @param key the pasted key
      * @return true for an {@code sb_secret_} key or a {@code service_role} JWT
      */
-    static boolean isSecretKey(String key) {
+    public static boolean isSecretKey(String key) {
         if (key == null || key.isEmpty()) {
             return false;
         }
@@ -280,10 +284,24 @@ public final class DatabaseConfig {
      * @return the same URL when it looks usable
      */
     public static String validateUrl(String url) {
-        if (url.startsWith(HTTPS_PREFIX) || isLoopback(url)) {
+        if (isSecureUrl(url)) {
             return url;
         }
         throw new IllegalArgumentException("The project URL must start with https://");
+    }
+
+    /**
+     * Says whether a URL can carry the key without exposing it: HTTPS, or plain
+     * HTTP to this machine, which never leaves it.
+     *
+     * Public for the same reason as {@link #isSecretKey(String)} - the settings
+     * page asks through its port, and its tests ask the same decision.
+     *
+     * @param url the pasted project URL
+     * @return true when the scheme cannot expose the key
+     */
+    public static boolean isSecureUrl(String url) {
+        return url != null && (url.startsWith(HTTPS_PREFIX) || isLoopback(url));
     }
 
     /**

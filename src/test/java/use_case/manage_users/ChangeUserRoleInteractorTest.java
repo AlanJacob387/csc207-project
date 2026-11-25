@@ -153,7 +153,12 @@ class ChangeUserRoleInteractorTest {
             }
 
             @Override
-            public void save(User user) {
+            public void updateRole(String username, Role role) {
+                throw new AssertionError("nothing should be saved");
+            }
+
+            @Override
+            public void updateActive(String username, boolean active) {
                 throw new AssertionError("nothing should be saved");
             }
         };
@@ -162,5 +167,68 @@ class ChangeUserRoleInteractorTest {
                 .execute(new ChangeUserRoleInputData("player1", "COACH"));
 
         assertEquals("Could not update the account: the store is unreadable", presenter.error);
+    }
+
+
+    @Test
+    void aListThatCannotBeReadBackDoesNotMakeASavedChangeLookFailed() {
+        final RacingStore store = seeded();
+        store.failTheListAfterAWrite();
+
+        new ChangeUserRoleInteractor(store, presenter, session)
+                .execute(new ChangeUserRoleInputData("player1", "COACH"));
+
+        assertEquals(Role.COACH, store.get("player1").getRole(), "the change was written");
+        assertNull(presenter.success);
+        assertTrue(presenter.error.startsWith("Role changed: player1 is now COACH."),
+                presenter.error);
+        assertTrue(presenter.error.contains("It was saved"), presenter.error);
+    }
+
+    @Test
+    void aDemotionThatRacesADeactivationIsTakenBack() {
+        final RacingStore store = seeded();
+        // admin2 deactivates admin1 in the same moment admin1 demotes admin2.
+        store.runAfterTheFirstWrite(() -> store.save(
+                new User("admin1", "pw", "Ada Admin", Role.ADMIN, false)));
+
+        new ChangeUserRoleInteractor(store, presenter, session)
+                .execute(new ChangeUserRoleInputData("admin2", "PLAYER"));
+
+        assertEquals(AdminPolicy.LAST_ADMIN, presenter.error);
+        assertNull(presenter.success);
+        assertEquals(Role.ADMIN, store.get("admin2").getRole());
+    }
+
+    @Test
+    void aCredentialChangedAfterTheReadIsNotWrittenBack() {
+        final InMemoryUserDataAccessObject store = new InMemoryUserDataAccessObject() {
+            @Override
+            public User get(String username) {
+                return "player1".equals(username)
+                        ? new User("player1", "old-hash", "Pat Player", Role.PLAYER)
+                        : super.get(username);
+            }
+        };
+        store.save(new User("admin1", "pw", "Ada Admin", Role.ADMIN));
+        store.save(new User("admin2", "pw", "Ada Two", Role.ADMIN));
+        store.save(new User("player1", "new-hash", "Pat Player", Role.PLAYER));
+
+        new ChangeUserRoleInteractor(store, presenter, session)
+                .execute(new ChangeUserRoleInputData("player1", "COACH"));
+
+        assertNull(presenter.error);
+        final User stored = store.getAllUsers().stream()
+                .filter(user -> "player1".equals(user.getUsername())).findFirst().orElseThrow();
+        assertEquals("new-hash", stored.getPassword());
+        assertEquals(Role.COACH, stored.getRole());
+    }
+
+    private RacingStore seeded() {
+        final RacingStore store = new RacingStore();
+        store.save(new User("admin1", "pw", "Ada Admin", Role.ADMIN));
+        store.save(new User("player1", "pw", "Pat Player", Role.PLAYER));
+        store.save(new User("admin2", "pw", "Ada Two", Role.ADMIN));
+        return store;
     }
 }

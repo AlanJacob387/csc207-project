@@ -161,18 +161,18 @@ Nothing can be built in parallel until persistence, navigation and roles are rea
 
 ## Sprint 4 — Integration, polish and demo data (Thu 2026-11-19 → Wed 2026-11-25)
 
-**Progress (2026-11-23):** 4.8 is partly done - the hosted store, its schema and the in-app connection settings have landed; validation (4.3) is the remaining work.
+**Progress (2026-11-23):** 4.3 and 4.8 are done - the hosted store, its schema, the in-app connection settings and the validation pass have landed.
 
 | ID | Task | Use cases | Owner | Depends on | Deliverable | Due | Done |
 |----|------|------|-------|------------|-------------|-----|------|
 | 4.1 | Full-app bug bash — each lane tests a lane that is not theirs |  | All | 3.x | triaged bug list | Sun 11-22 | |
 | 4.2 | UI consistency pass: navigation, empty states, error messages |  | L4 | 4.1 | consistent UI across all pages | Mon 11-23 | |
-| 4.3 | Robustness/validation review across slices (bad input, missing data, password handling) |  | L3 | 4.1 | validation issues closed | Mon 11-23 | |
+| 4.3 | Robustness/validation review across slices (bad input, missing data, password handling) |  | L3 | 4.1 | validation issues closed | Mon 11-23 | ✅ 2026-11-23 |
 | 4.4 | Demo seed data: 1 admin, 2 coaches, 8 players, 4 parents, 3 teams, 2 weeks of events |  | L5 | 4.1 | one-click seed for the presentation | Tue 11-24 | |
 | 4.5 | `Documentation.md` final pass: class diagram, CRC cards, API descriptions |  | L5 | 4.1 | docs complete | Tue 11-24 | |
 | 4.6 | README: screenshots/GIFs, API section, user-story ownership table, run instructions |  | L5 | 4.1 | README current | Tue 11-24 | |
 | 4.7 | Demo dry run #1 with timings |  | All | 4.4 | script + timing notes | Wed 11-25 | |
-| 4.8 | **Hosted database store** (revision of D6): Supabase Postgres behind the same data-access interfaces, `db/schema.sql`, in-app connection settings, live check |  | L3 | 1.2 | data is shared between devices; `gradlew test -Pnetwork` reads the real project | Wed 11-25 | ⚠️ store, schema and settings done; validation open |
+| 4.8 | **Hosted database store** (revision of D6): Supabase Postgres behind the same data-access interfaces, `db/schema.sql`, in-app connection settings, live check |  | L3 | 1.2 | data is shared between devices; `gradlew test -Pnetwork` reads the real project | Wed 11-25 | ✅ 2026-11-23 |
 
 ## Sprint 5 — Hardening and presentation (Thu 2026-11-26 → Sun 2026-11-29)
 

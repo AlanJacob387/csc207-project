@@ -237,14 +237,15 @@ Built so far:
 
 | Use case | Slice | View | Tests |
 |---|---|---|---|
-| `login` (UC-A1) | `use_case/login` + `interface_adapter/login` | `LoginView` | `LoginInteractorTest` (11), `LoginViewTest` (2) |
-| `signup` (UC-A2) | `use_case/signup` + `interface_adapter/signup` | `SignupView` | `SignupInteractorTest` (8) |
+| `login` (UC-A1) | `use_case/login` + `interface_adapter/login` | `LoginView` | `LoginInteractorTest` (15), `LoginViewTest` (2) |
+| `signup` (UC-A2) | `use_case/signup` + `interface_adapter/signup` | `SignupView` | `SignupInteractorTest` (12), `SignupViewTest` (3) |
 | `logout` (UC-A3) | `use_case/logout` + `interface_adapter/logout` | Log out button in `AppShell` | `LogoutInteractorTest` (2) |
-| `change_password` (UC-A4) | `use_case/change_password` + `interface_adapter/change_password` | `ChangePasswordView` (Account page) | `ChangePasswordInteractorTest` (8), `ChangePasswordViewTest` (3) |
+| `change_password` (UC-A4) | `use_case/change_password` + `interface_adapter/change_password` | `ChangePasswordView` (Account page) | `ChangePasswordInteractorTest` (9), `ChangePasswordViewTest` (3) |
 | `create_event` (UC-B1) | `use_case/create_event` + `interface_adapter/create_event` | `CreateEventView` | `CreateEventInteractorTest`, supplied with PR #10 |
-| `manage_users` (UC-A5, UC-A6, UC-A7) | `use_case/manage_users` + `interface_adapter/manage_users` | `ManageUsersView` (Manage Users page, administrators only) | `CreateUserInteractorTest` (11), `ChangeUserRoleInteractorTest` (9), `DeactivateUserInteractorTest` (8), `ReactivateUserInteractorTest` (6), `ListAccountsInteractorTest` (5), `AdminPolicyTest` (11), `ManageUsersViewTest` (14), `ManageUsersFlowTest` (10) |
+| `manage_users` (UC-A5, UC-A6, UC-A7) | `use_case/manage_users` + `interface_adapter/manage_users` | `ManageUsersView` (Manage Users page, administrators only) | `CreateUserInteractorTest` (14), `ChangeUserRoleInteractorTest` (12), `DeactivateUserInteractorTest` (12), `ReactivateUserInteractorTest` (7), `ListAccountsInteractorTest` (5), `AdminPolicyTest` (11), `ManageUsersViewTest` (14), `ManageUsersFlowTest` (10) |
 | `post_announcement` (UC-E1) | `use_case/post_announcement` + `interface_adapter/post_announcement` | Announcements page | `PostAnnouncementInteractorTest` (17) |
 | `view_announcements` (UC-E2) | `use_case/view_announcements` + `interface_adapter/view_announcements` | Announcements page | `ViewAnnouncementsInteractorTest` (17) |
+| `database_settings` | `use_case/database_settings` + `interface_adapter/database_settings` | `DatabaseSettingsView` (the connection page) | `DatabaseSettingsInteractorTest` (13), `DatabaseSettingsViewTest` (8) |
 
 - **Sequence diagrams** - owed by each lane for its own use cases (task 3.8, coordinated by L5)
 
@@ -766,7 +767,14 @@ App data lives in a hosted **Supabase Postgres** database, read and written over
 its REST API (PostgREST). `SupabaseAppDataAccessObject` uses one table per entity:
 a read filters on the key (`?username=eq.coach1`), and a save posts to
 `?on_conflict=<key>` with `Prefer: resolution=merge-duplicates`, so one save
-touches one row. Because the tables are shared, two clients can no longer
+touches one row. Creating an account is the exception: it inserts strictly, so a
+username that already exists answers 409 and the stored account is left alone.
+Changing an account's role or status is a targeted write too: a `PATCH` of that one
+column on that one row (`updateRole`, `updateActive`), so a password its owner
+changed after the administrator's page was read is not put back by the old copy.
+A `PATCH` that matches no row is a success to PostgREST, so the store asks for the
+key back and reports an account that has vanished.
+Because the tables are shared, two clients can no longer
 overwrite each other's unrelated records - something the single-document file
 store could not avoid.
 
@@ -787,7 +795,17 @@ record shape lives, so the database and the file store share one format.
 this order: `TEAMSPORTS_DB_URL` / `TEAMSPORTS_DB_KEY`, then the
 `teamsports.db.url` / `teamsports.db.key` system properties, then
 `%USERPROFILE%\.team-sports\database.properties`, which the in-app **Database
-settings** page writes. With nothing configured the app uses the local JSON file
+settings** page writes. That page is a use case like any other
+(`use_case/database_settings`): the interactor owns the rules - both values
+present, an `https://` URL, and never the secret key, which would bypass row
+level security - and owns the wording of every result, while
+`DatabaseSettingsGateway` only reports facts (how many accounts the settings can
+see, whether the save worked, where the file is). If the saved settings are ones
+today's rules refuse - a legacy `service_role` key written by an older version, or
+a plain-HTTP URL - the page still opens, empty, and says why they are not in use, so
+it can be used to replace them; the app itself starts on the local file and prints the
+reason. With nothing configured the app
+uses the local JSON file
 `data/app-data.json` (git-ignored), so a clean clone runs with no account and the
 tests stay offline. `AppDataStore` is the interface the wiring holds, so the two
 stores are interchangeable and no use case changes.
@@ -800,27 +818,35 @@ not diverge. A local file that cannot be parsed is moved to
 `app-data.json.corrupt-<timestamp>`, the store starts empty and the sign-in page
 names the kept file - the old records stay in that file and are not merged back.
 `AppBuilderTest`, `FileAppDataAccessObjectTest` and
-`FileAnnouncementPersistenceTest` cover both paths against temporary files.
+`FileAnnouncementPersistenceTest` cover both paths against temporary files. A
+database that answers `200` with something that is not JSON, or a row whose role
+or status the app does not know, is reported the same way - `The database
+answered with something that is not JSON…` or `The database holds an account that
+cannot be read…` - instead of throwing the parser's exception past the use case.
 
 **A failed write changes nothing.** The local store writes the whole document to a
 temporary file and replaces the original only when that succeeds, and it records
 the change in memory only after the write returns. A disk error therefore leaves
 the store exactly as it was, so an action reported as failed cannot reappear on
-the next save of something unrelated. `FileAppDataAccessObjectTest` drives a write
-into a path that cannot be created and asserts that all five sections are still
-empty.
+the next save of something unrelated. `FileAppDataAccessObjectTest` drives a save,
+an insert and the event, team and attendance writes into a path that cannot be
+created, and asserts that every section is still empty.
 
 The signed-in user is deliberately not stored: it lives in `Session`, behind the
 `use_case/current_user/CurrentUserInterface` port, so the interactors own the
 session transitions rather than the views.
 
 **Security note.** Passwords are stored as PBKDF2-HMAC-SHA256 hashes
-(`entity/PasswordHasher`: 120 000 iterations, per-user salt, `pbkdf2$…` format).
+(`entity/PasswordHasher`: 600 000 iterations, per-user salt, `pbkdf2$…` format).
+The iteration count travels inside each hash, so raising it later does not lock
+anyone out: a credential written at 120 000 still verifies, and a test proves it.
 A credential written before hashing existed is still accepted, so an older store
 keeps working; that fallback is the only place a plaintext value is compared, and
 the next successful sign-in rewrites the credential as a hash
-(`LoginInteractor.upgradeLegacyCredential`), so a plaintext password cannot stay in
-a readable table simply because its owner never reopened the account.
+(`LoginInteractor.upgradeLegacyCredential`) as long as the password satisfies the
+current rule - one it would now refuse is left alone and keeps working - so a
+plaintext password cannot stay in a readable table simply because its owner never
+reopened the account.
 The publishable key is meant to ship inside a client and reaches only what row
 level security allows. A **secret** key bypasses row level security, so the app
 refuses one in either format the dashboard offers - the new `sb_secret_…` prefix
@@ -830,6 +856,36 @@ key still inherits the app's own permissions (what those are is spelled out in
 §6), which is why passwords are hashed rather than stored plainly.
 `PasswordHasherTest` pins the iteration count, the salt length and the derived key
 length, so a weaker hash cannot pass unnoticed.
+
+**One account rule.** `entity/AccountRules` is the single definition of an
+acceptable account: a username of 3 to 40 letters, digits, dots, underscores or
+hyphens, a display name of at most 60 characters, and a password of 8 to 128
+characters. It reports an `AccountRules.Refusal`, not a sentence: the entity holds
+no wording, and `use_case/accounts/AccountRefusalText` turns a reason into the one
+sentence the three pages show. `UserFactory.create` and `User.withNewPassword`
+refuse anything the rule rejects - carrying the reason in
+`InvalidAccountException` - so neither sign up nor the administrator page nor a
+password change can store an account the rule would refuse, and because the
+factory is the only enforcement point, the interactors do not repeat the check.
+Sign up offers `COACH`, `PLAYER` and `PARENT`; `Role.isSelfAssignable()` is the
+rule, the sign-up view model carries the choices, and the use case refuses `ADMIN`
+even if something calls it directly, so an administrative account comes only from
+the demo seed or from another administrator. The rule decides what may be
+*written*: login checks a typed password against the stored one and never refuses
+an account for a rule it predates, and the first sign-in re-hashes a plaintext
+credential only when the rule would accept it, so an old short password is left
+alone and keeps working. `AccountRefusalText` words every refusal through a switch
+expression with no `default`, so a reason added to the enum stops the build until
+it has a sentence. `AccountRulesTest` and `AccountRefusalTextTest` pin the
+reasons, the sentences and every boundary.
+
+**Account ports.** Each account use case asks for the capability it uses:
+`use_case.accounts.CreateAccountDataAccessInterface` (insert only),
+`GetAccountDataAccessInterface` (read one, which is all `AdminPolicy` needs) and,
+for the administrator's Create User page, `manage_users.CreateUserDataAccessInterface`
+(confirm the caller, check the name, insert, return the refreshed list). A store
+that a new account would duplicate throws `use_case.accounts.DuplicateUsernameException`
+rather than building a sentence, so the wording of a failure stays in the use case.
 
 ## 5. How to build, test and run
 
@@ -849,9 +905,10 @@ On the local file, a genuinely empty store receives the presentation dataset
 described in section 10 (`admin1`, `coach1`-`coach2`, `player1`-`player8`,
 `parent1`-`parent4`, password `pw`), and an existing store keeps its data.
 `seedDemo` refuses an existing destination. A hosted database is shared, so it
-only gets `coach1`, `player1`, `parent1`, `admin1` and a team, inserted where
-missing. The dataset's passwords are plaintext until each account first signs in,
-when login re-hashes them; the four hosted accounts are hashed as they are written.
+only gets `coach1`, `player1`, `parent1`, `admin1` (password `teampass`, hashed as
+written) and a team, inserted where missing, and only while the store holds no
+account of its own. The local dataset's passwords are stored as given: `pw` is
+shorter than the password rule allows, so sign-in does not re-hash it.
 
 To use the shared database, start the app, open **Database settings** on the
 sign-in page, paste the project URL and publishable key, test and save
@@ -885,10 +942,16 @@ sign-in page, paste the project URL and publishable key, test and save
   session changes, and a *promoted* account needs a fresh sign-in before its new
   role does anything. Outside Manage Users nothing re-checks the account, so a
   deactivated user keeps working until they log out.
-- **The last active administrator is a backstop, not a lock.** An administrator
-  cannot act on their own account, so the "one active administrator left" check is
-  only reachable when two administrators act at the same moment; the read and the
-  write are separate requests, so two simultaneous demotions can still leave none.
+- **The last active administrator is a backstop, and it is checked twice.** An
+  administrator cannot act on their own account, so the "one active administrator
+  left" check before a write is only reachable when two administrators act at the
+  same moment; the read and the write are separate requests. Because that check can
+  be raced, the interactors also look at the list they read back after the write: if
+  it holds no active administrator, they undo their own write and report the
+  refusal. Two administrators removing each other in the same moment therefore end
+  with both active again, not with nobody. What remains is a crash between the write
+  and the undo; closing that needs a constraint in Postgres, which a client of the
+  `anon` role cannot add.
 - **No delete policy** on any table: accounts are deactivated rather than deleted,
   and demo data is reset from the Supabase SQL editor.
 - **The administrator page's role check runs in the app, not in Postgres.** Every
@@ -904,33 +967,61 @@ sign-in page, paste the project URL and publishable key, test and save
   accounts), which is the migration described above.
 - **The demo accounts ship on the shared database.** The first start against a
   project inserts `coach1`, `player1`, `parent1` and `admin1`, all with password
-  `pw`, because the seed runs for a fresh store and the README needs a way to sign
-  in. That is a default administrative credential on a store anyone with the
-  publishable key can read and write: deactivate or change `admin1` before showing
-  the app outside the course, and remove the demo rows in the SQL editor when the
-  project stops being a demo.
+  `teampass`, because the README needs a way to sign in. That is a default
+  administrative credential on a store anyone with the publishable key can read and
+  write. The seed only runs while the store holds no account of its own (nothing
+  outside those four names), so once a real account exists a demo account that was
+  deleted stays deleted; before that, every start of any client re-creates what is
+  missing. Deactivate or change `admin1` before showing the app outside the course,
+  and delete the demo rows in the SQL editor after the first real account exists.
 - **Remote calls run on the Swing event thread**, like every other page. With a
   slow project or a paused one the window waits for the request (5 s to connect,
   10 s to read) instead of showing a progress state. Manage Users is the worst
-  case: one action is up to four calls in sequence (read the caller, check the
-  last administrator, write, then re-read the list), so a paused project can hold
-  the window for about a minute. A background worker for the store is the fix we
+  case: one action is up to five calls in sequence (read the caller, read the
+  account, read the list to check the last administrator, write, then re-read the
+  list), so a paused project can hold the window for well over a minute. A background worker for the store is the fix we
   would make next.
-- **Creating an account validates the username and then upserts.** Two
-  administrators submitting the same username in the same moment would have the
-  second write replace the first account's credential, because `save` is an
-  upsert. The window is milliseconds and the username is checked first; an
-  insert-only path for account creation belongs to the 4.3 pass.
-- **Password rules and sign-up are still loose.** Any non-empty password is
-  accepted and sign-up admits `ADMIN`, so the administrator page is not the only
-  route to an administrative account. Nothing caps a username or a display name
-  outside the administrator page (40 and 60 characters there), and nothing
-  restricts which characters a username may contain. That second gap is not only
-  cosmetic: a comma, parenthesis, colon or asterisk is PostgREST filter syntax, so
-  a username containing one would change what a stored lookup means
-  (`SupabaseAppDataAccessObject.selectWhere` builds `column=eq.<value>` from it).
-  One shared password policy, one character rule and a restricted sign-up belong
-  to the 4.3 validation pass, which closes all three.
+- **Creating an account is an insert, but the check and the write are still two
+  requests.** `createUser` refuses a username that is already stored - a `409`
+  from the database, a key check in the file store, reported as
+  `DuplicateUsernameException` - so two people creating the same name at the same
+  moment cannot end up with one holding the other's password: the second one is
+  told "already exists" and can pick another name.
+- **The password rule is length only.** 8 to 128 characters, with no requirement
+  for a digit or a symbol and no check against a list of common passwords, so
+  `teampass` passes and so would `password`. There is also no lockout and no rate
+  limit: a wrong password can be tried as often as someone cares to. Both are
+  recorded as gaps rather than oversights - a strength check needs a word list and
+  a lockout needs a clock and a store this app does not have yet. Sign up offers
+  `COACH`, `PLAYER` and `PARENT` only; an administrative account comes from the
+  demo seed or from another administrator.
+- **A username is restricted to letters, digits, dot, underscore and hyphen, and
+  the hosted store sends it unquoted.** `AccountRules` keeps commas, parentheses,
+  colons and asterisks out, and `PostgrestClient.where` percent-encodes every filter
+  value as one query parameter and otherwise sends it as it is, the way the
+  Supabase client libraries send an `eq` filter. PostgREST's reserved characters
+  matter inside the list forms (`in`, `or`, `and`), which this client never builds,
+  so `pat.smith` is compared as `pat.smith`. The unit tests pin what is sent; they
+  cannot show what a live project does with a dotted name, so the first live run
+  should create one and sign in with it.
+- One role per user (decision D5).
+- **The demo seed is the one business rule outside a use case.**
+  `AppBuilder.seedDemoDataIfEmpty` decides that a store with no account of its own
+  gets the four demo accounts and a team. It stays there because it must run before any page exists and only
+  for a demo; a `seed_demo_data` use case is the tidy version.
+- **The administrator view model carries the use case's row type.**
+  `ManageUsersViewModel` stores `ManageUsersOutputData.AccountData` and the page
+  imports it, so the view sees a use-case type rather than a view-model one. The
+  type holds only display fields, so nothing hidden leaks; a stricter split would
+  have the presenter copy it into a view-model row.
+- **A store failure reaches the use cases as a JDK exception.**
+  `IllegalStateException` and `UncheckedIOException` are what an interactor
+  catches; `DuplicateUsernameException` shows the shape a typed store failure
+  should have everywhere. Converting the rest touches every slice.
+- **Reading accounts still receives a port that can write.**
+  `ManageUsersDataAccessInterface` includes `updateRole` and `updateActive`, which
+  `ListAccountsInteractor` never calls. Splitting it would duplicate the
+  administrator interface for one method, so it is recorded here instead.
 - Attendance, RSVP, stats and roster management are maintained on the other
   lanes' branches and remain subject to integration and review.
 - **A hosted event save is two requests.** Saving or changing an event writes the
@@ -949,7 +1040,6 @@ sign-in page, paste the project URL and publishable key, test and save
   section.** A malformed or duplicated record in the parent-link, absence-notice or
   notification sections moves the whole file to `app-data.json.corrupt-<timestamp>`
   and starts empty, like a file that cannot be parsed, instead of stopping startup.
-- One role per user (decision D5).
 - City forecasts can differ from conditions at an exact venue. Events outside the 16-day window and missing provider values show unavailable weather.
 - Parent relationships are currently admin-controlled. The original invite/accept design remains a separate L4 product choice.
 
